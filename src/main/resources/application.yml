@@ -1,0 +1,32 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: am-i-hogu
+
+  datasource:
+    # 로컬 MySQL 연결 설정
+    url: jdbc:mysql://localhost:3306/${DB_NAME:hogu_db}?useUnicode=true&serverTimezone=Asia/Seoul
+    username: root
+    password: ${DB_ROOT_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      # Flyway가 관리하는 스키마 검증
+      ddl-auto: validate
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    # 애플리케이션 시작 시 DB 마이그레이션 실행
+    enabled: true
+    locations: classpath:db/migration
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
