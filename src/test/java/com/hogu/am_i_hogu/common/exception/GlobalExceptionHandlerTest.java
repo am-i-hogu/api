@@ -12,7 +12,7 @@ public class GlobalExceptionHandlerTest {
 
     @Test
     void returnsServerErrorForUnhandledException() {
-        Exception exception = new RuntimeException("unexpected");
+        Exception exception = new Exception();
 
         // exception이 500 응답으로 변환되는지 검증
         ResponseEntity<ErrorResponse> response =
