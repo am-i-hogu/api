@@ -1,0 +1,70 @@
+name: ♻️ Refactoring
+description: 코드 리팩토링 요청
+title: 'refactor: '
+labels: ['refactor']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        코드 리팩토링을 위한 이슈를 작성해주세요.
+
+  - type: textarea
+    id: refactor-target
+    attributes:
+      label: 리팩토링 대상
+      description: 리팩토링할 코드나 모듈을 명시해주세요.
+      placeholder: 어떤 코드를 리팩토링하고 싶으신가요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-problem
+    attributes:
+      label: 현재 문제점
+      description: 현재 코드의 문제점이나 개선이 필요한 이유를 설명해주세요.
+      placeholder: 현재 코드에 어떤 문제가 있나요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: 제안하는 해결책
+      description: 어떻게 리팩토링할 것인지 구체적인 방안을 제시해주세요.
+      placeholder: 어떤 방식으로 개선하고 싶으신가요?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: refactor-type
+    attributes:
+      label: 리팩토링 유형
+      description: 해당하는 리팩토링 유형을 선택해주세요.
+      options:
+        - label: 코드 구조 개선
+        - label: 성능 최적화
+        - label: 가독성 향상
+        - label: 중복 코드 제거
+        - label: 함수/클래스 분리
+        - label: 네이밍 개선
+        - label: 아키텍처 개선
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-benefits
+    attributes:
+      label: 기대 효과
+      description: 리팩토링 후 얻을 수 있는 이점을 설명해주세요.
+      placeholder: 리팩토링 후 어떤 개선을 기대하시나요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 추가 정보
+      description: 참고 자료, 관련 링크, 코드 예시 등을 첨부해주세요.
+      placeholder: 추가적인 정보가 있다면 여기에 작성해주세요.
+    validations:
+      required: false

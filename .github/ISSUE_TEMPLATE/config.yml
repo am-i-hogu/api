@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🙋 질문 및 운영
+    url: https://github.com/am-i-hogu/api/issues/new?template=general.yml
+    about: 버그/기능 이슈가 아닌 이슈는 General Task 템플릿을 사용해주세요.

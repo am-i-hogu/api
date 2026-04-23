@@ -1,0 +1,84 @@
+name: 🐛 Bug Report
+description: 버그 수정 요청
+title: 'fix: '
+labels: ['bug', 'fix']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        버그 수정을 위한 이슈를 작성해주세요.
+
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: 버그 설명
+      description: 발생한 버그에 대해 자세히 설명해주세요.
+      placeholder: 어떤 버그가 발생했나요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: 재현 방법
+      description: 버그를 재현할 수 있는 단계를 작성해주세요.
+      placeholder: |
+        1. 이동할 페이지
+        2. 클릭할 버튼
+        3. 입력할 값
+        4. 발생하는 오류
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: 예상 동작
+      description: 어떤 동작을 예상했는지 설명해주세요.
+      placeholder: 정상적으로 동작했다면 어떻게 되어야 하나요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: 실제 동작
+      description: 실제로 어떤 일이 일어났는지 설명해주세요.
+      placeholder: 실제로는 어떤 일이 일어났나요?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 심각도
+      description: 버그의 심각도를 선택해주세요.
+      options:
+        - Critical (서비스 중단)
+        - High (주요 기능 오류)
+        - Medium (일부 기능 오류)
+        - Low (UI/UX 문제)
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 환경 정보
+      description: 버그가 발생한 환경을 알려주세요.
+      placeholder: |
+        - OS: 
+        - Browser: 
+        - Version: 
+        - Device:
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 추가 정보
+      description: 스크린샷, 에러 로그, 관련 정보를 첨부해주세요.
+      placeholder: 추가적인 정보가 있다면 여기에 작성해주세요.
+    validations:
+      required: false
