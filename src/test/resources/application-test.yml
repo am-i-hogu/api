@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    # 테스트용 H2 인메모리 데이터베이스 사용
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop # 테스트마다 스키마 재생성
+  flyway:
+    enabled: false
