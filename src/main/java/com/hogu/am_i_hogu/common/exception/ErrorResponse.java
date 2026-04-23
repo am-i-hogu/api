@@ -11,23 +11,28 @@ public class ErrorResponse {
     private String code;
     private List<ErrorDetail> errors;
 
+    // 상세 오류 리스트가 없는 에러 응답을 위한 생성자
     public ErrorResponse(String code) {
         this.code = code;
     }
 
+    // 상세 오류 리스트가 있는 에러 응답을 위한 생성자
     public ErrorResponse(String code, List<ErrorDetail> errors) {
         this.code = code;
         this.errors = errors;
     }
 
+    // 상세 오류 리스트가 없는 에러 응답을 위한 응답 본문 생성
     public static ErrorResponse of(CommonErrorCode code) {
         return new ErrorResponse(code.getCode());
     }
 
+    // 상세 오류 리스트가 있는 에러 응답을 위한 응답 본문 생성
     public static ErrorResponse of(CommonErrorCode code, List<ErrorDetail> errors) {
         return new ErrorResponse(code.getCode(), errors);
     }
 
+    // 상세 오류 리스트 클래스
     @Getter
     public static class ErrorDetail {
         private String field;

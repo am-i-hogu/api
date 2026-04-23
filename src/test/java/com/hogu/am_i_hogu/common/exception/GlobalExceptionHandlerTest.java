@@ -14,6 +14,7 @@ public class GlobalExceptionHandlerTest {
     void returnsServerErrorForUnhandledException() {
         Exception exception = new RuntimeException("unexpected");
 
+        // exception이 500 응답으로 변환되는지 검증
         ResponseEntity<ErrorResponse> response =
                 globalExceptionHandler.handleInternalServerError(exception);
 
