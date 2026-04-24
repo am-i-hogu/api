@@ -4,7 +4,7 @@ import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 @Getter
-public enum CommonErrorCode {
+public enum CommonErrorCode implements ErrorCodeType {
     // 공통으로 사용될 에러들 Enum 타입으로 정의
     ACCESS_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "ACCESS_TOKEN_EXPIRED"),
     EMPTY_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "EMPTY_ACCESS_TOKEN"),
