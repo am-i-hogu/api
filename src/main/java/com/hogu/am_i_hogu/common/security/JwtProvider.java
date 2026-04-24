@@ -5,11 +5,16 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Date;
 
+@Component
 public class JwtProvider {
 
     // 토큰 상태 구분을 위한 enum
@@ -39,6 +44,7 @@ public class JwtProvider {
                 .compact();                         // (5) 직렬화
     }
 
+    // Access Token 검증
     public TokenValidationResult validateAccessToken(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             return TokenValidationResult.EMPTY;
@@ -55,5 +61,22 @@ public class JwtProvider {
         } catch (JwtException | IllegalArgumentException e) {
             return TokenValidationResult.INVALID;
         }
+    }
+
+    // Access Token 해독하여 Authentication으로 변환
+    public Authentication getAuthentication(String accessToken) {
+        String userId = Jwts.parser()
+                .verifyWith(secretKey)              // (1) 검증키 설정
+                .build()
+                .parseSignedClaims(accessToken)     // (2) 토큰 해석
+                .getPayload()                       // (3) 토큰 payload 얻어옴
+                .getSubject();                      // (4) 토큰 subject 얻어옴
+
+        // Authentication 객체 생성하여 반환
+        return new UsernamePasswordAuthenticationToken(
+                userId,
+                null,
+                Collections.emptyList()
+        );
     }
 }

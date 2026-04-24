@@ -1,6 +1,7 @@
 package com.hogu.am_i_hogu.common.security;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.Authentication;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
@@ -64,5 +65,20 @@ public class JwtProviderTest {
     void validateEmptyAccessTokenTest() {
         JwtProvider.TokenValidationResult result = jwtProvider.validateAccessToken(" ");
         assertThat(result).isEqualTo(JwtProvider.TokenValidationResult.EMPTY);
+    }
+
+    /**
+     * Authentication 객체 생성 테스트:
+     * userId 1로 access token 발급
+     * access token 해독하여 Authentication 생성
+     * Authentication의 principal이 1인지 확인
+     */
+    @Test
+    void getAuthentication() {
+        String accessToken = jwtProvider.createAccessToken(1L, accessTokenExpirationTime);
+        Authentication authentication = jwtProvider.getAuthentication(accessToken);
+
+        assertThat(authentication).isNotNull();
+        assertThat(authentication.getPrincipal()).isEqualTo("1");
     }
 }
