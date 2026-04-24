@@ -54,4 +54,15 @@ public class JwtProviderTest {
         JwtProvider.TokenValidationResult result = jwtProvider.validateAccessToken("invalid-access-token");
         assertThat(result).isEqualTo(JwtProvider.TokenValidationResult.INVALID);
     }
+
+    /**
+     * 비어있는 Access Token 검증 테스트:
+     * 공백으로 이루어진 문자열을 검증
+     * EMPTY를 리턴하는지 확인
+     */
+    @Test
+    void validateEmptyAccessTokenTest() {
+        JwtProvider.TokenValidationResult result = jwtProvider.validateAccessToken(" ");
+        assertThat(result).isEqualTo(JwtProvider.TokenValidationResult.EMPTY);
+    }
 }

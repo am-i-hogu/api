@@ -16,7 +16,8 @@ public class JwtProvider {
     public enum TokenValidationResult {
         VALID,      // 유효한 토큰
         EXPIRED,    // 만료된 토큰
-        INVALID     // 잘못된 토큰
+        INVALID,    // 잘못된 토큰
+        EMPTY       // 토큰 비어있음
     }
     private final SecretKey secretKey;
 
@@ -39,6 +40,9 @@ public class JwtProvider {
     }
 
     public TokenValidationResult validateAccessToken(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            return TokenValidationResult.EMPTY;
+        }
         try {
             Jwts.parser()
                 .verifyWith(secretKey)              // (1) 검증키 설정
@@ -50,7 +54,6 @@ public class JwtProvider {
             return TokenValidationResult.EXPIRED;
         } catch (JwtException | IllegalArgumentException e) {
             return TokenValidationResult.INVALID;
-
         }
     }
 }
