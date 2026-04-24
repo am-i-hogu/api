@@ -10,3 +10,5 @@ spring:
       ddl-auto: create-drop # 테스트마다 스키마 재생성
   flyway:
     enabled: false
+jwt:
+  secret: secret-key-for-jwt-provider-test-1234567890
