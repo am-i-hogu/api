@@ -9,6 +9,18 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(CustomException.class)
+    public ResponseEntity<ErrorResponse> handleCustomException(CustomException e) {
+        ErrorCodeType code = e.getCode();
+        ErrorResponse body = (e.getErrors() == null || e.getErrors().isEmpty())
+                ? ErrorResponse.of(code)
+                : ErrorResponse.of(code, e.getErrors());
+
+        return ResponseEntity
+                .status(code.getStatus())
+                .body(body);
+    }
+
     // 처리되지 않은 예외는 500 Internal Server Error로 변환
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleInternalServerError(Exception e) {

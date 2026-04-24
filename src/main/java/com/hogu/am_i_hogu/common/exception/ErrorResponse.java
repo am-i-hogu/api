@@ -14,6 +14,7 @@ public class ErrorResponse {
     // 상세 오류 리스트가 없는 에러 응답을 위한 생성자
     public ErrorResponse(String code) {
         this.code = code;
+        this.errors = null;
     }
 
     // 상세 오류 리스트가 있는 에러 응답을 위한 생성자
@@ -23,12 +24,12 @@ public class ErrorResponse {
     }
 
     // 상세 오류 리스트가 없는 에러 응답을 위한 응답 본문 생성
-    public static ErrorResponse of(CommonErrorCode code) {
+    public static ErrorResponse of(ErrorCodeType code) {
         return new ErrorResponse(code.getCode());
     }
 
     // 상세 오류 리스트가 있는 에러 응답을 위한 응답 본문 생성
-    public static ErrorResponse of(CommonErrorCode code, List<ErrorDetail> errors) {
+    public static ErrorResponse of(ErrorCodeType code, List<ErrorDetail> errors) {
         return new ErrorResponse(code.getCode(), errors);
     }
 
