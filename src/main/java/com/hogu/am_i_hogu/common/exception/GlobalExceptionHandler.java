@@ -11,7 +11,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<ErrorResponse> handleCustomException(CustomException e) {
-        ErrorCodeType code = e.getCode();
+        ErrorCodeType code = e.getErrorCode();
         ErrorResponse body = (e.getErrors() == null || e.getErrors().isEmpty())
                 ? ErrorResponse.of(code)
                 : ErrorResponse.of(code, e.getErrors());
