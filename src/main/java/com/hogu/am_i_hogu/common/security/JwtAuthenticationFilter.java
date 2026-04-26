@@ -29,34 +29,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.authenticationEntryPoint = authenticationEntryPoint;
     }
 
-    /**
-     * filter가 검증하지 않을 uri 지정
-     * - true: filter가 검증하지 않음
-     * - false: filter가 검증함
-     */
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String requestUri = request.getRequestURI();
-        String method = request.getMethod();
-
-        if (HttpMethod.GET.matches(method)) {
-            return requestUri.matches("^/api/auth/login/[^/]+$") ||         // AUTH-001 (회원가입/로그인)
-                    requestUri.matches("^/api/auth/callback/[^/]+$") ||     // AUTH-002 (OAuth2.0 callback)
-                    requestUri.equals("/api/users/check-nickname") ||             // USER-002 (닉네임 중복 확인)
-                    requestUri.equals("/api/posts") ||                            // HOME-001 (홈 화면 조회)
-                    requestUri.matches("^/api/posts/[^/]+$") ||             // POST-001 (게시물 상세 조회)
-                    requestUri.matches("^/api/posts/[^/]+/comments$");      // CI-001 (집단지성 조회)
-        }
-
-        if (HttpMethod.POST.matches(method)) {
-            return requestUri.equals("/api/auth/refresh") ||    // AUTH-003 (access token 재발급)
-                    requestUri.equals("/api/auth/logout") ||    // ACCOUNT-002 (로그아웃)
-                    requestUri.equals("/api/users");            // ONBOARDING-001 (온보딩-닉네임 설정)
-        }
-
-        return false;
-    }
-
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -73,7 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         JwtProvider.TokenValidationResult validationResult = jwtProvider.validateAccessToken(accessToken);
         if (validationResult == JwtProvider.TokenValidationResult.EMPTY) {                      // access token이 비어있는 경우
             request.setAttribute("errorCode", CommonErrorCode.EMPTY_ACCESS_TOKEN);
-            authenticationEntryPoint.commence(request, response, new BadCredentialsException("EMPTY_ACCESS_TOKEN"));
+            filterChain.doFilter(request, response);                                            // commence 호출 없이 다음 filter로 이동
             return;
         } else if (validationResult == JwtProvider.TokenValidationResult.EXPIRED) {             // access token이 만료된 경우
             request.setAttribute("errorCode", CommonErrorCode.ACCESS_TOKEN_EXPIRED);
