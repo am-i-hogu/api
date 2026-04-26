@@ -48,12 +48,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);                                            // commence 호출 없이 다음 filter로 이동
             return;
         } else if (validationResult == JwtProvider.TokenValidationResult.EXPIRED) {             // access token이 만료된 경우
-            request.setAttribute("errorCode", CommonErrorCode.ACCESS_TOKEN_EXPIRED);
-            authenticationEntryPoint.commence(request, response, new BadCredentialsException("ACCESS_TOKEN_EXPIRED"));
+            handleAccessTokenError(request, response, CommonErrorCode.ACCESS_TOKEN_EXPIRED);
             return;
         } else if (validationResult == JwtProvider.TokenValidationResult.INVALID) {             // access token이 잘못된 값인 경우
-            request.setAttribute("errorCode", CommonErrorCode.INVALID_ACCESS_TOKEN);
-            authenticationEntryPoint.commence(request, response, new BadCredentialsException("INVALID_ACCESS_TOKEN"));
+            handleAccessTokenError(request, response, CommonErrorCode.INVALID_ACCESS_TOKEN);
             return;
         }
 
@@ -79,5 +77,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String accessToken = requestHeader.substring(7);      // 헤더가 잘 들어온 경우: 토큰만 추출
         return accessToken.isBlank() ? null : accessToken;
+    }
+
+    private void handleAccessTokenError(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            CommonErrorCode errorCode
+    ) throws IOException, ServletException {
+        request.setAttribute("errorCode", errorCode);
+        authenticationEntryPoint.commence(
+                request,
+                response,
+                new BadCredentialsException(errorCode.getCode()));
     }
 }
