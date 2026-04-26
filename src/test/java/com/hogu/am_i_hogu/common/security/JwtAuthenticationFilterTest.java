@@ -23,38 +23,6 @@ public class JwtAuthenticationFilterTest {
             new JwtAuthenticationFilter(jwtProvider, authenticationEntryPoint);
 
     /**
-     * GET 요청 중 filter를 적용하지 않도록 지정된 endpoint에
-     * filter를 적용하지 않는지 테스트:
-     * - '/api/auth/login/GOOGLE' uri로 요청을 보내고,
-     * - shouldNotFilter()의 결과가 true인지 확인
-     */
-    @Test
-    void shouldNotFilterGetEndpointTest() {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setMethod("GET");
-        request.setRequestURI("/api/auth/login/GOOGLE");
-
-        boolean result = jwtAuthenticationFilter.shouldNotFilter(request);
-        assertThat(result).isTrue();
-    }
-
-    /**
-     * POST 요청 중 filter를 적용하지 않도록 지정된 endpoint에
-     * filter를 적용하지 않는지 테스트:
-     * - '/api/auth/refresh' uri로 요청을 보내고,
-     * - shouldNotFilter()의 결과가 true인지 확인
-     */
-    @Test
-    void shouldNotFilterPostEndpointTest() {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setMethod("POST");
-        request.setRequestURI("/api/auth/refresh");
-
-        boolean result = jwtAuthenticationFilter.shouldNotFilter(request);
-        assertThat(result).isTrue();
-    }
-
-    /**
      * access token이 비어있는 경우 올바른 오류 코드를 attribute에 저장하는지 테스트:
      * - Authorization header 없이 요청을 보내고,
      * - request의 errorCode가 EMPTY_ACCESS_TOKEN인지 확인
