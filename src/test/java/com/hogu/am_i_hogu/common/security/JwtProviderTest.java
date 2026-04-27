@@ -6,7 +6,8 @@ import org.springframework.security.core.Authentication;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 public class JwtProviderTest {
-    private static final String secretKey = "thisisthesecretkeyforJwtProviderTest";     // 테스트용 비밀키(32byte 이상)
+    private static final String secretKey =                                             // 테스트용 Base64 인코딩 secret
+            "5VQQMfjGcREAKxUDV+5OTdFkrFl8L7521GqCeJVesE7ZsKbAUQLk6K45dQkwHmf2jJmpbaqODszgk0uKB3NziQ==";
     private static final long accessTokenExpirationTime = 1000L * 60 * 30;              // 만료 시간 30분
 
     private final JwtProvider jwtProvider = new JwtProvider(secretKey);

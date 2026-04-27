@@ -26,6 +26,10 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+jwt:
+  # jwt secret key
+  secret: ${JWT_SECRET}
+
 logging:
   level:
     org.hibernate.SQL: DEBUG
