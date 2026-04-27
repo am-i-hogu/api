@@ -39,6 +39,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         /**
          * access token 검증
+         * - access token이 비어있다면 'errorCode'라는 이름의 속성에 코드 설정 후 다음 필터로 진행
          * - 문제가 있다면 request의 'errorCode'라는 이름의 속성으로 오류 코드 전달
          * - 문제가 없다면 다음 filter로 이동
          */
