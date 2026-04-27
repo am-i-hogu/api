@@ -10,6 +10,7 @@ public class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler globalExceptionHandler = new GlobalExceptionHandler();
 
+    // 테스트를 위한 임시 오류 코드
     private enum TestErrorCode implements ErrorCodeType {
         TEST_ERROR_CODE(HttpStatus.UNAUTHORIZED, "TEST_ERROR_CODE");
 
@@ -32,17 +33,20 @@ public class GlobalExceptionHandlerTest {
         }
     }
 
-    private static class TestDomainException extends CustomException {
-        public TestDomainException(TestErrorCode code) {
+    // 테스트를 위한 임시 Exception
+    private static class TestCustomException extends CustomException {
+        public TestCustomException(TestErrorCode code) {
             super(code);
         }
     }
 
+    /**
+     * 커스텀 예외가 공통 오류 응답으로 변환되는지 검증
+     */
     @Test
-    void domainExceptionTest() {
-        TestDomainException exception = new TestDomainException(TestErrorCode.TEST_ERROR_CODE);
+    void customExceptionTest() {
+        TestCustomException exception = new TestCustomException(TestErrorCode.TEST_ERROR_CODE);
 
-        // 도메인 예외가 공통 오류 응답으로 변환되는지 검증
         ResponseEntity<ErrorResponse> response =
                 globalExceptionHandler.handleCustomException(exception);
 
@@ -52,13 +56,16 @@ public class GlobalExceptionHandlerTest {
         assertThat(response.getBody().getErrors()).isNull();
     }
 
+    /**
+     * 처리되지 않은 예외가 500 Internal Server Error로 fallback 처리되는지 검증
+     */
     @Test
     void returnsServerErrorForUnhandledException() {
         Exception exception = new Exception();
 
         // exception이 500 응답으로 변환되는지 검증
         ResponseEntity<ErrorResponse> response =
-                globalExceptionHandler.handleInternalServerError(exception);
+                globalExceptionHandler.handleUnhandledException(exception);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody()).isNotNull();
