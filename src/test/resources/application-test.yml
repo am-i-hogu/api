@@ -11,4 +11,5 @@ spring:
   flyway:
     enabled: false
 jwt:
-  secret: secret-key-for-jwt-provider-test-1234567890
+  # jwt secret key (test 용)
+  secret: 5VQQMfjGcREAKxUDV+5OTdFkrFl8L7521GqCeJVesE7ZsKbAUQLk6K45dQkwHmf2jJmpbaqODszgk0uKB3NziQ==

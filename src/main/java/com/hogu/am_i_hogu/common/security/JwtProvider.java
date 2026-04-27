@@ -10,7 +10,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
 
@@ -26,9 +26,10 @@ public class JwtProvider {
     }
     private final SecretKey secretKey;
 
-    // secret key 값을 가져와 Key 객체로 변환
+    // secret key 값을 가져와 Base64 decode 후 Key 객체로 변환
     public JwtProvider(@Value("${jwt.secret}") String secretKey) {
-        this.secretKey = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+        byte[] keyBytes = Base64.getDecoder().decode(secretKey);
+        this.secretKey = Keys.hmacShaKeyFor(keyBytes);
     }
 
     // userId 이용해 Access Token 생성
