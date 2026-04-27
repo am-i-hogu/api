@@ -21,7 +21,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 /**
- * SecurityConfig, JwtAuthenticationFilter, JwtAuthenticationEntryPoint
+ * SecurityConfig, JwtAuthenticationFilter,
+ * JwtAuthenticationEntryPoint, JwtAccessDeniedHandler
  * 통합 테스트
  */
 @WebMvcTest
@@ -29,6 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         SecurityConfig.class,
         JwtAuthenticationFilter.class,
         JwtAuthenticationEntryPoint.class,
+        JwtAccessDeniedHandler.class,
         SecurityFlowTest.TestController.class
 })
 public class SecurityFlowTest {
@@ -50,6 +52,11 @@ public class SecurityFlowTest {
         @PostMapping("/api/posts")
         public String postPosts() {
             return "private";
+        }
+
+        @PostMapping("/api/users")
+        public String postNickname() {
+            return "anonymous";
         }
     }
 
@@ -90,5 +97,31 @@ public class SecurityFlowTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("private"));
+    }
+
+    @Test
+    void anonymousEndpoint200Test() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
+        mockMvc.perform(post("/api/users"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("anonymous"));
+    }
+    @Test
+    void anonymousEndpoint403Test() throws Exception {
+        when(jwtProvider.validateAccessToken("valid-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getAuthentication("valid-token"))
+                .thenReturn(new UsernamePasswordAuthenticationToken(
+                        "1",
+                        null,
+                        Collections.emptyList()
+                ));
+
+        mockMvc.perform(post("/api/users")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string("{\"code\":\"FORBIDDEN_ACCESS\"}"));
     }
 }
