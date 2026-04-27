@@ -28,24 +28,26 @@ public class SecurityConfig {
         return http
                 .csrf(AbstractHttpConfigurer::disable)          // CSRF 공격 방지 비활성화
                 .formLogin(AbstractHttpConfigurer::disable)     // spring security의 기본 로그인 폼 사용 비활성화
+                .logout(AbstractHttpConfigurer::disable)        // spring security의 기본 로그아웃 기능 비활성화
+                .httpBasic(AbstractHttpConfigurer::disable)     // httpBasic 비활성
                 .sessionManagement(session ->       // spring security가 session 저장하지 않도록 함
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(auth -> auth
+                        // Authentication 유무 상관 없는 경우
                         .requestMatchers(HttpMethod.GET,
-                                        "/api/users/check-nickname",
-                                        "/api/posts",
-                                        "/api/posts/*",
-                                        "/api/posts/*/comments",
-                                        "/api/auth/login/*").permitAll()
-                        .requestMatchers(HttpMethod.POST,
-                                        "/api/auth/logout",
-                                        "/api/auth/refresh").permitAll()
-                        .requestMatchers("/api/auth/**").anonymous()
-                        .requestMatchers(HttpMethod.POST,"/api/users").anonymous()
+                                        "/api/users/check-nickname",                        // USER-002: 닉네임 중복 체크
+                                        "/api/posts",                                       // HOME-001: 홈 화면 조회
+                                        "/api/posts/*",                                     // POST-001: 게시물 상세 조회
+                                        "/api/posts/*/comments").permitAll()                // CI-001: 집단지성 조회
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()   // ACCOUNT-002: 로그아웃
+                        // Authentication 없어야 하는 경우
+                        .requestMatchers("/api/auth/**",                                    // AUTH-001~AUTH-003: 소셜로그인 관련
+                                         "/api/users").anonymous()                          // ONBOARDING-001: 온보딩
+                        // Authentication 있어야 하는 경우
                         .anyRequest().authenticated()
                 )
-                .exceptionHandling(ex -> ex          // 인증 실패 시 jwtAuthenticationEntryPoint가 응답 처리
+                .exceptionHandling(ex -> ex              // 인증 실패 시 jwtAuthenticationEntryPoint가 응답 처리
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)   // 필터 추가 위치 지정
