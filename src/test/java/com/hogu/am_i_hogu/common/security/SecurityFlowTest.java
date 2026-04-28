@@ -54,6 +54,7 @@ public class SecurityFlowTest {
             return "private";
         }
 
+        // anonymous endpoint 테스트를 위한 test controller
         @PostMapping("/api/users")
         public String postNickname() {
             return "anonymous";
@@ -99,6 +100,19 @@ public class SecurityFlowTest {
                 .andExpect(content().string("private"));
     }
 
+    // anonymous endpoint: access token이 invalid하면 401 발생하는지 테스트
+    @Test
+    void anonymousEndpoint401Test() throws Exception {
+        when(jwtProvider.validateAccessToken("invalid-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.INVALID);
+
+        mockMvc.perform(post("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string("{\"code\":\"INVALID_ACCESS_TOKEN\"}"));
+    }
+
+    // anonymous endpoint: access token이 비어있을 때 접근 가능한지 테스트
     @Test
     void anonymousEndpoint200Test() throws Exception {
         when(jwtProvider.validateAccessToken(null))
@@ -108,6 +122,8 @@ public class SecurityFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string("anonymous"));
     }
+
+    // anonymous endpoint: 유효한 access token이 있으면 403 발생하는지 테스트
     @Test
     void anonymousEndpoint403Test() throws Exception {
         when(jwtProvider.validateAccessToken("valid-token"))
