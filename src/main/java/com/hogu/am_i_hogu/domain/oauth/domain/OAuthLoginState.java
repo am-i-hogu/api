@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access= AccessLevel.PROTECTED)
 @Table(name="oauth_login_states")
 public class OAuthLoginState {
-    private static final long EXPIRES_IN_MINUTES = 5;       // TODO: state 만료 시간 논의 필요
+    private static final long EXPIRES_IN_MINUTES = 5;
     @Id
     private Long id;
 
