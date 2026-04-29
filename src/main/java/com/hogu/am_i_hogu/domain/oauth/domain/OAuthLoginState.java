@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 public class OAuthLoginState {
     private static final long EXPIRES_IN_MINUTES = 5;       // TODO: state 만료 시간 논의 필요
     @Id
-    private Long id;                                        // TODO: 공통 ID 생성 전략 적용 필요
+    private Long id;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)

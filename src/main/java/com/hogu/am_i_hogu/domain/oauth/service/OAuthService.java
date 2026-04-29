@@ -1,5 +1,6 @@
 package com.hogu.am_i_hogu.domain.oauth.service;
 
+import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
@@ -17,12 +18,15 @@ public class OAuthService {
 
     private final GoogleOAuthProperties googleOAuthProperties;
     private final OAuthLoginStateRepository oauthLoginStateRepository;
+    private final TsidGenerator tsidGenerator;
 
     public OAuthService(
             GoogleOAuthProperties googleOAuthProperties,
-            OAuthLoginStateRepository oauthLoginStateRepository) {
+            OAuthLoginStateRepository oauthLoginStateRepository,
+            TsidGenerator tsidGenerator) {
         this.googleOAuthProperties = googleOAuthProperties;
         this.oauthLoginStateRepository = oauthLoginStateRepository;
+        this.tsidGenerator = tsidGenerator;
     }
 
     /**
@@ -87,11 +91,10 @@ public class OAuthService {
             String state,
             String nonce
     ) {
-        // HACK: 공통 ID 생성 전략 적용 전 임시 ID 생성
-        long tempId = System.currentTimeMillis();
+        long id = tsidGenerator.nextId();
 
         OAuthLoginState oauthLoginState = new OAuthLoginState(
-                tempId,
+                id,
                 provider,
                 state,
                 nonce,
