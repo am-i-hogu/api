@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
   jpa:
     hibernate:
       # flyway가 테이블/초기 데이터를 생성하고 hibernate는 실제 validate만 수행
