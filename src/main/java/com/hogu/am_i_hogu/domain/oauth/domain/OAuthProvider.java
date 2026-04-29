@@ -1,5 +1,8 @@
 package com.hogu.am_i_hogu.domain.oauth.domain;
 
+import com.hogu.am_i_hogu.common.exception.CustomException;
+import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
+
 public enum OAuthProvider {
     GOOGLE;
 
@@ -9,14 +12,13 @@ public enum OAuthProvider {
      *
      * @param providerName 변환할 소셜 로그인 provider 이름
      * @return 매칭되는 OAuthProvider Enum 상수
-     * @throws IllegalArgumentException 지원하지 않는 제공자 이름이 입력된 경우 발생
+     * @throws CustomException 지원하지 않는 제공자 이름이 입력된 경우 발생
      */
     public static OAuthProvider from(String providerName) {
         return switch(providerName) {
             case "GOOGLE" -> GOOGLE;
 
-            // HACK: custom exception 구현 전 임시로 IllegalArgumentException 사용
-            default -> throw new IllegalArgumentException("Unsupported provider: " + providerName);
+            default -> throw new CustomException(OAuthErrorCode.UNSUPPORTED_PROVIDER);
         };
     }
 }
