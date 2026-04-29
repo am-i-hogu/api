@@ -33,6 +33,13 @@ public class OAuthControllerTest {
     @MockitoBean
     private OAuthService oauthService;
 
+    /**
+     * 지원하는 provider로 로그인 요청 시 OAuth provider 로그인 페이지로 redirect 되는지 테스트:
+     * - access token 없이 GOOGLE 로그인 요청을 보내고,
+     * - (1) 응답 status가 302 Found인지 확인
+     * - (2) Location 헤더가 OAuthService가 반환한 URL과 같은지 확인
+     * - (3) OAuthService가 GOOGLE provider로 호출되었는지 확인
+     */
     @Test
     void redirectProviderLoginTest() throws Exception {
         when(jwtProvider.validateAccessToken(null))
@@ -50,6 +57,12 @@ public class OAuthControllerTest {
         verify(oauthService).getAuthorizationUrl(OAuthProvider.GOOGLE);
     }
 
+    /**
+     * 지원하지 않는 provider로 로그인 요청 시 400 Bad Request와 오류 응답을 반환하는지 테스트:
+     * - access token 없이 지원하지 않는 provider로 로그인 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) 응답 본문이 UNSUPPORTED_PROVIDER 오류 코드를 반환하는지 확인
+     */
     @Test
     void redirectUnsupportedProviderTest() throws Exception {
         when(jwtProvider.validateAccessToken(null))

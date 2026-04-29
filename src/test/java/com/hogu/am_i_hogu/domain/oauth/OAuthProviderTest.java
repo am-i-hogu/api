@@ -10,6 +10,11 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 public class OAuthProviderTest {
 
+    /**
+     * 유효한 provider 값 검증 테스트:
+     * 지원하는 provider 이름이 주어졌을 때
+     * 올바른 OAuthProvider Enum 상수로 변환되는지 테스트
+     */
     @Test
     void fromSupportedProviderTest() {
         OAuthProvider provider = OAuthProvider.from("GOOGLE");
@@ -17,6 +22,11 @@ public class OAuthProviderTest {
         assertThat(provider).isEqualTo(OAuthProvider.GOOGLE);
     }
 
+    /**
+     * 유효하지 않은 provider 값 검증 테스트:
+     * 지원하지 않는 provider 이름이 주어졌을 때
+     * UNSUPPORTED_PROVIDER 예외가 발생하는지 테스트
+     */
     @Test
     void fromUnsupportedProviderTest() {
         assertThatThrownBy(()->OAuthProvider.from("INVALID_PROVIDER"))

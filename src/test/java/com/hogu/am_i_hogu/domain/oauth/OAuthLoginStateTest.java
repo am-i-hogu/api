@@ -10,6 +10,13 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 public class OAuthLoginStateTest {
 
+    /**
+     * OAuthLoginState 생성 테스트:
+     * - id, provider, state, nonce, createdAt 값을 주어 객체를 생성하고,
+     * - (1) 각 필드가 전달한 값과 같은지 확인
+     * - (2) expiresAt이 createdAt 기준 5분 뒤로 설정되는지 확인
+     * - (3) consumedAt이 null로 초기화되는지 확인
+     */
     @Test
     void createOAuthLoginStateTest() {
         String state = "this-is-state-value";
