@@ -24,6 +24,15 @@ public class OAuthServiceTest {
     private final OAuthService oauthService =
             new OAuthService(googleOAuthProperties, oauthLoginStateRepository, tsidGenerator);
 
+    /**
+     * google authorization URL 생성 테스트:
+     * - google OAuth 설정값과 tsid 값을 준비하고,
+     * - (1) OAuthLoginState가 저장되는지 확인
+     * - (2) tsidGenerator를 사용해 id를 생성하는지 확인
+     * - (3) 저장된 OAuthLoginState의 id가 생성한 tsid와 같은지 확인
+     * - (4) authorization URL의 고정 query parameter가 올바른지 확인
+     * - (5) authorization URL의 state, nonce가 저장된 값과 같은지 확인
+     */
     @Test
     void getAuthorizationUrlTest() {
         when(googleOAuthProperties.getAuthorizationUri())
