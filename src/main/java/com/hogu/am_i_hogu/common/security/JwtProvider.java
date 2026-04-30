@@ -45,9 +45,14 @@ public class JwtProvider {
         return createToken(String.valueOf(userId), ACCESS_TOKEN_EXPIRATION, ACCESS_TOKEN_TYPE);
     }
 
-    // userId 이용해 Refresh Token 생성
-    public String createRefreshToken(Long userId) {
-        return createToken(String.valueOf(userId), REFRESH_TOKEN_EXPIRATION, REFRESH_TOKEN_TYPE);
+    // userId, refreshTokenId 이용해 Refresh Token 생성
+    public String createRefreshToken(Long userId, Long refreshTokenId) {
+        return createToken(
+                String.valueOf(userId),
+                REFRESH_TOKEN_EXPIRATION,
+                REFRESH_TOKEN_TYPE,
+                String.valueOf(refreshTokenId)
+        );
     }
 
     // socialAccountId 이용해 Register Token 생성
@@ -55,17 +60,28 @@ public class JwtProvider {
         return createToken(String.valueOf(socialAccountId), REGISTER_TOKEN_EXPIRATION, REGISTER_TOKEN_TYPE);
     }
 
+    // access token, register token 생성 (token id 사용하지 않음)
     private String createToken(String subject, long expirationTime, String tokenType) {
+        return createToken(subject, expirationTime, tokenType, null);
+    }
+
+    // register token 생성 (token id 사용)
+    private String createToken(String subject, long expirationTime, String tokenType, String tokenId) {
         Date now = new Date();
         Date expiration = new Date(now.getTime() + expirationTime);
 
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(subject)                   // (1) 토큰 주인 식별자
                 .claim(TOKEN_TYPE_CLAIM, tokenType) // (2) 토큰 용도 구분
                 .issuedAt(now)                      // (3) 발행 일시
                 .expiration(expiration)             // (4) 만료 일시
-                .signWith(secretKey)                // (5) 비밀키로 서명
-                .compact();                         // (6) 직렬화
+                .signWith(secretKey);               // (5) 비밀키로 서명
+
+        if (tokenId != null) {
+            builder.id(tokenId);
+        }
+
+        return builder.compact();                   // (6) 직렬화
     }
 
     // Access Token 검증
@@ -102,5 +118,16 @@ public class JwtProvider {
                 null,
                 Collections.emptyList()
         );
+    }
+
+    public Long getTokenId(String token) {
+        String tokenId = Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getId();
+
+        return Long.valueOf(tokenId);
     }
 }

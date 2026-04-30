@@ -1,8 +1,8 @@
 package com.hogu.am_i_hogu.domain.oauth.service;
 
-import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
+import com.hogu.am_i_hogu.common.security.TokenHasher;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.*;
@@ -18,8 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -36,6 +34,7 @@ public class OAuthService {
     private final TsidGenerator tsidGenerator;
     private final SocialAccountRepository socialAccountRepository;
     private final JwtProvider jwtProvider;
+    private final TokenHasher tokenHasher;
     private final RefreshTokenRepository refreshTokenRepository;
     private final RegisterSessionRepository registerSessionRepository;
 
@@ -48,6 +47,7 @@ public class OAuthService {
             TsidGenerator tsidGenerator,
             SocialAccountRepository socialAccountRepository,
             JwtProvider jwtProvider,
+            TokenHasher tokenHasher,
             RefreshTokenRepository refreshTokenRepository,
             RegisterSessionRepository registerSessionRepository) {
         this.googleOAuthProperties = googleOAuthProperties;
@@ -58,6 +58,7 @@ public class OAuthService {
         this.tsidGenerator = tsidGenerator;
         this.socialAccountRepository = socialAccountRepository;
         this.jwtProvider = jwtProvider;
+        this.tokenHasher = tokenHasher;
         this.refreshTokenRepository = refreshTokenRepository;
         this.registerSessionRepository = registerSessionRepository;
     }
@@ -191,12 +192,13 @@ public class OAuthService {
      */
     private OAuthCallbackResult handleExistingUser(SocialAccount socialAccount, LocalDateTime now) {
         Long userId = socialAccount.getUserId();
+        Long refreshTokenId = tsidGenerator.nextId();
 
-        String refreshToken = jwtProvider.createRefreshToken(userId);
+        String refreshToken = jwtProvider.createRefreshToken(userId, refreshTokenId);
         RefreshToken savedRefreshToken = new RefreshToken(
-                tsidGenerator.nextId(),
+                refreshTokenId,
                 userId,
-                hashToken(refreshToken),
+                tokenHasher.hash(refreshToken),
                 false,
                 false,
                 now
@@ -222,7 +224,7 @@ public class OAuthService {
         RegisterSession registerSession = new RegisterSession(
                 tsidGenerator.nextId(),
                 socialAccount.getId(),
-                hashToken(registerToken),
+                tokenHasher.hash(registerToken),
                 now
         );
         registerSessionRepository.save(registerSession);
@@ -252,21 +254,5 @@ public class OAuthService {
         );
 
         return socialAccountRepository.save(socialAccount);
-    }
-
-    /**
-     * DB에 저장하기 위해 토큰 hashing
-     *
-     * @param token DB에 저장할 원본 토큰 문자열
-     * @return SHA-256으로 해시한 토큰 문자열
-     */
-    private String hashToken(String token) {
-        try {
-            MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
-            byte[] hashedBytes = messageDigest.digest(token.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(hashedBytes);
-        } catch (Exception e) {
-            throw new CustomException(CommonErrorCode.SERVER_ERROR);
-        }
     }
 }
