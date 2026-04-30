@@ -1,16 +1,24 @@
 package com.hogu.am_i_hogu.domain.oauth.service;
 
+import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
+import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
-import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
-import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
+import com.hogu.am_i_hogu.domain.oauth.domain.*;
 import com.hogu.am_i_hogu.domain.oauth.dto.OAuthUserInfo;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.repository.OAuthLoginStateRepository;
+import com.hogu.am_i_hogu.domain.oauth.repository.RefreshTokenRepository;
+import com.hogu.am_i_hogu.domain.oauth.repository.RegisterSessionRepository;
+import com.hogu.am_i_hogu.domain.oauth.repository.SocialAccountRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -23,16 +31,24 @@ public class OAuthService {
     private final OAuthCallbackHandlerFactory oauthCallbackHandlerFactory;
     private final OAuthLoginStateRepository oauthLoginStateRepository;
     private final TsidGenerator tsidGenerator;
+    private final SocialAccountRepository socialAccountRepository;
+    private final JwtProvider jwtProvider;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final RegisterSessionRepository registerSessionRepository;
 
     public OAuthService(
             GoogleOAuthProperties googleOAuthProperties,
             OAuthCallbackHandlerFactory oauthCallbackHandlerFactory,
             OAuthLoginStateRepository oauthLoginStateRepository,
-            TsidGenerator tsidGenerator) {
+            TsidGenerator tsidGenerator, SocialAccountRepository socialAccountRepository, JwtProvider jwtProvider, RefreshTokenRepository refreshTokenRepository, RegisterSessionRepository registerSessionRepository) {
         this.googleOAuthProperties = googleOAuthProperties;
         this.oauthCallbackHandlerFactory = oauthCallbackHandlerFactory;
         this.oauthLoginStateRepository = oauthLoginStateRepository;
         this.tsidGenerator = tsidGenerator;
+        this.socialAccountRepository = socialAccountRepository;
+        this.jwtProvider = jwtProvider;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.registerSessionRepository = registerSessionRepository;
     }
 
     /**
@@ -122,7 +138,8 @@ public class OAuthService {
      * @param code      소셜 서버로부터 발급받은 authorization code
      * @param state     로그인 요청할 때 소셜 서버로 보냈던 state 값
      */
-    public void handleCallback(OAuthProvider provider, String code, String state) {
+    @Transactional
+    public OAuthCallbackResult handleCallback(OAuthProvider provider, String code, String state) {
         OAuthLoginState oauthLoginState = oauthLoginStateRepository.findByState(state)
                 .orElseThrow(()->new CustomException(OAuthErrorCode.INVALID_STATE));
 
@@ -137,10 +154,81 @@ public class OAuthService {
         OAuthUserInfo oauthUserInfo = oauthCallbackHandlerFactory.get(provider)
                 .handle(code, oauthLoginState);
 
-        // TODO: 회원 여부에 따라 분기
-        String providerUserId = oauthUserInfo.getProviderUserId();
+        SocialAccount socialAccount = socialAccountRepository
+                .findByProviderAndProviderUserId(
+                        oauthUserInfo.getProvider(),
+                        oauthUserInfo.getProviderUserId()
+                )
+                .orElseGet(() -> createUnlinkedSocialAccount(oauthUserInfo, now));
+
+        OAuthCallbackResult result = socialAccount.isLinked()
+                ? handleExistingUser(socialAccount, now)
+                : handleNewUser(socialAccount, now);
 
         oauthLoginState.markConsumed(now);
         oauthLoginStateRepository.save(oauthLoginState);
+
+        return result;
+    }
+
+    private OAuthCallbackResult handleExistingUser(SocialAccount socialAccount, LocalDateTime now) {
+        Long userId = socialAccount.getUserId();
+
+        String refreshToken = jwtProvider.createRefreshToken(userId);
+        RefreshToken savedRefreshToken = new RefreshToken(
+                tsidGenerator.nextId(),
+                userId,
+                hashToken(refreshToken),
+                false,
+                false,
+                now
+        );
+        refreshTokenRepository.save(savedRefreshToken);
+
+        return new OAuthCallbackResult(
+                "/oauth/callback?status=LOGIN_SUCCESS",
+                "refreshToken",
+                refreshToken
+        );
+    }
+
+    private OAuthCallbackResult handleNewUser(SocialAccount socialAccount, LocalDateTime now) {
+        String registerToken = jwtProvider.createRegisterToken(socialAccount.getId());
+        RegisterSession registerSession = new RegisterSession(
+                tsidGenerator.nextId(),
+                socialAccount.getId(),
+                hashToken(registerToken),
+                now
+        );
+        registerSessionRepository.save(registerSession);
+
+        return new OAuthCallbackResult(
+                "/onboarding",
+                "registerToken",
+                registerToken
+        );
+    }
+
+    private SocialAccount createUnlinkedSocialAccount(OAuthUserInfo oAuthUserInfo, LocalDateTime now) {
+        SocialAccount socialAccount = new SocialAccount(
+                tsidGenerator.nextId(),
+                null,
+                oAuthUserInfo.getProvider(),
+                oAuthUserInfo.getProviderUserId(),
+                null,
+                now
+        );
+
+        return socialAccountRepository.save(socialAccount);
+    }
+
+    private String hashToken(String token) {
+        try {
+            MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+            byte[] hashedBytes = messageDigest.digest(token.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(hashedBytes);
+        } catch (Exception e) {
+            throw new CustomException(CommonErrorCode.SERVER_ERROR);
+        }
     }
 }

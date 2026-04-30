@@ -1,13 +1,18 @@
 package com.hogu.am_i_hogu.domain.oauth;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
+import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
+import com.hogu.am_i_hogu.domain.oauth.domain.SocialAccount;
 import com.hogu.am_i_hogu.domain.oauth.dto.OAuthUserInfo;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.repository.OAuthLoginStateRepository;
+import com.hogu.am_i_hogu.domain.oauth.repository.RefreshTokenRepository;
+import com.hogu.am_i_hogu.domain.oauth.repository.RegisterSessionRepository;
+import com.hogu.am_i_hogu.domain.oauth.repository.SocialAccountRepository;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthCallbackHandler;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthCallbackHandlerFactory;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
@@ -31,8 +36,21 @@ public class OAuthServiceTest {
     private final OAuthCallbackHandler oauthCallbackHandler = mock(OAuthCallbackHandler.class);
     private final OAuthLoginStateRepository oauthLoginStateRepository = mock(OAuthLoginStateRepository.class);
     private final TsidGenerator tsidGenerator = mock(TsidGenerator.class);
+    private final SocialAccountRepository socialAccountRepository = mock(SocialAccountRepository.class);
+    private final JwtProvider jwtProvider = mock(JwtProvider.class);
+    private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
+    private final RegisterSessionRepository registerSessionRepository = mock(RegisterSessionRepository.class);
     private final OAuthService oauthService =
-            new OAuthService(googleOAuthProperties, oauthCallbackHandlerFactory, oauthLoginStateRepository, tsidGenerator);
+            new OAuthService(
+                    googleOAuthProperties,
+                    oauthCallbackHandlerFactory,
+                    oauthLoginStateRepository,
+                    tsidGenerator,
+                    socialAccountRepository,
+                    jwtProvider,
+                    refreshTokenRepository,
+                    registerSessionRepository
+            );
 
     /**
      * google authorization URL 생성 테스트:
@@ -203,6 +221,17 @@ public class OAuthServiceTest {
                 .thenReturn(oauthCallbackHandler);
         when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState))
                 .thenReturn(new OAuthUserInfo(OAuthProvider.GOOGLE, "google-user-id"));
+        when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "google-user-id"))
+                .thenReturn(Optional.of(new SocialAccount(
+                        1L,
+                        10L,
+                        OAuthProvider.GOOGLE,
+                        "google-user-id",
+                        LocalDateTime.now(),
+                        LocalDateTime.now()
+                )));
+        when(jwtProvider.createRefreshToken(10L))
+                .thenReturn("test-refresh-token");
 
         oauthService.handleCallback(
                 OAuthProvider.GOOGLE,
