@@ -92,7 +92,7 @@ public class OAuthControllerTest {
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
         when(oauthService.handleCallback(OAuthProvider.GOOGLE, "test-code", "test-state"))
                 .thenReturn(new OAuthCallbackResult(
-                        "/oauth/callback?status=LOGIN_SUCCESS",
+                        "http://localhost:8080/oauth/callback?status=LOGIN_SUCCESS",
                         "refreshToken",
                         "test-refresh-token"
                 ));
@@ -101,7 +101,7 @@ public class OAuthControllerTest {
                         .param("code", "test-code")
                         .param("state", "test-state"))
                 .andExpect(status().isFound())
-                .andExpect(header().string("Location", "/oauth/callback?status=LOGIN_SUCCESS"))
+                .andExpect(header().string("Location", "http://localhost:8080/oauth/callback?status=LOGIN_SUCCESS"))
                 .andExpect(header().string("Set-Cookie", "refreshToken=test-refresh-token; Path=/; HttpOnly"));
 
         verify(oauthService).handleCallback(OAuthProvider.GOOGLE, "test-code", "test-state");
