@@ -39,7 +39,7 @@ public class GoogleOAuthClient {
                     .retrieve()
                     .body(GoogleTokenResponse.class);
         } catch (RestClientResponseException e) {
-            if (e.getStatusCode().is4xxClientError()) {
+            if (e.getStatusCode().value() == 400) {
                 throw new CustomException(OAuthErrorCode.INVALID_AUTH_CODE);
             }
             throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
