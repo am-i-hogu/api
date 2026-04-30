@@ -2,6 +2,7 @@ package com.hogu.am_i_hogu.domain.oauth;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
+import com.hogu.am_i_hogu.common.security.TokenHasher;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
@@ -42,6 +43,7 @@ public class OAuthServiceTest {
     private final TsidGenerator tsidGenerator = mock(TsidGenerator.class);
     private final SocialAccountRepository socialAccountRepository = mock(SocialAccountRepository.class);
     private final JwtProvider jwtProvider = mock(JwtProvider.class);
+    private final TokenHasher tokenHasher = mock(TokenHasher.class);
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
     private final RegisterSessionRepository registerSessionRepository = mock(RegisterSessionRepository.class);
     private final OAuthService oauthService =
@@ -54,6 +56,7 @@ public class OAuthServiceTest {
                     tsidGenerator,
                     socialAccountRepository,
                     jwtProvider,
+                    tokenHasher,
                     refreshTokenRepository,
                     registerSessionRepository
             );
@@ -238,8 +241,12 @@ public class OAuthServiceTest {
                         LocalDateTime.now(),
                         LocalDateTime.now()
                 )));
-        when(jwtProvider.createRefreshToken(10L))
+        when(tsidGenerator.nextId())
+                .thenReturn(300L);
+        when(jwtProvider.createRefreshToken(10L, 300L))
                 .thenReturn("test-refresh-token");
+        when(tokenHasher.hash("test-refresh-token"))
+                .thenReturn("hashed-refresh-token");
 
         OAuthCallbackResult result = oauthService.handleCallback(
                 OAuthProvider.GOOGLE,
@@ -257,8 +264,10 @@ public class OAuthServiceTest {
         verify(oauthCallbackHandler).handle("test-auth-code", oauthLoginState);
         verify(refreshTokenRepository).save(captor.capture());
         verify(oauthLoginStateRepository).save(oauthLoginState);
+        verify(jwtProvider).createRefreshToken(10L, 300L);
         assertThat(captor.getValue().getUserId()).isEqualTo(10L);
-        assertThat(captor.getValue().getTokenHash()).isNotEqualTo("test-refresh-token");
+        assertThat(captor.getValue().getId()).isEqualTo(300L);
+        assertThat(captor.getValue().getTokenHash()).isEqualTo("hashed-refresh-token");
     }
 
     /**
@@ -293,6 +302,8 @@ public class OAuthServiceTest {
                 .thenReturn(100L, 200L);
         when(jwtProvider.createRegisterToken(100L))
                 .thenReturn("test-register-token");
+        when(tokenHasher.hash("test-register-token"))
+                .thenReturn("hashed-register-token");
 
         OAuthCallbackResult result = oauthService.handleCallback(
                 OAuthProvider.GOOGLE,
@@ -315,6 +326,6 @@ public class OAuthServiceTest {
         assertThat(socialAccountCaptor.getValue().getId()).isEqualTo(100L);
         assertThat(socialAccountCaptor.getValue().getProviderUserId()).isEqualTo("new-google-user-id");
         assertThat(registerSessionCaptor.getValue().getSocialAccountId()).isEqualTo(100L);
-        assertThat(registerSessionCaptor.getValue().getRegisterTokenHash()).isNotEqualTo("test-register-token");
+        assertThat(registerSessionCaptor.getValue().getRegisterTokenHash()).isEqualTo("hashed-register-token");
     }
 }

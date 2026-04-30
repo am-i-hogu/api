@@ -95,4 +95,18 @@ public class JwtProviderTest {
         assertThat(authentication).isNotNull();
         assertThat(authentication.getPrincipal()).isEqualTo("1");
     }
+
+    /**
+     * Refresh Token 식별자 추출 테스트:
+     * refresh token 발급 후 token id를 추출해
+     * 발급 시 넣은 식별자와 같은지 확인
+     */
+    @Test
+    void getTokenIdTest() {
+        String refreshToken = jwtProvider.createRefreshToken(1L, 100L);
+
+        Long tokenId = jwtProvider.getTokenId(refreshToken);
+
+        assertThat(tokenId).isEqualTo(100L);
+    }
 }
