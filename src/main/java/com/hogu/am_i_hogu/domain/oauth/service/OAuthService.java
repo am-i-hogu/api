@@ -3,6 +3,7 @@ package com.hogu.am_i_hogu.domain.oauth.service;
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
+import com.hogu.am_i_hogu.domain.oauth.config.RedirectProperties;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.*;
@@ -28,6 +29,7 @@ public class OAuthService {
     private final SecureRandom secureRandom = new SecureRandom();
 
     private final GoogleOAuthProperties googleOAuthProperties;
+    private final RedirectProperties redirectProperties;
     private final OAuthCallbackHandlerFactory oauthCallbackHandlerFactory;
     private final OAuthLoginStateRepository oauthLoginStateRepository;
     private final TsidGenerator tsidGenerator;
@@ -38,10 +40,16 @@ public class OAuthService {
 
     public OAuthService(
             GoogleOAuthProperties googleOAuthProperties,
+            RedirectProperties redirectProperties,
             OAuthCallbackHandlerFactory oauthCallbackHandlerFactory,
             OAuthLoginStateRepository oauthLoginStateRepository,
-            TsidGenerator tsidGenerator, SocialAccountRepository socialAccountRepository, JwtProvider jwtProvider, RefreshTokenRepository refreshTokenRepository, RegisterSessionRepository registerSessionRepository) {
+            TsidGenerator tsidGenerator,
+            SocialAccountRepository socialAccountRepository,
+            JwtProvider jwtProvider,
+            RefreshTokenRepository refreshTokenRepository,
+            RegisterSessionRepository registerSessionRepository) {
         this.googleOAuthProperties = googleOAuthProperties;
+        this.redirectProperties = redirectProperties;
         this.oauthCallbackHandlerFactory = oauthCallbackHandlerFactory;
         this.oauthLoginStateRepository = oauthLoginStateRepository;
         this.tsidGenerator = tsidGenerator;
@@ -186,7 +194,7 @@ public class OAuthService {
         refreshTokenRepository.save(savedRefreshToken);
 
         return new OAuthCallbackResult(
-                "/oauth/callback?status=LOGIN_SUCCESS",
+                redirectProperties.getLoginSuccessUri(),
                 "refreshToken",
                 refreshToken
         );
@@ -203,7 +211,7 @@ public class OAuthService {
         registerSessionRepository.save(registerSession);
 
         return new OAuthCallbackResult(
-                "/onboarding",
+                redirectProperties.getOnboardingUri(),
                 "registerToken",
                 registerToken
         );

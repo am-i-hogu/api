@@ -1,10 +1,14 @@
 package com.hogu.am_i_hogu.domain.oauth.controller;
 
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
@@ -32,6 +36,34 @@ public class OAuthController {
 
         return ResponseEntity.status(302)
                 .location(URI.create(authorizationUrl))
+                .build();
+    }
+
+    /**
+     * [AUTH-002] 소셜 로그인 callback 처리
+     *
+     * @param provider  path variable로 전달받은 소셜 로그인 provider
+     * @param code      소셜 서버로부터 전달받은 authorization code
+     * @param state     로그인 시작 시 전달했던 state 값
+     * @return '302 Found + Location 헤더 + Set-Cookie 헤더' 반환
+     */
+    @GetMapping("/api/auth/callback/{provider}")
+    public ResponseEntity<Void> handleCallback(
+            @PathVariable String provider,
+            @RequestParam String code,
+            @RequestParam String state
+    ) {
+        OAuthProvider oauthProvider = OAuthProvider.from(provider);
+        OAuthCallbackResult result = oauthService.handleCallback(oauthProvider, code, state);
+
+        ResponseCookie cookie = ResponseCookie.from(result.getCookieName(), result.getCookieValue())
+                .httpOnly(true)
+                .path("/")
+                .build();
+
+        return ResponseEntity.status(302)
+                .location(URI.create(result.getRedirectUri()))
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .build();
     }
 }
