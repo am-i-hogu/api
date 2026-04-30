@@ -10,4 +10,5 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface OAuthLoginStateRepository extends JpaRepository<OAuthLoginState, Long> {
+    OAuthLoginState findByState(Long state);
 }
