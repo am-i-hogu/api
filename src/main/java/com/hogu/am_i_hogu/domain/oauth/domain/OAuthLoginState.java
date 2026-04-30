@@ -60,7 +60,7 @@ public class OAuthLoginState {
         return consumedAt != null;
     }
 
-    public boolean hasSameNonce() {
+    public boolean hasSameNonce(String nonce) {
         return this.nonce.equals(nonce);
     }
 

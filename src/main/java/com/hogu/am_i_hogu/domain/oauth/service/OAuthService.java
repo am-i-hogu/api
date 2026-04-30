@@ -119,7 +119,7 @@ public class OAuthService {
      * @param code      소셜 서버로부터 발급받은 authorization code
      * @param state     로그인 요청할 때 소셜 서버로 보냈던 state 값
      */
-    private void handleCallback(OAuthProvider provider, String code, String state) {
+    public void handleCallback(OAuthProvider provider, String code, String state) {
         OAuthLoginState oauthLoginState = oauthLoginStateRepository.findByState(state)
                 .orElseThrow(()->new CustomException(OAuthErrorCode.INVALID_STATE));
 
