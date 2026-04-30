@@ -9,6 +9,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -16,6 +18,8 @@ import java.time.LocalDateTime;
 
 @Getter
 @Entity
+@Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "image_assets")
 public class ImageAsset {
@@ -38,7 +42,8 @@ public class ImageAsset {
     private String contentType;
 
     @Column(nullable = false)
-    private Long sizeBytes;
+    @Builder.Default
+    private Long sizeBytes = 0L;
 
     @Column(nullable = false)
     private boolean isThumbnail;
@@ -48,25 +53,4 @@ public class ImageAsset {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
-
-    public ImageAsset(
-            Long id,
-            User uploadedByUser,
-            Post post,
-            String url,
-            String contentType,
-            boolean isThumbnail,
-            Integer sortOrder,
-            LocalDateTime createdAt
-    ) {
-        this.id = id;
-        this.uploadedByUser = uploadedByUser;
-        this.post = post;
-        this.url = url;
-        this.contentType = contentType;
-        this.sizeBytes = 0L;
-        this.isThumbnail = isThumbnail;
-        this.sortOrder = sortOrder;
-        this.createdAt = createdAt;
-    }
 }

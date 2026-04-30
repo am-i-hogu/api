@@ -56,14 +56,15 @@ public class PostCreateService {
         Category category = categoryRepository.findById(request.categories().get(0)).orElseThrow();
 
         // posts.id는 TSID로 생성한다.
-        Post post = new Post(
-                tsidGenerator.nextId(),
-                writer,
-                category,
-                request.title(),
-                request.content(),
-                now
-        );
+        Post post = Post.builder()
+                .id(tsidGenerator.nextId())
+                .writer(writer)
+                .category(category)
+                .title(request.title())
+                .content(request.content())
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
         Post savedPost = postRepository.save(post);
 
         // 이미지가 전달된 경우 생성된 게시물에 연결해 image_assets에 저장한다. 빈 배열이면 저장하지 않는다.
@@ -217,16 +218,16 @@ public class PostCreateService {
             PostImageRequest image,
             LocalDateTime now
     ) {
-        return new ImageAsset(
-                tsidGenerator.nextId(),
-                writer,
-                post,
-                image.imageUrl(),
-                resolveContentType(image.imageUrl()),
-                Boolean.TRUE.equals(image.isThumbnail()),
-                image.order(),
-                now
-        );
+        return ImageAsset.builder()
+                .id(tsidGenerator.nextId())
+                .uploadedByUser(writer)
+                .post(post)
+                .url(image.imageUrl())
+                .contentType(resolveContentType(image.imageUrl()))
+                .isThumbnail(Boolean.TRUE.equals(image.isThumbnail()))
+                .sortOrder(image.order())
+                .createdAt(now)
+                .build();
     }
 
     /**

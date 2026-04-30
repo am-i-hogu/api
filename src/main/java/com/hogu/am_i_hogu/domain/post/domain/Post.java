@@ -9,6 +9,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -16,6 +18,8 @@ import java.time.LocalDateTime;
 
 @Getter
 @Entity
+@Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "posts")
 public class Post {
@@ -38,10 +42,12 @@ public class Post {
     private String content;
 
     @Column(nullable = false)
-    private Integer viewCount;
+    @Builder.Default
+    private Integer viewCount = 0;
 
     @Column(nullable = false)
-    private boolean isDeleted;
+    @Builder.Default
+    private boolean isDeleted = false;
 
     private LocalDateTime deletedAt;
 
@@ -50,24 +56,4 @@ public class Post {
 
     @Column(nullable = false)
     private LocalDateTime updatedAt;
-
-    public Post(
-            Long id,
-            User writer,
-            Category category,
-            String title,
-            String content,
-            LocalDateTime createdAt
-    ) {
-        this.id = id;
-        this.writer = writer;
-        this.category = category;
-        this.title = title;
-        this.content = content;
-        this.viewCount = 0;
-        this.isDeleted = false;
-        this.deletedAt = null;
-        this.createdAt = createdAt;
-        this.updatedAt = createdAt;
-    }
 }
