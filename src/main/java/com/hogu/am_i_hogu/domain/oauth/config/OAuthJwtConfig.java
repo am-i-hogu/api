@@ -8,6 +8,9 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 @Configuration
 public class OAuthJwtConfig {
 
+    /**
+     * Google id token 서명 검증을 위한 JwtDecoder 등록
+     */
     @Bean
     public JwtDecoder googleIdTokenJwtDecoder(GoogleOAuthProperties googleOAuthProperties) {
         return NimbusJwtDecoder.withJwkSetUri(googleOAuthProperties.getJwkSetUri()).build();

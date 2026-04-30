@@ -23,6 +23,12 @@ public class GoogleIdTokenVerifier {
         this.googleOAuthProperties = googleOAuthProperties;
     }
 
+    /**
+     * Google id token 서명 및 claim 검증
+     * @param idToken       소셜 서버로부터 받아온 idToken
+     * @param expectedNonce 우리 서버에서 발급해 저장해둔 nonce 값
+     * @return 검증이 완료된 Jwt 객체
+     */
     public Jwt verify(String idToken, String expectedNonce) {
         try {
             Jwt jwt = googleIdTokenJwtDecoder.decode(idToken);
