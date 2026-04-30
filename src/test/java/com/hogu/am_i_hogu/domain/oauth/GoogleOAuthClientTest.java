@@ -2,7 +2,7 @@ package com.hogu.am_i_hogu.domain.oauth;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
-import com.hogu.am_i_hogu.domain.oauth.dto.response.GoogleTokenResponse;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.service.GoogleOAuthClient;
 import org.junit.jupiter.api.Test;
@@ -35,7 +35,7 @@ public class GoogleOAuthClientTest {
      * - (2) tokenUri로 POST 요청하는지 확인
      * - (3) content type이 FORM_URLENCODED인지 확인
      * - (4) 요청 본문에 필요한 form parameter가 포함되는지 확인
-     * - (5) 응답 본문이 GoogleTokenResponse로 정상 반환되는지 확인
+     * - (5) 응답 본문이 TokenResponse로 정상 반환되는지 확인
      */
     @Test
     void requestTokenTest() {
@@ -44,7 +44,7 @@ public class GoogleOAuthClientTest {
         googleOAuthProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
         googleOAuthProperties.setTokenUri("https://oauth2.googleapis.com/token");
 
-        GoogleTokenResponse googleTokenResponse = mock(GoogleTokenResponse.class);
+        TokenResponse tokenResponse = mock(TokenResponse.class);
 
         when(restClientBuilder.build())
                 .thenReturn(restClient);
@@ -58,13 +58,13 @@ public class GoogleOAuthClientTest {
                 .thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.retrieve())
                 .thenReturn(responseSpec);
-        when(responseSpec.body(GoogleTokenResponse.class))
-                .thenReturn(googleTokenResponse);
+        when(responseSpec.body(TokenResponse.class))
+                .thenReturn(tokenResponse);
 
         GoogleOAuthClient googleOAuthClient =
                 new GoogleOAuthClient(googleOAuthProperties, restClientBuilder);
 
-        GoogleTokenResponse response = googleOAuthClient.requestToken("test-auth-code");
+        TokenResponse response = googleOAuthClient.requestToken("test-auth-code");
 
         ArgumentCaptor<MultiValueMap<String, String>> captor =
                 ArgumentCaptor.forClass(MultiValueMap.class);
@@ -75,7 +75,7 @@ public class GoogleOAuthClientTest {
         verify(requestBodyUriSpec).contentType(MediaType.APPLICATION_FORM_URLENCODED);
         verify(requestBodyUriSpec).body(captor.capture());
         verify(requestBodyUriSpec).retrieve();
-        verify(responseSpec).body(GoogleTokenResponse.class);
+        verify(responseSpec).body(TokenResponse.class);
 
         MultiValueMap<String, String> requestBody = captor.getValue();
 
@@ -84,7 +84,7 @@ public class GoogleOAuthClientTest {
         assertThat(requestBody.getFirst("client_secret")).isEqualTo("test-client-secret");
         assertThat(requestBody.getFirst("redirect_uri")).isEqualTo("http://localhost:8080/api/auth/callback/GOOGLE");
         assertThat(requestBody.getFirst("grant_type")).isEqualTo("authorization_code");
-        assertThat(response).isEqualTo(googleTokenResponse);
+        assertThat(response).isEqualTo(tokenResponse);
     }
 
     /**
@@ -111,7 +111,7 @@ public class GoogleOAuthClientTest {
                 .thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.retrieve())
                 .thenReturn(responseSpec);
-        when(responseSpec.body(GoogleTokenResponse.class))
+        when(responseSpec.body(TokenResponse.class))
                 .thenThrow(HttpClientErrorException.create(
                         HttpStatus.BAD_REQUEST,
                         "Bad Request",
@@ -140,6 +140,8 @@ public class GoogleOAuthClientTest {
         googleOAuthProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
         googleOAuthProperties.setTokenUri("https://oauth2.googleapis.com/token");
 
+        when(restClientBuilder.build())
+                .thenReturn(restClient);
         when(restClient.post())
                 .thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri(any(String.class)))
@@ -150,7 +152,7 @@ public class GoogleOAuthClientTest {
                 .thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.retrieve()).
                 thenReturn(responseSpec);
-        when(responseSpec.body(GoogleTokenResponse.class))
+        when(responseSpec.body(TokenResponse.class))
                 .thenThrow(HttpServerErrorException.create(
                         HttpStatus.INTERNAL_SERVER_ERROR,
                         "Internal Server Error",

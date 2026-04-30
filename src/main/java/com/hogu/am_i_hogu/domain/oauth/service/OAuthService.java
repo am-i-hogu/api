@@ -5,9 +5,9 @@ import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
+import com.hogu.am_i_hogu.domain.oauth.dto.OAuthUserInfo;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.repository.OAuthLoginStateRepository;
-import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -20,14 +20,17 @@ public class OAuthService {
     private final SecureRandom secureRandom = new SecureRandom();
 
     private final GoogleOAuthProperties googleOAuthProperties;
+    private final OAuthCallbackHandlerFactory oauthCallbackHandlerFactory;
     private final OAuthLoginStateRepository oauthLoginStateRepository;
     private final TsidGenerator tsidGenerator;
 
     public OAuthService(
             GoogleOAuthProperties googleOAuthProperties,
+            OAuthCallbackHandlerFactory oauthCallbackHandlerFactory,
             OAuthLoginStateRepository oauthLoginStateRepository,
             TsidGenerator tsidGenerator) {
         this.googleOAuthProperties = googleOAuthProperties;
+        this.oauthCallbackHandlerFactory = oauthCallbackHandlerFactory;
         this.oauthLoginStateRepository = oauthLoginStateRepository;
         this.tsidGenerator = tsidGenerator;
     }
@@ -131,7 +134,11 @@ public class OAuthService {
             throw new CustomException(OAuthErrorCode.STATE_EXPIRED);
         }
 
-        // TODO: code 가지고 token 교환해오기
+        OAuthUserInfo oauthUserInfo = oauthCallbackHandlerFactory.get(provider)
+                .handle(code, oauthLoginState);
+
+        // TODO: 회원 여부에 따라 분기
+        String providerUserId = oauthUserInfo.getProviderUserId();
 
         oauthLoginState.markConsumed(now);
         oauthLoginStateRepository.save(oauthLoginState);

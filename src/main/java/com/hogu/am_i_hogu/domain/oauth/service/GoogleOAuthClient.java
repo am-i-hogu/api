@@ -2,7 +2,7 @@ package com.hogu.am_i_hogu.domain.oauth.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
-import com.hogu.am_i_hogu.domain.oauth.dto.response.GoogleTokenResponse;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -23,7 +23,7 @@ public class GoogleOAuthClient {
         this.restClient = restClientBuilder.build();
     }
 
-    public GoogleTokenResponse requestToken(String code) {
+    public TokenResponse requestToken(String code) {
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("code", code);
         body.add("client_id", googleOAuthProperties.getClientId());
@@ -37,7 +37,7 @@ public class GoogleOAuthClient {
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .body(body)
                     .retrieve()
-                    .body(GoogleTokenResponse.class);
+                    .body(TokenResponse.class);
         } catch (RestClientResponseException e) {
             if (e.getStatusCode().value() == 400) {
                 throw new CustomException(OAuthErrorCode.INVALID_AUTH_CODE);
