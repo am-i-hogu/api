@@ -3,7 +3,6 @@ package com.hogu.am_i_hogu.domain.oauth.service;
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
-import com.hogu.am_i_hogu.domain.oauth.config.RedirectProperties;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.*;
@@ -14,6 +13,7 @@ import com.hogu.am_i_hogu.domain.oauth.repository.OAuthLoginStateRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.RefreshTokenRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.RegisterSessionRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.SocialAccountRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -29,7 +29,8 @@ public class OAuthService {
     private final SecureRandom secureRandom = new SecureRandom();
 
     private final GoogleOAuthProperties googleOAuthProperties;
-    private final RedirectProperties redirectProperties;
+    private final String onboardingUri;
+    private final String loginSuccessUri;
     private final OAuthCallbackHandlerFactory oauthCallbackHandlerFactory;
     private final OAuthLoginStateRepository oauthLoginStateRepository;
     private final TsidGenerator tsidGenerator;
@@ -40,7 +41,8 @@ public class OAuthService {
 
     public OAuthService(
             GoogleOAuthProperties googleOAuthProperties,
-            RedirectProperties redirectProperties,
+            @Value("${app.redirect.onboarding-uri}") String onboardingUri,
+            @Value("${app.redirect.login-success-uri}") String loginSuccessUri,
             OAuthCallbackHandlerFactory oauthCallbackHandlerFactory,
             OAuthLoginStateRepository oauthLoginStateRepository,
             TsidGenerator tsidGenerator,
@@ -49,7 +51,8 @@ public class OAuthService {
             RefreshTokenRepository refreshTokenRepository,
             RegisterSessionRepository registerSessionRepository) {
         this.googleOAuthProperties = googleOAuthProperties;
-        this.redirectProperties = redirectProperties;
+        this.onboardingUri = onboardingUri;
+        this.loginSuccessUri = loginSuccessUri;
         this.oauthCallbackHandlerFactory = oauthCallbackHandlerFactory;
         this.oauthLoginStateRepository = oauthLoginStateRepository;
         this.tsidGenerator = tsidGenerator;
@@ -179,6 +182,13 @@ public class OAuthService {
         return result;
     }
 
+    /**
+     * 기존 회원인 경우 refresh token 발급
+     *
+     * @param socialAccount 기존 회원과 연결된 social account 정보
+     * @param now           refresh token 발급 시각
+     * @return 로그인 성공 후 redirect/cookie 응답 정보
+     */
     private OAuthCallbackResult handleExistingUser(SocialAccount socialAccount, LocalDateTime now) {
         Long userId = socialAccount.getUserId();
 
@@ -194,12 +204,19 @@ public class OAuthService {
         refreshTokenRepository.save(savedRefreshToken);
 
         return new OAuthCallbackResult(
-                redirectProperties.getLoginSuccessUri(),
+                loginSuccessUri,
                 "refreshToken",
                 refreshToken
         );
     }
 
+    /**
+     * 신규 회원인 경우 register token 발급
+     *
+     * @param socialAccount 신규 회원의 social account 정보
+     * @param now           register token 발급 시각
+     * @return 온보딩 진행을 위한 redirect/cookie 응답 정보
+     */
     private OAuthCallbackResult handleNewUser(SocialAccount socialAccount, LocalDateTime now) {
         String registerToken = jwtProvider.createRegisterToken(socialAccount.getId());
         RegisterSession registerSession = new RegisterSession(
@@ -211,12 +228,19 @@ public class OAuthService {
         registerSessionRepository.save(registerSession);
 
         return new OAuthCallbackResult(
-                redirectProperties.getOnboardingUri(),
+                onboardingUri,
                 "registerToken",
                 registerToken
         );
     }
 
+    /**
+     * 신규 회원인 경우 social account table에 정보 생성
+     *
+     * @param oAuthUserInfo 소셜 서버로부터 확인한 사용자 식별 정보
+     * @param now           social account 생성 시각
+     * @return DB에 저장된 social account 객체
+     */
     private SocialAccount createUnlinkedSocialAccount(OAuthUserInfo oAuthUserInfo, LocalDateTime now) {
         SocialAccount socialAccount = new SocialAccount(
                 tsidGenerator.nextId(),
@@ -230,6 +254,12 @@ public class OAuthService {
         return socialAccountRepository.save(socialAccount);
     }
 
+    /**
+     * DB에 저장하기 위해 토큰 hashing
+     *
+     * @param token DB에 저장할 원본 토큰 문자열
+     * @return SHA-256으로 해시한 토큰 문자열
+     */
     private String hashToken(String token) {
         try {
             MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");

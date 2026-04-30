@@ -23,6 +23,11 @@ public class GoogleOAuthClient {
         this.restClient = restClientBuilder.build();
     }
 
+    /**
+     * authorization code를 이용해 token endpoint에 token 교환 요청
+     * @param code  소셜 서버에서 보내준 authorization code
+     * @return token endpoint로부터 받아온 token 응답 객체
+     */
     public TokenResponse requestToken(String code) {
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("code", code);

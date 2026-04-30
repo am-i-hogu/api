@@ -3,7 +3,6 @@ package com.hogu.am_i_hogu.domain.oauth;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
-import com.hogu.am_i_hogu.domain.oauth.config.RedirectProperties;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
@@ -37,7 +36,6 @@ import static org.mockito.Mockito.*;
 public class OAuthServiceTest {
 
     private final GoogleOAuthProperties googleOAuthProperties = mock(GoogleOAuthProperties.class);
-    private final RedirectProperties redirectProperties = mock(RedirectProperties.class);
     private final OAuthCallbackHandlerFactory oauthCallbackHandlerFactory = mock(OAuthCallbackHandlerFactory.class);
     private final OAuthCallbackHandler oauthCallbackHandler = mock(OAuthCallbackHandler.class);
     private final OAuthLoginStateRepository oauthLoginStateRepository = mock(OAuthLoginStateRepository.class);
@@ -49,7 +47,8 @@ public class OAuthServiceTest {
     private final OAuthService oauthService =
             new OAuthService(
                     googleOAuthProperties,
-                    redirectProperties,
+                    "http://localhost:3000/onboarding",
+                    "http://localhost:3000/oauth/callback?status=LOGIN_SUCCESS",
                     oauthCallbackHandlerFactory,
                     oauthLoginStateRepository,
                     tsidGenerator,
@@ -241,8 +240,6 @@ public class OAuthServiceTest {
                 )));
         when(jwtProvider.createRefreshToken(10L))
                 .thenReturn("test-refresh-token");
-        when(redirectProperties.getLoginSuccessUri())
-                .thenReturn("http://localhost:3000/oauth/callback?status=LOGIN_SUCCESS");
 
         OAuthCallbackResult result = oauthService.handleCallback(
                 OAuthProvider.GOOGLE,
@@ -296,8 +293,6 @@ public class OAuthServiceTest {
                 .thenReturn(100L, 200L);
         when(jwtProvider.createRegisterToken(100L))
                 .thenReturn("test-register-token");
-        when(redirectProperties.getOnboardingUri())
-                .thenReturn("http://localhost:3000/onboarding");
 
         OAuthCallbackResult result = oauthService.handleCallback(
                 OAuthProvider.GOOGLE,

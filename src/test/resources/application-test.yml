@@ -14,6 +14,11 @@ jwt:
   # jwt secret key (test 용)
   secret: 5VQQMfjGcREAKxUDV+5OTdFkrFl8L7521GqCeJVesE7ZsKbAUQLk6K45dQkwHmf2jJmpbaqODszgk0uKB3NziQ==
 
+app:
+  redirect:
+    onboarding-uri: http://localhost:8080/onboarding
+    login-success-uri: http://localhost:8080/oauth/callback?status=LOGIN_SUCCESS
+
 oauth:
   google:
     client-id: test-client-id
