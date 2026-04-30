@@ -1,10 +1,13 @@
 package com.hogu.am_i_hogu.domain.oauth.service;
 
+import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
+import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.repository.OAuthLoginStateRepository;
+import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -101,6 +104,36 @@ public class OAuthService {
                 LocalDateTime.now()
         );
 
+        oauthLoginStateRepository.save(oauthLoginState);
+    }
+
+    /**
+     * 소셜 서버로부터 code, state를 받아
+     * - state 검증
+     * - code를 이용해 소셜 서버로부터 token 발급
+     * - id-token 검증
+     * - 기존/신규 회원 분기 처리
+     * - 적절한 토큰 반환
+     *
+     * @param provider  소셜 로그인 provider
+     * @param code      소셜 서버로부터 발급받은 authorization code
+     * @param state     로그인 요청할 때 소셜 서버로 보냈던 state 값
+     */
+    private void handleCallback(OAuthProvider provider, String code, String state) {
+        OAuthLoginState oauthLoginState = oauthLoginStateRepository.findByState(state)
+                .orElseThrow(()->new CustomException(OAuthErrorCode.INVALID_STATE));
+
+        LocalDateTime now = LocalDateTime.now();
+        if (oauthLoginState.isConsumed()) {
+            throw new CustomException(OAuthErrorCode.STATE_REUSED);
+        }
+        if (oauthLoginState.isExpired(now)) {
+            throw new CustomException(OAuthErrorCode.STATE_EXPIRED);
+        }
+
+        // TODO: code 가지고 token 교환해오기
+
+        oauthLoginState.markConsumed(now);
         oauthLoginStateRepository.save(oauthLoginState);
     }
 }
