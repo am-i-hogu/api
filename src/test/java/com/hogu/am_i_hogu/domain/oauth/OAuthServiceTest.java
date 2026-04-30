@@ -1,13 +1,15 @@
 package com.hogu.am_i_hogu.domain.oauth;
 
-import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
+import com.hogu.am_i_hogu.domain.oauth.dto.OAuthUserInfo;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.repository.OAuthLoginStateRepository;
+import com.hogu.am_i_hogu.domain.oauth.service.OAuthCallbackHandler;
+import com.hogu.am_i_hogu.domain.oauth.service.OAuthCallbackHandlerFactory;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,10 +27,12 @@ import static org.mockito.Mockito.*;
 public class OAuthServiceTest {
 
     private final GoogleOAuthProperties googleOAuthProperties = mock(GoogleOAuthProperties.class);
+    private final OAuthCallbackHandlerFactory oauthCallbackHandlerFactory = mock(OAuthCallbackHandlerFactory.class);
+    private final OAuthCallbackHandler oauthCallbackHandler = mock(OAuthCallbackHandler.class);
     private final OAuthLoginStateRepository oauthLoginStateRepository = mock(OAuthLoginStateRepository.class);
     private final TsidGenerator tsidGenerator = mock(TsidGenerator.class);
     private final OAuthService oauthService =
-            new OAuthService(googleOAuthProperties, oauthLoginStateRepository, tsidGenerator);
+            new OAuthService(googleOAuthProperties, oauthCallbackHandlerFactory, oauthLoginStateRepository, tsidGenerator);
 
     /**
      * google authorization URL 생성 테스트:
@@ -145,5 +149,70 @@ public class OAuthServiceTest {
                         "expired-state-value"))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(OAuthErrorCode.STATE_EXPIRED));
+    }
+
+    /**
+     * callback handler 처리 실패 테스트:
+     * callback 처리 시 handler 처리에 실패하면
+     * INVALID_ID_TOKEN 예외가 발생하는지 확인
+     */
+    @Test
+    void invalidIdTokenTest() {
+        OAuthLoginState oauthLoginState = new OAuthLoginState(
+                1L,
+                OAuthProvider.GOOGLE,
+                "valid-state-value",
+                "test-nonce-value",
+                LocalDateTime.now()
+        );
+        when(oauthLoginStateRepository.findByState("valid-state-value"))
+                .thenReturn(Optional.of(oauthLoginState));
+        when(oauthCallbackHandlerFactory.get(OAuthProvider.GOOGLE))
+                .thenReturn(oauthCallbackHandler);
+        when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState))
+                .thenThrow(new CustomException(OAuthErrorCode.INVALID_ID_TOKEN));
+
+        assertThatThrownBy(() ->
+                oauthService.handleCallback(
+                        OAuthProvider.GOOGLE,
+                        "test-auth-code",
+                        "valid-state-value"))
+                .isInstanceOfSatisfying(CustomException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(OAuthErrorCode.INVALID_ID_TOKEN));
+    }
+
+    /**
+     * callback 처리 성공 테스트:
+     * - 유효한 state 값과 id token 검증 결과를 준비하고,
+     * - (1) provider에 맞는 callback handler를 조회하는지 확인
+     * - (2) callback handler로 provider별 callback 처리를 위임하는지 확인
+     * - (3) OAuthLoginState를 사용 처리한 뒤 저장하는지 확인
+     */
+    @Test
+    void handleCallbackSuccessTest() {
+        OAuthLoginState oauthLoginState = new OAuthLoginState(
+                1L,
+                OAuthProvider.GOOGLE,
+                "valid-state-value",
+                "test-nonce-value",
+                LocalDateTime.now()
+        );
+        when(oauthLoginStateRepository.findByState("valid-state-value"))
+                .thenReturn(Optional.of(oauthLoginState));
+        when(oauthCallbackHandlerFactory.get(OAuthProvider.GOOGLE))
+                .thenReturn(oauthCallbackHandler);
+        when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState))
+                .thenReturn(new OAuthUserInfo(OAuthProvider.GOOGLE, "google-user-id"));
+
+        oauthService.handleCallback(
+                OAuthProvider.GOOGLE,
+                "test-auth-code",
+                "valid-state-value"
+        );
+
+        assertThat(oauthLoginState.isConsumed()).isTrue();
+        verify(oauthCallbackHandlerFactory).get(OAuthProvider.GOOGLE);
+        verify(oauthCallbackHandler).handle("test-auth-code", oauthLoginState);
+        verify(oauthLoginStateRepository).save(oauthLoginState);
     }
 }

@@ -38,6 +38,8 @@ oauth:
     redirect-uri: http://localhost:8080/api/auth/callback/GOOGLE
     authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
     token-uri: https://oauth2.googleapis.com/token
+    jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+    issuer-uri: https://accounts.google.com
     scope: openid
 
 logging:
