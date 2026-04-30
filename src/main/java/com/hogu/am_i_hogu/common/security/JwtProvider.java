@@ -109,6 +109,32 @@ public class JwtProvider {
         }
     }
 
+    // register token 검증
+    public TokenValidationResult validateRegisterToken(String registerToken) {
+        if (registerToken == null || registerToken.isBlank()) {
+            return TokenValidationResult.EMPTY;
+        }
+
+        try {
+            String tokenType = Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(registerToken)
+                    .getPayload()
+                    .get(TOKEN_TYPE_CLAIM, String.class);
+
+            if (!REGISTER_TOKEN_TYPE.equals(tokenType)) {
+                return TokenValidationResult.INVALID;
+            }
+
+            return TokenValidationResult.VALID;
+        } catch (ExpiredJwtException e) {
+            return TokenValidationResult.EXPIRED;
+        } catch (JwtException | IllegalArgumentException e) {
+            return TokenValidationResult.INVALID;
+        }
+    }
+
     // Access Token 해독하여 Authentication으로 변환
     public Authentication getAuthentication(String accessToken) {
         String userId = Jwts.parser()
@@ -126,6 +152,28 @@ public class JwtProvider {
         );
     }
 
+    /**
+     * token의 subject를 얻는 메서드로,
+     * - access token: userId
+     * - refresh token: userId
+     * - register token: socialAccountId
+     * 를 얻을 수 있음
+     *
+     * @param token subject를 얻을 token
+     * @return token에서 추출한 subject (Long 타입)
+     */
+    public Long getSubjectAsLong(String token) {
+        String subject = Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getSubject();
+
+        return Long.valueOf(subject);
+    }
+
+    // refresh token에서 jti를 얻음
     public Long getTokenId(String token) {
         String tokenId = Jwts.parser()
                 .verifyWith(secretKey)
