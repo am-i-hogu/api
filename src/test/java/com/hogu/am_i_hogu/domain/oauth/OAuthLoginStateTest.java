@@ -37,4 +37,72 @@ public class OAuthLoginStateTest {
         assertThat(oauthLoginState.getExpiresAt()).isEqualTo(createdAt.plusMinutes(5));
         assertThat(oauthLoginState.getConsumedAt()).isNull();
     }
+
+    /**
+     * 만료된 state 검증 테스트:
+     * id, provider, state, nonce, createdAt 값을 주어 1시간 전에 만들어진 객체를 생성하고,
+     * isExpired()가 true를 리턴하는지 확인
+     */
+    @Test
+    void isExpiredTest() {
+        String state = "this-is-state-value";
+        String nonce = "this-is-nonce-value";
+        LocalDateTime createdAt = LocalDateTime.now().minusHours(1);
+        OAuthLoginState oauthLoginState =
+                new OAuthLoginState(1L,
+                        OAuthProvider.GOOGLE,
+                        state,
+                        nonce,
+                        createdAt);
+
+        assertThat(oauthLoginState.isExpired(LocalDateTime.now())).isTrue();
+    }
+
+    /**
+     * 사용된 state 검증 테스트:
+     * - id, provider, state, nonce, createdAt 값을 주어 객체를 생성하고,
+     * - (1) 생성 직후 isConsumed()가 false를 반환하는지 확인
+     * - (2) 사용 직후 isConsumed()가 true를 반환하는지 확인
+     */
+    @Test
+    void isConsumedTest() {
+        String state = "this-is-state-value";
+        String nonce = "this-is-nonce-value";
+        LocalDateTime createdAt = LocalDateTime.now();
+        OAuthLoginState oauthLoginState =
+                new OAuthLoginState(1L,
+                        OAuthProvider.GOOGLE,
+                        state,
+                        nonce,
+                        createdAt);
+
+        assertThat(oauthLoginState.isConsumed()).isFalse();
+
+        LocalDateTime consumedAt = LocalDateTime.now();
+        oauthLoginState.markConsumed(consumedAt);
+
+        assertThat(oauthLoginState.isConsumed()).isTrue();
+    }
+
+    /**
+     * state 사용 처리 테스트:
+     * id, provider, state, nonce, createdAt 값을 주어 객체를 생성하고,
+     * markConsumed() 호출 이후 consumedAt 필드 값이 사용 시간과 일치하는지 확인
+     */
+    @Test
+    void markConsumedTest() {
+        String state = "this-is-state-value";
+        String nonce = "this-is-nonce-value";
+        LocalDateTime createdAt = LocalDateTime.now();
+        OAuthLoginState oauthLoginState =
+                new OAuthLoginState(1L,
+                        OAuthProvider.GOOGLE,
+                        state,
+                        nonce,
+                        createdAt);
+
+        LocalDateTime consumedAt = LocalDateTime.now();
+        oauthLoginState.markConsumed(consumedAt);
+        assertThat(oauthLoginState.getConsumedAt()).isEqualTo(consumedAt);
+    }
 }
