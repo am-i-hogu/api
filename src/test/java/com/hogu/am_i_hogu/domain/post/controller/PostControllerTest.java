@@ -1,0 +1,284 @@
+package com.hogu.am_i_hogu.domain.post.controller;
+
+import com.hogu.am_i_hogu.common.security.JwtProvider;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.time.LocalDateTime;
+import java.util.Collections;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Testcontainers
+class PostControllerTest {
+
+    private static final long TEST_USER_ID = 1L;
+
+    @Container
+    static final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")
+            .withDatabaseName("am_i_hogu_post_test_db")
+            .withUsername("test_user")
+            .withPassword("test_password");
+
+    @DynamicPropertySource
+    static void configureDatasource(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", mysql::getJdbcUrl);
+        registry.add("spring.datasource.username", mysql::getUsername);
+        registry.add("spring.datasource.password", mysql::getPassword);
+        registry.add("spring.datasource.driver-class-name", mysql::getDriverClassName);
+    }
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @MockitoBean
+    private JwtProvider jwtProvider;
+
+    @BeforeEach
+    void setUp() {
+        jdbcTemplate.update("DELETE FROM image_assets");
+        jdbcTemplate.update("DELETE FROM posts");
+        jdbcTemplate.update("DELETE FROM user_hogu_stats");
+        jdbcTemplate.update("DELETE FROM users");
+
+        LocalDateTime now = LocalDateTime.now();
+        jdbcTemplate.update(
+                """
+                INSERT INTO users
+                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?)
+                """,
+                TEST_USER_ID,
+                "hogu",
+                null,
+                false,
+                null,
+                now,
+                now
+        );
+    }
+
+    // 정상 케이스: 인증된 사용자가 필수 값과 이미지 정보를 보내면 게시물이 생성되고 postId를 반환한다.
+    @Test
+    void createPostReturnsPostIdAndPersistsPost() throws Exception {
+        stubAuthenticatedUser();
+
+        String requestBody = """
+                {
+                  "title": "제목입니다",
+                  "categories": ["USED_TRADE"],
+                  "content": "본문입니다",
+                  "images": [
+                    {
+                      "imageUrl": "http://localhost/temporary/images/1/post-image.jpg",
+                      "order": 0,
+                      "isThumbnail": true
+                    }
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.postId").isNumber());
+
+        Long postId = jdbcTemplate.queryForObject(
+                "SELECT id FROM posts WHERE title = ?",
+                Long.class,
+                "제목입니다"
+        );
+        assertThat(postId).isNotNull();
+
+        Integer imageCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM image_assets WHERE post_id = ? AND is_thumbnail = TRUE",
+                Integer.class,
+                postId
+        );
+        assertThat(imageCount).isEqualTo(1);
+    }
+
+    // 정상 케이스: images가 빈 배열이면 이미지 없이 게시물을 생성하고 postId를 반환한다.
+    @Test
+    void createPostAllowsEmptyImages() throws Exception {
+        stubAuthenticatedUser();
+
+        String requestBody = """
+                {
+                  "title": "이미지 없는 글",
+                  "categories": ["USED_TRADE"],
+                  "content": "본문입니다",
+                  "images": []
+                }
+                """;
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.postId").isNumber());
+
+        Integer imageCount = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM image_assets ia
+                JOIN posts p ON ia.post_id = p.id
+                WHERE p.title = ?
+                """,
+                Integer.class,
+                "이미지 없는 글"
+        );
+        assertThat(imageCount).isZero();
+    }
+
+    // 실패 케이스: 요청 body가 없으면 400 Bad Request와 EMPTY_REQUEST_BODY를 반환한다.
+    @Test
+    void createPostRejectsEmptyRequestBody() throws Exception {
+        stubAuthenticatedUser();
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EMPTY_REQUEST_BODY"));
+    }
+
+    // 실패 케이스: 필수 필드가 비어 있으면 400 Bad Request와 필드별 오류 코드를 반환한다.
+    @Test
+    void createPostRejectsEmptyRequiredFields() throws Exception {
+        stubAuthenticatedUser();
+
+        String requestBody = """
+                {
+                  "title": "   ",
+                  "categories": [],
+                  "content": "",
+                  "images": [
+                    {
+                      "imageUrl": "",
+                      "order": 0,
+                      "isThumbnail": false
+                    }
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("title"))
+                .andExpect(jsonPath("$.errors[0].code").value("EMPTY_TITLE"))
+                .andExpect(jsonPath("$.errors[1].field").value("categories"))
+                .andExpect(jsonPath("$.errors[1].code").value("EMPTY_CATEGORIES"))
+                .andExpect(jsonPath("$.errors[2].field").value("content"))
+                .andExpect(jsonPath("$.errors[2].code").value("EMPTY_CONTENT"))
+                .andExpect(jsonPath("$.errors[3].field").value("images"))
+                .andExpect(jsonPath("$.errors[3].code").value("EMPTY_IMAGE_URL"))
+                .andExpect(jsonPath("$.errors[4].field").value("images"))
+                .andExpect(jsonPath("$.errors[4].code").value("EMPTY_THUMBNAIL"));
+    }
+
+    // 실패 케이스: 제목 길이, 카테고리, 이미지 개수, 이미지 URL이 유효하지 않으면 필드별 오류 코드를 반환한다.
+    @Test
+    void createPostRejectsInvalidFieldValues() throws Exception {
+        stubAuthenticatedUser();
+
+        String requestBody = """
+                {
+                  "title": "123456789012345678901234567890123456789012345678901",
+                  "categories": ["UNKNOWN"],
+                  "content": "본문입니다",
+                  "images": [
+                    {"imageUrl": "not-url", "order": 0, "isThumbnail": true},
+                    {"imageUrl": "http://localhost/temporary/images/2/image.jpg", "order": 1, "isThumbnail": false},
+                    {"imageUrl": "http://localhost/temporary/images/3/image.jpg", "order": 2, "isThumbnail": false},
+                    {"imageUrl": "http://localhost/temporary/images/4/image.jpg", "order": 3, "isThumbnail": false},
+                    {"imageUrl": "http://localhost/temporary/images/5/image.jpg", "order": 4, "isThumbnail": false},
+                    {"imageUrl": "http://localhost/temporary/images/6/image.jpg", "order": 5, "isThumbnail": false}
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("title"))
+                .andExpect(jsonPath("$.errors[0].code").value("TITLE_LENGTH_EXCEEDED"))
+                .andExpect(jsonPath("$.errors[1].field").value("categories"))
+                .andExpect(jsonPath("$.errors[1].code").value("INVALID_CATEGORIES"))
+                .andExpect(jsonPath("$.errors[2].field").value("images"))
+                .andExpect(jsonPath("$.errors[2].code").value("IMAGE_COUNT_EXCEEDED"))
+                .andExpect(jsonPath("$.errors[3].field").value("images"))
+                .andExpect(jsonPath("$.errors[3].code").value("INVALID_IMAGE_URL"));
+    }
+
+    // 실패 케이스: 카테고리가 2개 이상이면 단일 카테고리 정책에 따라 MULTIPLE_CATEGORIES를 반환한다.
+    @Test
+    void createPostRejectsMultipleCategories() throws Exception {
+        stubAuthenticatedUser();
+
+        String requestBody = """
+                {
+                  "title": "제목입니다",
+                  "categories": ["USED_TRADE", "CONTRACT"],
+                  "content": "본문입니다",
+                  "images": []
+                }
+                """;
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("categories"))
+                .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_CATEGORIES"));
+    }
+
+    private void stubAuthenticatedUser() {
+        when(jwtProvider.validateAccessToken("valid-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getAuthentication("valid-token"))
+                .thenReturn(new UsernamePasswordAuthenticationToken(
+                        String.valueOf(TEST_USER_ID),
+                        null,
+                        Collections.emptyList()
+                ));
+    }
+}
