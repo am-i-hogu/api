@@ -1,0 +1,70 @@
+package com.hogu.am_i_hogu.domain.oauth;
+
+import com.hogu.am_i_hogu.common.util.TsidGenerator;
+import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
+import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
+import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
+import com.hogu.am_i_hogu.domain.oauth.repository.OAuthLoginStateRepository;
+import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.mockito.Mockito.*;
+
+public class OAuthServiceTest {
+
+    private final GoogleOAuthProperties googleOAuthProperties = mock(GoogleOAuthProperties.class);
+    private final OAuthLoginStateRepository oauthLoginStateRepository = mock(OAuthLoginStateRepository.class);
+    private final TsidGenerator tsidGenerator = mock(TsidGenerator.class);
+    private final OAuthService oauthService =
+            new OAuthService(googleOAuthProperties, oauthLoginStateRepository, tsidGenerator);
+
+    /**
+     * google authorization URL 생성 테스트:
+     * - google OAuth 설정값과 tsid 값을 준비하고,
+     * - (1) OAuthLoginState가 저장되는지 확인
+     * - (2) tsidGenerator를 사용해 id를 생성하는지 확인
+     * - (3) 저장된 OAuthLoginState의 id가 생성한 tsid와 같은지 확인
+     * - (4) authorization URL의 고정 query parameter가 올바른지 확인
+     * - (5) authorization URL의 state, nonce가 저장된 값과 같은지 확인
+     */
+    @Test
+    void getAuthorizationUrlTest() {
+        when(googleOAuthProperties.getAuthorizationUri())
+                .thenReturn("https://accounts.google.com/o/oauth2/v2/auth");
+        when(googleOAuthProperties.getClientId())
+                .thenReturn("test-client-id");
+        when(googleOAuthProperties.getRedirectUri())
+                .thenReturn("http://localhost:8080/api/auth/callback/GOOGLE");
+        when(googleOAuthProperties.getScope())
+                .thenReturn("openid");
+        when(tsidGenerator.nextId())
+                .thenReturn(1L);
+
+        String authorizationUrl = oauthService.getAuthorizationUrl(OAuthProvider.GOOGLE);
+
+        ArgumentCaptor<OAuthLoginState> captor = ArgumentCaptor.forClass(OAuthLoginState.class);
+        verify(oauthLoginStateRepository).save(captor.capture());
+        verify(tsidGenerator).nextId();
+        OAuthLoginState savedState = captor.getValue();
+
+        Map<String, List<String>> params = UriComponentsBuilder
+                .fromUriString(authorizationUrl)
+                .build()
+                .getQueryParams();
+
+        assertThat(savedState.getId()).isEqualTo(1L);
+        assertThat(authorizationUrl).isNotBlank();
+        assertThat(params.get("client_id").get(0)).isEqualTo("test-client-id");
+        assertThat(params.get("response_type").get(0)).isEqualTo("code");
+        assertThat(params.get("scope").get(0)).isEqualTo("openid");
+        assertThat(params.get("redirect_uri").get(0)).isEqualTo("http://localhost:8080/api/auth/callback/GOOGLE");
+        assertThat(params.get("state").get(0)).isEqualTo(savedState.getState());
+        assertThat(params.get("nonce").get(0)).isEqualTo(savedState.getNonce());
+    }
+}
