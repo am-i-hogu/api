@@ -1,4 +1,4 @@
-package com.hogu.am_i_hogu.domain.user;
+package com.hogu.am_i_hogu.domain.auth;
 
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
@@ -9,15 +9,15 @@ import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.domain.RefreshToken;
 import com.hogu.am_i_hogu.domain.oauth.domain.RegisterSession;
 import com.hogu.am_i_hogu.domain.oauth.domain.SocialAccount;
-import com.hogu.am_i_hogu.domain.user.domain.User;
+import com.hogu.am_i_hogu.domain.auth.domain.User;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
-import com.hogu.am_i_hogu.domain.user.dto.response.OnboardingResult;
-import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
+import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResult;
+import com.hogu.am_i_hogu.domain.auth.exception.AuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.repository.RefreshTokenRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.RegisterSessionRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.SocialAccountRepository;
-import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
-import com.hogu.am_i_hogu.domain.user.service.UserService;
+import com.hogu.am_i_hogu.domain.auth.repository.UserRepository;
+import com.hogu.am_i_hogu.domain.auth.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -30,7 +30,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
-public class UserServiceTest {
+public class AuthServiceTest {
 
     private final JwtProvider jwtProvider = mock(JwtProvider.class);
     private final RegisterSessionRepository registerSessionRepository = mock(RegisterSessionRepository.class);
@@ -39,7 +39,7 @@ public class UserServiceTest {
     private final TsidGenerator tsidGenerator = mock(TsidGenerator.class);
     private final SocialAccountRepository socialAccountRepository = mock(SocialAccountRepository.class);
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
-    private final UserService userService = new UserService(
+    private final AuthService authService = new AuthService(
             jwtProvider,
             registerSessionRepository,
             userRepository,
@@ -59,9 +59,9 @@ public class UserServiceTest {
         when(jwtProvider.validateRegisterToken(null))
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
-        assertThatThrownBy(() -> userService.createUser(null, "nickname"))
+        assertThatThrownBy(() -> authService.createUser(null, "nickname"))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.EMPTY_REGISTER_TOKEN));
+                        assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.EMPTY_REGISTER_TOKEN));
     }
 
     /**
@@ -74,9 +74,9 @@ public class UserServiceTest {
         when(jwtProvider.validateRegisterToken("expired-register-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.EXPIRED);
 
-        assertThatThrownBy(() -> userService.createUser("Bearer expired-register-token", "nickname"))
+        assertThatThrownBy(() -> authService.createUser("Bearer expired-register-token", "nickname"))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.REGISTER_TOKEN_EXPIRED));
+                        assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.REGISTER_TOKEN_EXPIRED));
     }
 
     /**
@@ -89,9 +89,9 @@ public class UserServiceTest {
         when(jwtProvider.validateRegisterToken("invalid-register-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.INVALID);
 
-        assertThatThrownBy(() -> userService.createUser("Bearer invalid-register-token", "nickname"))
+        assertThatThrownBy(() -> authService.createUser("Bearer invalid-register-token", "nickname"))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.INVALID_REGISTER_TOKEN));
+                        assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_REGISTER_TOKEN));
     }
 
     /**
@@ -108,9 +108,9 @@ public class UserServiceTest {
         when(registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(100L))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.createUser("Bearer valid-register-token", "nickname"))
+        assertThatThrownBy(() -> authService.createUser("Bearer valid-register-token", "nickname"))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.INVALID_REGISTER_TOKEN));
+                        assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_REGISTER_TOKEN));
     }
 
     /**
@@ -136,9 +136,9 @@ public class UserServiceTest {
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("different-hash");
 
-        assertThatThrownBy(() -> userService.createUser("Bearer valid-register-token", "nickname"))
+        assertThatThrownBy(() -> authService.createUser("Bearer valid-register-token", "nickname"))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.INVALID_REGISTER_TOKEN));
+                        assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_REGISTER_TOKEN));
     }
 
     /**
@@ -165,9 +165,9 @@ public class UserServiceTest {
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
 
-        assertThatThrownBy(() -> userService.createUser("Bearer valid-register-token", "nickname"))
+        assertThatThrownBy(() -> authService.createUser("Bearer valid-register-token", "nickname"))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.INVALID_REGISTER_TOKEN));
+                        assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_REGISTER_TOKEN));
     }
 
     /**
@@ -193,12 +193,12 @@ public class UserServiceTest {
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
 
-        assertThatThrownBy(() -> userService.createUser("Bearer valid-register-token", " "))
+        assertThatThrownBy(() -> authService.createUser("Bearer valid-register-token", " "))
                 .isInstanceOfSatisfying(CustomException.class, exception -> {
-                    assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.INVALID_INPUT_VALUE);
+                    assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_INPUT_VALUE);
                     List<ErrorResponse.ErrorDetail> errors = exception.getErrors();
                     assertThat(errors.get(0).getField()).isEqualTo("nickname");
-                    assertThat(errors.get(0).getCode()).isEqualTo(UserErrorCode.EMPTY_NICKNAME.getCode());
+                    assertThat(errors.get(0).getCode()).isEqualTo(AuthErrorCode.EMPTY_NICKNAME.getCode());
                 });
     }
 
@@ -225,12 +225,12 @@ public class UserServiceTest {
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
 
-        assertThatThrownBy(() -> userService.createUser("Bearer valid-register-token", "민돌!"))
+        assertThatThrownBy(() -> authService.createUser("Bearer valid-register-token", "민돌!"))
                 .isInstanceOfSatisfying(CustomException.class, exception -> {
-                    assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.INVALID_INPUT_VALUE);
+                    assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_INPUT_VALUE);
                     List<ErrorResponse.ErrorDetail> errors = exception.getErrors();
                     assertThat(errors.get(0).getField()).isEqualTo("nickname");
-                    assertThat(errors.get(0).getCode()).isEqualTo(UserErrorCode.SPECIAL_CHAR_NICKNAME.getCode());
+                    assertThat(errors.get(0).getCode()).isEqualTo(AuthErrorCode.SPECIAL_CHAR_NICKNAME.getCode());
                 });
     }
 
@@ -257,12 +257,12 @@ public class UserServiceTest {
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
 
-        assertThatThrownBy(() -> userService.createUser("Bearer valid-register-token", "민"))
+        assertThatThrownBy(() -> authService.createUser("Bearer valid-register-token", "민"))
                 .isInstanceOfSatisfying(CustomException.class, exception -> {
-                    assertThat(exception.getErrorCode()).isEqualTo(UserErrorCode.INVALID_INPUT_VALUE);
+                    assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_INPUT_VALUE);
                     List<ErrorResponse.ErrorDetail> errors = exception.getErrors();
                     assertThat(errors.get(0).getField()).isEqualTo("nickname");
-                    assertThat(errors.get(0).getCode()).isEqualTo(UserErrorCode.NICKNAME_LENGTH_EXCEEDED.getCode());
+                    assertThat(errors.get(0).getCode()).isEqualTo(AuthErrorCode.NICKNAME_LENGTH_EXCEEDED.getCode());
                 });
     }
 
@@ -293,7 +293,7 @@ public class UserServiceTest {
         when(socialAccountRepository.findById(100L))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.createUser("Bearer valid-register-token", "nickname"))
+        assertThatThrownBy(() -> authService.createUser("Bearer valid-register-token", "nickname"))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(CommonErrorCode.SERVER_ERROR));
     }
@@ -318,7 +318,7 @@ public class UserServiceTest {
         SocialAccount socialAccount = new SocialAccount(
                 100L,
                 OAuthProvider.GOOGLE,
-                "google-user-id",
+                "google-auth-id",
                 LocalDateTime.now()
         );
 
@@ -341,7 +341,7 @@ public class UserServiceTest {
         when(jwtProvider.createAccessToken(10L))
                 .thenReturn("new-access-token");
 
-        OnboardingResult result = userService.createUser("Bearer valid-register-token", "nickname");
+        OnboardingResult result = authService.createUser("Bearer valid-register-token", "nickname");
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         ArgumentCaptor<RefreshToken> refreshTokenCaptor = ArgumentCaptor.forClass(RefreshToken.class);

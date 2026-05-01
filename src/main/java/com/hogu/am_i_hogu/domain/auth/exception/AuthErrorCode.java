@@ -1,11 +1,11 @@
-package com.hogu.am_i_hogu.domain.user.exception;
+package com.hogu.am_i_hogu.domain.auth.exception;
 
 import com.hogu.am_i_hogu.common.exception.ErrorCodeType;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 @Getter
-public enum UserErrorCode implements ErrorCodeType {
+public enum AuthErrorCode implements ErrorCodeType {
     INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "INVALID_INPUT_VALUE"),
     EMPTY_NICKNAME(HttpStatus.BAD_REQUEST, "EMPTY_NICKNAME"),
     SPECIAL_CHAR_NICKNAME(HttpStatus.BAD_REQUEST, "SPECIAL_CHAR_NICKNAME"),
@@ -17,7 +17,7 @@ public enum UserErrorCode implements ErrorCodeType {
     private final HttpStatus status;
     private final String code;
 
-    UserErrorCode(HttpStatus status, String code) {
+    AuthErrorCode(HttpStatus status, String code) {
         this.status = status;
         this.code = code;
     }

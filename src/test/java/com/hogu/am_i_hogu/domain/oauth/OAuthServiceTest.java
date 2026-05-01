@@ -229,7 +229,7 @@ public class OAuthServiceTest {
         SocialAccount socialAccount = new SocialAccount(
                 1L,
                 OAuthProvider.GOOGLE,
-                "google-user-id",
+                "google-auth-id",
                 LocalDateTime.now()
         );
         socialAccount.linkToUser(10L, LocalDateTime.now());
@@ -239,8 +239,8 @@ public class OAuthServiceTest {
         when(oauthCallbackHandlerFactory.get(OAuthProvider.GOOGLE))
                 .thenReturn(oauthCallbackHandler);
         when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState))
-                .thenReturn(new OAuthUserInfo(OAuthProvider.GOOGLE, "google-user-id"));
-        when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "google-user-id"))
+                .thenReturn(new OAuthUserInfo(OAuthProvider.GOOGLE, "google-auth-id"));
+        when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "google-auth-id"))
                 .thenReturn(Optional.of(socialAccount));
         when(tsidGenerator.nextId())
                 .thenReturn(300L);
@@ -294,8 +294,8 @@ public class OAuthServiceTest {
         when(oauthCallbackHandlerFactory.get(OAuthProvider.GOOGLE))
                 .thenReturn(oauthCallbackHandler);
         when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState))
-                .thenReturn(new OAuthUserInfo(OAuthProvider.GOOGLE, "new-google-user-id"));
-        when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "new-google-user-id"))
+                .thenReturn(new OAuthUserInfo(OAuthProvider.GOOGLE, "new-google-auth-id"));
+        when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "new-google-auth-id"))
                 .thenReturn(Optional.empty());
         when(socialAccountRepository.save(any(SocialAccount.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -325,7 +325,7 @@ public class OAuthServiceTest {
         verify(registerSessionRepository).save(registerSessionCaptor.capture());
         verify(oauthLoginStateRepository).save(oauthLoginState);
         assertThat(socialAccountCaptor.getValue().getId()).isEqualTo(100L);
-        assertThat(socialAccountCaptor.getValue().getProviderUserId()).isEqualTo("new-google-user-id");
+        assertThat(socialAccountCaptor.getValue().getProviderUserId()).isEqualTo("new-google-auth-id");
         assertThat(registerSessionCaptor.getValue().getSocialAccountId()).isEqualTo(100L);
         assertThat(registerSessionCaptor.getValue().getRegisterTokenHash()).isEqualTo("hashed-register-token");
     }

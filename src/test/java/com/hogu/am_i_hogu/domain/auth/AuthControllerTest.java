@@ -1,4 +1,4 @@
-package com.hogu.am_i_hogu.domain.user;
+package com.hogu.am_i_hogu.domain.auth;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.exception.ErrorResponse;
@@ -6,11 +6,10 @@ import com.hogu.am_i_hogu.common.security.JwtAccessDeniedHandler;
 import com.hogu.am_i_hogu.common.security.JwtAuthenticationEntryPoint;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.SecurityConfig;
-import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
-import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
-import com.hogu.am_i_hogu.domain.user.controller.UserController;
-import com.hogu.am_i_hogu.domain.user.dto.response.OnboardingResult;
-import com.hogu.am_i_hogu.domain.user.service.UserService;
+import com.hogu.am_i_hogu.domain.auth.exception.AuthErrorCode;
+import com.hogu.am_i_hogu.domain.auth.controller.AuthController;
+import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResult;
+import com.hogu.am_i_hogu.domain.auth.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -28,10 +27,10 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(UserController.class)
+@WebMvcTest(AuthController.class)
 @ActiveProfiles("test")
 @Import(SecurityConfig.class)
-public class UserControllerTest {
+public class AuthControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
@@ -45,7 +44,7 @@ public class UserControllerTest {
     private JwtAccessDeniedHandler jwtAccessDeniedHandler;
 
     @MockitoBean
-    private UserService userService;
+    private AuthService authService;
 
     /**
      * 온보딩 요청 성공 테스트:
@@ -61,7 +60,7 @@ public class UserControllerTest {
                 .thenReturn("register");
         when(jwtProvider.isRegisterTokenType("register"))
                 .thenReturn(true);
-        when(userService.createUser("Bearer register-token", "nickname"))
+        when(authService.createUser("Bearer register-token", "nickname"))
                 .thenReturn(new OnboardingResult("new-access-token", "new-refresh-token"));
 
         mockMvc.perform(post("/api/users")
@@ -80,7 +79,7 @@ public class UserControllerTest {
                         }
                         """));
 
-        verify(userService).createUser("Bearer register-token", "nickname");
+        verify(authService).createUser("Bearer register-token", "nickname");
     }
 
     /**
@@ -95,8 +94,8 @@ public class UserControllerTest {
                 .thenReturn("register");
         when(jwtProvider.isRegisterTokenType("register"))
                 .thenReturn(true);
-        when(userService.createUser("Bearer invalid-register-token", "nickname"))
-                .thenThrow(new CustomException(UserErrorCode.EMPTY_REGISTER_TOKEN));
+        when(authService.createUser("Bearer invalid-register-token", "nickname"))
+                .thenThrow(new CustomException(AuthErrorCode.EMPTY_REGISTER_TOKEN));
 
         mockMvc.perform(post("/api/users")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-register-token")
@@ -123,10 +122,10 @@ public class UserControllerTest {
                 .thenReturn("register");
         when(jwtProvider.isRegisterTokenType("register"))
                 .thenReturn(true);
-        when(userService.createUser("Bearer register-token", "nickname!"))
+        when(authService.createUser("Bearer register-token", "nickname!"))
                 .thenThrow(new CustomException(
-                        UserErrorCode.INVALID_INPUT_VALUE,
-                        List.of(new ErrorResponse.ErrorDetail("nickname", UserErrorCode.SPECIAL_CHAR_NICKNAME.getCode()))
+                        AuthErrorCode.INVALID_INPUT_VALUE,
+                        List.of(new ErrorResponse.ErrorDetail("nickname", AuthErrorCode.SPECIAL_CHAR_NICKNAME.getCode()))
                 ));
 
         mockMvc.perform(post("/api/users")
