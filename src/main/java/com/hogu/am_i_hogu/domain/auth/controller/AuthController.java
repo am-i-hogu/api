@@ -1,9 +1,9 @@
-package com.hogu.am_i_hogu.domain.user.controller;
+package com.hogu.am_i_hogu.domain.auth.controller;
 
-import com.hogu.am_i_hogu.domain.user.dto.request.CreateUserRequest;
-import com.hogu.am_i_hogu.domain.user.dto.response.CreateUserResponse;
-import com.hogu.am_i_hogu.domain.user.dto.response.OnboardingResult;
-import com.hogu.am_i_hogu.domain.user.service.UserService;
+import com.hogu.am_i_hogu.domain.auth.dto.request.OnboardingRequest;
+import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResponse;
+import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResult;
+import com.hogu.am_i_hogu.domain.auth.service.AuthService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
@@ -14,15 +14,15 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class UserController {
-    private final UserService userService;
+public class AuthController {
+    private final AuthService authService;
     private final boolean cookieSecure;
 
-    public UserController(
-            UserService userService,
+    public AuthController(
+            AuthService authService,
             @Value("${app.cookie.secure}") boolean cookieSecure
     ) {
-        this.userService = userService;
+        this.authService = authService;
         this.cookieSecure = cookieSecure;
     }
 
@@ -34,19 +34,19 @@ public class UserController {
      * @return refresh token, access token
      */
     @PostMapping("/api/users")
-    public ResponseEntity<CreateUserResponse> createUser(
+    public ResponseEntity<OnboardingResponse> createUser(
             @RequestHeader("Authorization") String authorizationHeader,
-            @RequestBody CreateUserRequest requestBody
+            @RequestBody OnboardingRequest requestBody
     ) {
         String nickname = requestBody.getNickname();
-        OnboardingResult result = userService.createUser(authorizationHeader, nickname);
+        OnboardingResult result = authService.createUser(authorizationHeader, nickname);
         ResponseCookie cookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
                 .httpOnly(true)
                 .secure(cookieSecure)
                 .path("/")
                 .build();
 
-        CreateUserResponse response = new CreateUserResponse(result.getAccessToken());
+        OnboardingResponse response = new OnboardingResponse(result.getAccessToken());
 
         return ResponseEntity.status(200)
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
