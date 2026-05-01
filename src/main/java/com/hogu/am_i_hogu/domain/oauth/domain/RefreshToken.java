@@ -53,7 +53,7 @@ public class RefreshToken {
         this.isRevoked = isRevoked;
         this.isRotated = isRotated;
         this.createdAt = createdAt;
-        this.expiresAt = createdAt.plusDays(7);
+        this.expiresAt = createdAt.plusDays(EXPIRES_IN_DAYS);
     }
 
     public boolean isExpired(LocalDateTime now) {
