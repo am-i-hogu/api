@@ -2,6 +2,7 @@ package com.hogu.am_i_hogu.domain.post.controller;
 
 import com.hogu.am_i_hogu.common.security.JwtAuthenticationEntryPoint;
 import com.hogu.am_i_hogu.common.security.JwtAuthenticationFilter;
+import com.hogu.am_i_hogu.common.security.JwtAccessDeniedHandler;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.SecurityConfig;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
@@ -30,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SecurityConfig.class,
         JwtAuthenticationFilter.class,
         JwtAuthenticationEntryPoint.class,
+        JwtAccessDeniedHandler.class,
         ImageUploadService.class,
         TsidGenerator.class
 })
