@@ -20,10 +20,12 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -271,6 +273,177 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_CATEGORIES"));
     }
 
+    // 정상 케이스: 비회원도 게시글 상세 정보를 조회할 수 있다.
+    @Test
+    void getPostDetailAsGuestReturnsPostDetail() throws Exception {
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+
+        jdbcTemplate.update(
+                """
+                UPDATE users
+                SET profile_image_url = ?
+                WHERE id = ?
+                """,
+                "https://example.com/asdf1234-profile.jpg",
+                TEST_USER_ID
+        );
+
+        jdbcTemplate.update(
+                """
+                INSERT INTO posts
+                    (id, writer_user_id, category_code, title, content, view_count, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                postId,
+                TEST_USER_ID,
+                "USED_TRADE",
+                "안녕하세요",
+                "본문입니다",
+                12,
+                false,
+                null,
+                now,
+                now
+        );
+
+        jdbcTemplate.update(
+                """
+                INSERT INTO image_assets
+                    (id, uploaded_by_user_id, post_id, url, content_type, size_bytes, is_thumbnail, sort_order, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                1001L,
+                TEST_USER_ID,
+                postId,
+                "https://example.com/image1.jpg",
+                "image/jpg",
+                0L,
+                true,
+                0,
+                now
+        );
+
+        jdbcTemplate.update(
+                """
+                INSERT INTO image_assets
+                    (id, uploaded_by_user_id, post_id, url, content_type, size_bytes, is_thumbnail, sort_order, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                1002L,
+                TEST_USER_ID,
+                postId,
+                "https://example.com/image2.jpg",
+                "image/jpg",
+                0L,
+                false,
+                1,
+                now
+        );
+
+        mockMvc.perform(get("/api/posts/{postId}", postId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postId").value(postId))
+                .andExpect(jsonPath("$.isMine").value(false))
+                .andExpect(jsonPath("$.categories").value(Arrays.asList("USED_TRADE")))
+                .andExpect(jsonPath("$.title").value("안녕하세요"))
+                .andExpect(jsonPath("$.createdAt").exists())
+                .andExpect(jsonPath("$.updatedAt").exists())
+                .andExpect(jsonPath("$.viewCount").value(12))
+                .andExpect(jsonPath("$.content").value("본문입니다"))
+                .andExpect(jsonPath("$.images").value(Arrays.asList(
+                        "https://example.com/image1.jpg",
+                        "https://example.com/image2.jpg"
+                )))
+                .andExpect(jsonPath("$.vote.totalVotes").value(0))
+                .andExpect(jsonPath("$.vote.yesVotes").value(0))
+                .andExpect(jsonPath("$.vote.noVotes").value(0))
+                .andExpect(jsonPath("$.vote.myVote").value("NONE"))
+                .andExpect(jsonPath("$.writer.nickname").value("hogu"))
+                .andExpect(jsonPath("$.writer.profileImageUrl").value("https://example.com/asdf1234-profile.jpg"));
+    }
+
+    // 실패 케이스: 존재하지 않는 게시글을 조회하면 404 Not Found와 POST_NOT_FOUND를 반환한다.
+    @Test
+    void getPostDetailRejectNotFoundPost() throws Exception {
+        Long notFoundPostId = 9999L;
+
+        mockMvc.perform(get("/api/posts/{postId}", notFoundPostId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+    }
+
+    // 실패 케이스: 삭제된 게시글을 조회하면 404 Not Found와 POST_ALREADY_DELETED를 반환한다.
+    @Test
+    void getPostDetailRejectsDeletedPost() throws Exception {
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+
+        jdbcTemplate.update(
+                """
+                INSERT INTO posts
+                    (id, writer_user_id, category_code, title, content, view_count, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                postId,
+                TEST_USER_ID,
+                "USED_TRADE",
+                "삭제된 글입니다",
+                "본문입니다",
+                0,
+                true,
+                now,
+                now,
+                now
+        );
+
+        mockMvc.perform(get("/api/posts/{postId}", postId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_ALREADY_DELETED"));
+    }
+
+    // 정상 케이스: 작성자가 본인이 작성한 게시글 조회시, `isMine`을 `true`로 반환한다.
+    @Test
+    void getPostDetailAsWriterReturnsIsMineTrue() throws Exception {
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+
+        jdbcTemplate.update(
+                """
+                INSERT INTO posts
+                    (id, writer_user_id, category_code, title, content, view_count, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                postId,
+                TEST_USER_ID,
+                "USED_TRADE",
+                "내가 쓴 글",
+                "본문입니다",
+                12,
+                false,
+                null,
+                now,
+                now
+        );
+
+        stubAuthenticatedUser();
+
+        mockMvc.perform(get("/api/posts/{postId}", postId)
+                        .header("Authorization", "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postId").value(postId))
+                .andExpect(jsonPath("$.isMine").value(true));
+    }
+
+    /**
+     * 테스트에서 사용할 가짜 로그인 사용자를 설정한다.
+     * Authorization 헤더에 "Bearer valid-token"이 들어오면 TEST_USER_ID 사용자로 인증된 상태가 된다.
+     */
     private void stubAuthenticatedUser() {
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
