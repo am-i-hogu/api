@@ -44,7 +44,9 @@ oauth:
     authorization-uri: https://accounts.google.com/o/oauth2/v2/auth
     token-uri: https://oauth2.googleapis.com/token
     jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
-    issuer-uri: https://accounts.google.com
+    issuer-uris:
+      - https://accounts.google.com
+      - accounts.goole.com
     scope: openid
 
 logging:
