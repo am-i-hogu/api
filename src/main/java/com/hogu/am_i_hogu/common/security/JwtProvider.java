@@ -90,11 +90,17 @@ public class JwtProvider {
             return TokenValidationResult.EMPTY;
         }
         try {
-            Jwts.parser()
-                .verifyWith(secretKey)              // (1) 검증키 설정
-                .build()
-                .parseSignedClaims(accessToken)     // (2) 토큰 해석, 서명 검증
-                .getPayload();                      // (3) 토큰의 데이터 추출(userId)
+            String tokenType = Jwts.parser()
+                    .verifyWith(secretKey)              // (1) 검증키 설정
+                    .build()
+                    .parseSignedClaims(accessToken)     // (2) 토큰 해석, 서명 검증
+                    .getPayload()
+                    .get(TOKEN_TYPE_CLAIM, String.class);
+
+            if (!ACCESS_TOKEN_TYPE.equals(tokenType)) {
+                return TokenValidationResult.INVALID;
+            }
+
             return TokenValidationResult.VALID;
         } catch (ExpiredJwtException e) {
             return TokenValidationResult.EXPIRED;
