@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public record PostDetailResponse(
-        Long PostId,
+        Long postId,
         Boolean isMine,
         List<String> categories,
         String title,
