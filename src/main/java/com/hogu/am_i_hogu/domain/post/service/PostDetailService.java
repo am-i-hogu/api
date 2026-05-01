@@ -91,7 +91,7 @@ public class PostDetailService {
      * @return 작성자 본인이면 true, 아니면 false
      */
     private boolean isMine(Post post, Long viewerUserId) {
-        return post.getWriter().getId().equals(viewerUserId);
+        return viewerUserId != null && post.getWriter().getId().equals(viewerUserId);
     }
 
     /**
