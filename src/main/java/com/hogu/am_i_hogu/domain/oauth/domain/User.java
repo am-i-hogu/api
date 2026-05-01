@@ -34,4 +34,19 @@ public class User {
 
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    public User(
+            Long id,
+            String nickname,
+            boolean isDeleted,
+            LocalDateTime createdAt
+    ) {
+        this.id = id;
+        this.nickname = nickname;
+        this.profileImageUrl = null;
+        this.isDeleted = isDeleted;
+        this.deletedAt = null;
+        this.createdAt = createdAt;
+        this.updatedAt = createdAt;
+    }
 }
