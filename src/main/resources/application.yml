@@ -48,7 +48,7 @@ oauth:
     jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
     issuer-uris:
       - https://accounts.google.com
-      - accounts.goolge.com
+      - accounts.google.com
     scope: openid
 
 logging:
