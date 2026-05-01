@@ -43,15 +43,13 @@ public class RefreshToken {
             Long id,
             Long userId,
             String tokenHash,
-            boolean isRevoked,
-            boolean isRotated,
             LocalDateTime createdAt
     ) {
         this.id = id;
         this.userId = userId;
         this.tokenHash = tokenHash;
-        this.isRevoked = isRevoked;
-        this.isRotated = isRotated;
+        this.isRevoked = false;
+        this.isRotated = false;
         this.createdAt = createdAt;
         this.expiresAt = createdAt.plusDays(EXPIRES_IN_DAYS);
     }

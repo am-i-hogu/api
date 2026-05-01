@@ -226,6 +226,14 @@ public class OAuthServiceTest {
                 "test-nonce-value",
                 LocalDateTime.now()
         );
+        SocialAccount socialAccount = new SocialAccount(
+                1L,
+                OAuthProvider.GOOGLE,
+                "google-user-id",
+                LocalDateTime.now()
+        );
+        socialAccount.linkToUser(10L, LocalDateTime.now());
+
         when(oauthLoginStateRepository.findByState("valid-state-value"))
                 .thenReturn(Optional.of(oauthLoginState));
         when(oauthCallbackHandlerFactory.get(OAuthProvider.GOOGLE))
@@ -233,14 +241,7 @@ public class OAuthServiceTest {
         when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState))
                 .thenReturn(new OAuthUserInfo(OAuthProvider.GOOGLE, "google-user-id"));
         when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "google-user-id"))
-                .thenReturn(Optional.of(new SocialAccount(
-                        1L,
-                        10L,
-                        OAuthProvider.GOOGLE,
-                        "google-user-id",
-                        LocalDateTime.now(),
-                        LocalDateTime.now()
-                )));
+                .thenReturn(Optional.of(socialAccount));
         when(tsidGenerator.nextId())
                 .thenReturn(300L);
         when(jwtProvider.createRefreshToken(10L, 300L))

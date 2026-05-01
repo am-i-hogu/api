@@ -36,17 +36,13 @@ public class SocialAccount {
 
     public SocialAccount(
             Long id,
-            Long userId,
             OAuthProvider provider,
             String providerUserId,
-            LocalDateTime linkedAt,
             LocalDateTime createdAt
     ) {
         this.id = id;
-        this.userId = userId;
         this.provider = provider;
         this.providerUserId = providerUserId;
-        this.linkedAt = linkedAt;
         this.createdAt = createdAt;
     }
 
