@@ -65,7 +65,7 @@ public class JwtProvider {
         return createToken(subject, expirationTime, tokenType, null);
     }
 
-    // register token 생성 (token id 사용)
+    // refresh token 생성 (token id 사용)
     private String createToken(String subject, long expirationTime, String tokenType, String tokenId) {
         Date now = new Date();
         Date expiration = new Date(now.getTime() + expirationTime);
