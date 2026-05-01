@@ -20,7 +20,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -348,16 +347,14 @@ class PostControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(postId))
                 .andExpect(jsonPath("$.isMine").value(false))
-                .andExpect(jsonPath("$.categories").value(Arrays.asList("USED_TRADE")))
+                .andExpect(jsonPath("$.categories[0]").value("USED_TRADE"))
                 .andExpect(jsonPath("$.title").value("안녕하세요"))
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists())
                 .andExpect(jsonPath("$.viewCount").value(12))
                 .andExpect(jsonPath("$.content").value("본문입니다"))
-                .andExpect(jsonPath("$.images").value(Arrays.asList(
-                        "https://example.com/image1.jpg",
-                        "https://example.com/image2.jpg"
-                )))
+                .andExpect(jsonPath("$.images[0]").value("https://example.com/image1.jpg"))
+                .andExpect(jsonPath("$.images[1]").value("https://example.com/image2.jpg"))
                 .andExpect(jsonPath("$.vote.totalVotes").value(0))
                 .andExpect(jsonPath("$.vote.yesVotes").value(0))
                 .andExpect(jsonPath("$.vote.noVotes").value(0))
