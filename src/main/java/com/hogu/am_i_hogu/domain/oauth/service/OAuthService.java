@@ -199,8 +199,6 @@ public class OAuthService {
                 refreshTokenId,
                 userId,
                 tokenHasher.hash(refreshToken),
-                false,
-                false,
                 now
         );
         refreshTokenRepository.save(savedRefreshToken);
@@ -246,10 +244,8 @@ public class OAuthService {
     private SocialAccount createUnlinkedSocialAccount(OAuthUserInfo oAuthUserInfo, LocalDateTime now) {
         SocialAccount socialAccount = new SocialAccount(
                 tsidGenerator.nextId(),
-                null,
                 oAuthUserInfo.getProvider(),
                 oAuthUserInfo.getProviderUserId(),
-                null,
                 now
         );
 
