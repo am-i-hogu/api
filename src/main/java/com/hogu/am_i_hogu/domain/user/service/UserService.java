@@ -1,4 +1,4 @@
-package com.hogu.am_i_hogu.domain.oauth.service;
+package com.hogu.am_i_hogu.domain.user.service;
 
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
@@ -9,13 +9,13 @@ import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.domain.RefreshToken;
 import com.hogu.am_i_hogu.domain.oauth.domain.RegisterSession;
 import com.hogu.am_i_hogu.domain.oauth.domain.SocialAccount;
-import com.hogu.am_i_hogu.domain.oauth.domain.User;
-import com.hogu.am_i_hogu.domain.oauth.dto.response.OnboardingResult;
-import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
+import com.hogu.am_i_hogu.domain.user.domain.User;
+import com.hogu.am_i_hogu.domain.user.dto.response.OnboardingResult;
+import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.repository.RefreshTokenRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.RegisterSessionRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.SocialAccountRepository;
-import com.hogu.am_i_hogu.domain.oauth.repository.UserRepository;
+import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-public class OnboardingService {
+public class UserService {
 
     private final JwtProvider jwtProvider;
     private final RegisterSessionRepository registerSessionRepository;
@@ -34,7 +34,7 @@ public class OnboardingService {
     private final SocialAccountRepository socialAccountRepository;
     private final RefreshTokenRepository refreshTokenRepository;
 
-    public OnboardingService(
+    public UserService(
             JwtProvider jwtProvider,
             RegisterSessionRepository registerSessionRepository,
             UserRepository userRepository,
@@ -71,11 +71,11 @@ public class OnboardingService {
         JwtProvider.TokenValidationResult validationResult = jwtProvider.validateRegisterToken(registerToken);
 
         if (validationResult == JwtProvider.TokenValidationResult.EMPTY) {                      // register token이 비어있는 경우
-            throw new CustomException(OAuthErrorCode.EMPTY_REGISTER_TOKEN);
+            throw new CustomException(UserErrorCode.EMPTY_REGISTER_TOKEN);
         } else if (validationResult == JwtProvider.TokenValidationResult.EXPIRED) {             // register token이 만료된 경우
-            throw new CustomException(OAuthErrorCode.REGISTER_TOKEN_EXPIRED);
+            throw new CustomException(UserErrorCode.REGISTER_TOKEN_EXPIRED);
         } else if (validationResult == JwtProvider.TokenValidationResult.INVALID) {             // register token이 잘못된 값인 경우
-            throw new CustomException(OAuthErrorCode.INVALID_REGISTER_TOKEN);
+            throw new CustomException(UserErrorCode.INVALID_REGISTER_TOKEN);
         }
 
         return registerToken;
@@ -98,13 +98,13 @@ public class OnboardingService {
     private RegisterSession loadAndValidateRegisterSession(String registerToken) {
         Long socialAccountId = jwtProvider.getSubjectAsLong(registerToken);
         RegisterSession registerSession = registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(socialAccountId)
-                .orElseThrow(()-> new CustomException(OAuthErrorCode.INVALID_REGISTER_TOKEN));
+                .orElseThrow(()-> new CustomException(UserErrorCode.INVALID_REGISTER_TOKEN));
 
         if (!registerSession.getRegisterTokenHash().equals(tokenHasher.hash(registerToken))) {  // DB의 register token hash 값과 일치하지 않는 경우
-            throw new CustomException(OAuthErrorCode.INVALID_REGISTER_TOKEN);
+            throw new CustomException(UserErrorCode.INVALID_REGISTER_TOKEN);
         }
         if (registerSession.isConsumed()) {                                                     // register session이 이미 사용된 경우
-            throw new CustomException(OAuthErrorCode.INVALID_REGISTER_TOKEN);
+            throw new CustomException(UserErrorCode.INVALID_REGISTER_TOKEN);
         }
 
         return registerSession;
@@ -117,26 +117,26 @@ public class OnboardingService {
         if (nickname == null || nickname.isBlank()) {               // 닉네임이 비어있는 경우
             errors.add(new ErrorResponse.ErrorDetail(
                     "nickname",
-                    OAuthErrorCode.EMPTY_NICKNAME.getCode()
+                    UserErrorCode.EMPTY_NICKNAME.getCode()
             ));
-            throw new CustomException(OAuthErrorCode.INVALID_INPUT_VALUE, errors);
+            throw new CustomException(UserErrorCode.INVALID_INPUT_VALUE, errors);
         }
 
         if (!nickname.matches("^[가-힣a-zA-Z0-9]+$")) {        // 닉네임에 특수문자가 포함된 경우
             errors.add(new ErrorResponse.ErrorDetail(
                     "nickname",
-                    OAuthErrorCode.SPECIAL_CHAR_NICKNAME.getCode()
+                    UserErrorCode.SPECIAL_CHAR_NICKNAME.getCode()
             ));
         }
         if (nickname.length() < 2 || nickname.length() > 20) {    // 닉네임 길이 위반한 경우
             errors.add(new ErrorResponse.ErrorDetail(
                     "nickname",
-                    OAuthErrorCode.NICKNAME_LENGTH_EXCEEDED.getCode()
+                    UserErrorCode.NICKNAME_LENGTH_EXCEEDED.getCode()
             ));
         }
 
         if (!errors.isEmpty()) {
-            throw new CustomException(OAuthErrorCode.INVALID_INPUT_VALUE, errors);
+            throw new CustomException(UserErrorCode.INVALID_INPUT_VALUE, errors);
         }
     }
 
