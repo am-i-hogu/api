@@ -167,8 +167,6 @@ public class OnboardingService {
                 refreshTokenId,
                 userId,
                 tokenHasher.hash(refreshToken),
-                false,
-                false,
                 createdAt
         );
         refreshTokenRepository.save(refreshTokenEntity);
