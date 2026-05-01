@@ -4,6 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.util.List;
+
 /**
  * application.yml에 정의된 google OAuth 설정값을 바인딩하는 설정 클래스
  */
@@ -17,6 +19,6 @@ public class GoogleOAuthProperties {
     private String authorizationUri;    // google 로그인 페이지로 이동시키기 위한 google 인증 서버의 endpoint URL
     private String tokenUri;            // token 교환 endpoint
     private String jwkSetUri;           // google 공개키 목록 endpoint
-    private String issuerUri;           // token 발급 주체 정보
+    private List<String> issuerUris;    // token 발급 주체 정보
     private String scope;               // 유저에게 권한을 요구할 정보의 범위
 }

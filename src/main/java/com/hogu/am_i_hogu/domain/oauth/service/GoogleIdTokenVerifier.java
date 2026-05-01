@@ -38,7 +38,11 @@ public class GoogleIdTokenVerifier {
             String nonce = jwt.getClaimAsString("nonce");
             Instant expiresAt = jwt.getExpiresAt();
 
-            if (!googleOAuthProperties.getIssuerUri().equals(iss)
+            List<String> allowedIssuers = googleOAuthProperties.getIssuerUris();
+
+            if (allowedIssuers == null
+                    || !allowedIssuers.contains(iss)
+                    || aud == null
                     || !aud.contains(googleOAuthProperties.getClientId())
                     || nonce == null
                     || !nonce.equals(expectedNonce)
