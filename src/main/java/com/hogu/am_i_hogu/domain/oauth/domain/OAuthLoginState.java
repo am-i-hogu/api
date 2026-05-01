@@ -51,4 +51,20 @@ public class OAuthLoginState {
         this.createdAt = createdAt;
         this.expiresAt = createdAt.plusMinutes(EXPIRES_IN_MINUTES);
     }
+
+    public boolean isExpired(LocalDateTime now) {
+        return !expiresAt.isAfter(now);
+    }
+
+    public boolean isConsumed() {
+        return consumedAt != null;
+    }
+
+    public boolean hasSameNonce(String nonce) {
+        return this.nonce.equals(nonce);
+    }
+
+    public void markConsumed(LocalDateTime now) {
+        this.consumedAt = now;
+    }
 }

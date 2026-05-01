@@ -16,6 +16,14 @@ import java.util.Date;
 
 @Component
 public class JwtProvider {
+    private static final String TOKEN_TYPE_CLAIM = "type";
+    private static final String ACCESS_TOKEN_TYPE = "access";
+    private static final String REFRESH_TOKEN_TYPE = "refresh";
+    private static final String REGISTER_TOKEN_TYPE = "register";
+
+    private static final Long ACCESS_TOKEN_EXPIRATION = 1000L * 60 * 20;
+    private static final Long REFRESH_TOKEN_EXPIRATION = 1000L * 60 * 60 * 24 * 7;
+    private static final Long REGISTER_TOKEN_EXPIRATION = 1000L * 60 * 10;
 
     // 토큰 상태 구분을 위한 enum
     public enum TokenValidationResult {
@@ -33,16 +41,47 @@ public class JwtProvider {
     }
 
     // userId 이용해 Access Token 생성
-    public String createAccessToken(Long userId, long accessTokenExpirationTime) {
-        Date now = new Date();
-        Date expiration = new Date(now.getTime() + accessTokenExpirationTime);
+    public String createAccessToken(Long userId) {
+        return createToken(String.valueOf(userId), ACCESS_TOKEN_EXPIRATION, ACCESS_TOKEN_TYPE);
+    }
 
-        return Jwts.builder()
-                .subject(String.valueOf(userId))    // (1) 토큰 주인 식별자
-                .issuedAt(now)                      // (2) 발행 일시
-                .expiration(expiration)             // (3) 만료 일시
-                .signWith(secretKey)                // (4) 비밀키로 서명
-                .compact();                         // (5) 직렬화
+    // userId, refreshTokenId 이용해 Refresh Token 생성
+    public String createRefreshToken(Long userId, Long refreshTokenId) {
+        return createToken(
+                String.valueOf(userId),
+                REFRESH_TOKEN_EXPIRATION,
+                REFRESH_TOKEN_TYPE,
+                String.valueOf(refreshTokenId)
+        );
+    }
+
+    // socialAccountId 이용해 Register Token 생성
+    public String createRegisterToken(Long socialAccountId) {
+        return createToken(String.valueOf(socialAccountId), REGISTER_TOKEN_EXPIRATION, REGISTER_TOKEN_TYPE);
+    }
+
+    // access token, register token 생성 (token id 사용하지 않음)
+    private String createToken(String subject, long expirationTime, String tokenType) {
+        return createToken(subject, expirationTime, tokenType, null);
+    }
+
+    // refresh token 생성 (token id 사용)
+    private String createToken(String subject, long expirationTime, String tokenType, String tokenId) {
+        Date now = new Date();
+        Date expiration = new Date(now.getTime() + expirationTime);
+
+        var builder = Jwts.builder()
+                .subject(subject)                   // (1) 토큰 주인 식별자
+                .claim(TOKEN_TYPE_CLAIM, tokenType) // (2) 토큰 용도 구분
+                .issuedAt(now)                      // (3) 발행 일시
+                .expiration(expiration)             // (4) 만료 일시
+                .signWith(secretKey);               // (5) 비밀키로 서명
+
+        if (tokenId != null) {
+            builder.id(tokenId);
+        }
+
+        return builder.compact();                   // (6) 직렬화
     }
 
     // Access Token 검증
@@ -51,11 +90,17 @@ public class JwtProvider {
             return TokenValidationResult.EMPTY;
         }
         try {
-            Jwts.parser()
-                .verifyWith(secretKey)              // (1) 검증키 설정
-                .build()
-                .parseSignedClaims(accessToken)     // (2) 토큰 해석, 서명 검증
-                .getPayload();                      // (3) 토큰의 데이터 추출(userId)
+            String tokenType = Jwts.parser()
+                    .verifyWith(secretKey)              // (1) 검증키 설정
+                    .build()
+                    .parseSignedClaims(accessToken)     // (2) 토큰 해석, 서명 검증
+                    .getPayload()
+                    .get(TOKEN_TYPE_CLAIM, String.class);
+
+            if (!ACCESS_TOKEN_TYPE.equals(tokenType)) {
+                return TokenValidationResult.INVALID;
+            }
+
             return TokenValidationResult.VALID;
         } catch (ExpiredJwtException e) {
             return TokenValidationResult.EXPIRED;
@@ -79,5 +124,16 @@ public class JwtProvider {
                 null,
                 Collections.emptyList()
         );
+    }
+
+    public Long getTokenId(String token) {
+        String tokenId = Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getId();
+
+        return Long.valueOf(tokenId);
     }
 }
