@@ -97,7 +97,7 @@ public class OnboardingService {
     // register session 검색 및 검증 (DB에 저장된 값과 일치하는지 / 사용되었는지)
     private RegisterSession loadAndValidateRegisterSession(String registerToken) {
         Long socialAccountId = jwtProvider.getSubjectAsLong(registerToken);
-        RegisterSession registerSession = registerSessionRepository.findBySocialAccountId(socialAccountId)
+        RegisterSession registerSession = registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(socialAccountId)
                 .orElseThrow(()-> new CustomException(OAuthErrorCode.INVALID_REGISTER_TOKEN));
 
         if (!registerSession.getRegisterTokenHash().equals(tokenHasher.hash(registerToken))) {  // DB의 register token hash 값과 일치하지 않는 경우

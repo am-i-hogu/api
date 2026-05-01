@@ -100,9 +100,13 @@ public class SecurityFlowTest {
                 .andExpect(content().string("private"));
     }
 
-    // anonymous endpoint: access token이 invalid하면 401 발생하는지 테스트
+    // anonymous endpoint: invalid한 access token이 들어오면 401 발생하는지 테스트
     @Test
     void anonymousEndpoint401Test() throws Exception {
+        when(jwtProvider.getTokenType("invalid-token"))
+                .thenReturn("access");
+        when(jwtProvider.isRegisterTokenType("access"))
+                .thenReturn(false);
         when(jwtProvider.validateAccessToken("invalid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.INVALID);
 
@@ -126,6 +130,10 @@ public class SecurityFlowTest {
     // anonymous endpoint: 유효한 access token이 있으면 403 발생하는지 테스트
     @Test
     void anonymousEndpoint403Test() throws Exception {
+        when(jwtProvider.getTokenType("valid-token"))
+                .thenReturn("access");
+        when(jwtProvider.isRegisterTokenType("access"))
+                .thenReturn(false);
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getAuthentication("valid-token"))

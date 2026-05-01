@@ -105,7 +105,7 @@ public class OnboardingServiceTest {
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getSubjectAsLong("valid-register-token"))
                 .thenReturn(100L);
-        when(registerSessionRepository.findBySocialAccountId(100L))
+        when(registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(100L))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> onboardingService.createUser("Bearer valid-register-token", "nickname"))
@@ -131,7 +131,7 @@ public class OnboardingServiceTest {
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getSubjectAsLong("valid-register-token"))
                 .thenReturn(100L);
-        when(registerSessionRepository.findBySocialAccountId(100L))
+        when(registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(100L))
                 .thenReturn(Optional.of(registerSession));
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("different-hash");
@@ -160,7 +160,7 @@ public class OnboardingServiceTest {
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getSubjectAsLong("valid-register-token"))
                 .thenReturn(100L);
-        when(registerSessionRepository.findBySocialAccountId(100L))
+        when(registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(100L))
                 .thenReturn(Optional.of(registerSession));
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
@@ -188,7 +188,7 @@ public class OnboardingServiceTest {
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getSubjectAsLong("valid-register-token"))
                 .thenReturn(100L);
-        when(registerSessionRepository.findBySocialAccountId(100L))
+        when(registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(100L))
                 .thenReturn(Optional.of(registerSession));
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
@@ -220,7 +220,7 @@ public class OnboardingServiceTest {
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getSubjectAsLong("valid-register-token"))
                 .thenReturn(100L);
-        when(registerSessionRepository.findBySocialAccountId(100L))
+        when(registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(100L))
                 .thenReturn(Optional.of(registerSession));
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
@@ -252,7 +252,7 @@ public class OnboardingServiceTest {
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getSubjectAsLong("valid-register-token"))
                 .thenReturn(100L);
-        when(registerSessionRepository.findBySocialAccountId(100L))
+        when(registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(100L))
                 .thenReturn(Optional.of(registerSession));
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
@@ -284,7 +284,7 @@ public class OnboardingServiceTest {
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getSubjectAsLong("valid-register-token"))
                 .thenReturn(100L);
-        when(registerSessionRepository.findBySocialAccountId(100L))
+        when(registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(100L))
                 .thenReturn(Optional.of(registerSession));
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
@@ -326,7 +326,7 @@ public class OnboardingServiceTest {
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getSubjectAsLong("valid-register-token"))
                 .thenReturn(100L);
-        when(registerSessionRepository.findBySocialAccountId(100L))
+        when(registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(100L))
                 .thenReturn(Optional.of(registerSession));
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
