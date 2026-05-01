@@ -1,13 +1,10 @@
 package com.hogu.am_i_hogu.domain.oauth.controller;
 
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
-import com.hogu.am_i_hogu.domain.oauth.dto.request.CreateUserRequest;
-import com.hogu.am_i_hogu.domain.oauth.dto.response.CreateUserResponse;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
-import com.hogu.am_i_hogu.domain.oauth.dto.response.OnboardingResult;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
 import org.springframework.beans.factory.annotation.Value;
-import com.hogu.am_i_hogu.domain.oauth.service.OnboardingService;
+import com.hogu.am_i_hogu.domain.user.service.UserService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -20,15 +17,13 @@ public class OAuthController {
 
     private final OAuthService oauthService;
     private final boolean cookieSecure;
-    private final OnboardingService onboardingService;
 
     public OAuthController(
             OAuthService oauthService,
-            OnboardingService onboardingService,
+            UserService userService,
             @Value("${app.cookie.secure}") boolean cookieSecure
     ) {
         this.oauthService = oauthService;
-        this.onboardingService = onboardingService;
         this.cookieSecure = cookieSecure;
     }
 
@@ -76,25 +71,5 @@ public class OAuthController {
                 .location(URI.create(result.getRedirectUri()))
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .build();
-    }
-
-    @PostMapping("/api/users")
-    public ResponseEntity<CreateUserResponse> createUser(
-            @RequestHeader("Authorization") String authorizationHeader,
-            @RequestBody CreateUserRequest requestBody
-    ) {
-        String nickname = requestBody.getNickname();
-        OnboardingResult result = onboardingService.createUser(authorizationHeader, nickname);
-        ResponseCookie cookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .path("/")
-                .build();
-
-        CreateUserResponse response = new CreateUserResponse(result.getAccessToken());
-
-        return ResponseEntity.status(200)
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(response);
     }
 }

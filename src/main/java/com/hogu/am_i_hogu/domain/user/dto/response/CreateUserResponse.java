@@ -1,4 +1,4 @@
-package com.hogu.am_i_hogu.domain.oauth.dto.response;
+package com.hogu.am_i_hogu.domain.user.dto.response;
 
 import lombok.Getter;
 
