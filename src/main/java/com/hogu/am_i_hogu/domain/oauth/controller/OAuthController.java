@@ -3,6 +3,7 @@ package com.hogu.am_i_hogu.domain.oauth.controller;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -17,9 +18,14 @@ import java.net.URI;
 public class OAuthController {
 
     private final OAuthService oauthService;
+    private final boolean cookieSecure;
 
-    public OAuthController(OAuthService oauthService) {
+    public OAuthController(
+            OAuthService oauthService,
+            @Value("${app.cookie.secure}") boolean cookieSecure
+    ) {
         this.oauthService = oauthService;
+        this.cookieSecure = cookieSecure;
     }
 
     /**
@@ -58,6 +64,7 @@ public class OAuthController {
 
         ResponseCookie cookie = ResponseCookie.from(result.getCookieName(), result.getCookieValue())
                 .httpOnly(true)
+                .secure(cookieSecure)
                 .path("/")
                 .build();
 

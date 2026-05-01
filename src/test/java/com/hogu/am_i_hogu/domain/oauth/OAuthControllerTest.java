@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,6 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(OAuthController.class)
+@ActiveProfiles("test")
 @Import(SecurityConfig.class)
 public class OAuthControllerTest {
     @Autowired
@@ -102,7 +104,7 @@ public class OAuthControllerTest {
                         .param("state", "test-state"))
                 .andExpect(status().isFound())
                 .andExpect(header().string("Location", "http://localhost:8080/oauth/callback?status=LOGIN_SUCCESS"))
-                .andExpect(header().string("Set-Cookie", "refreshToken=test-refresh-token; Path=/; HttpOnly"));
+                .andExpect(header().string("Set-Cookie", "refreshToken=test-refresh-token; Path=/; Secure; HttpOnly"));
 
         verify(oauthService).handleCallback(OAuthProvider.GOOGLE, "test-code", "test-state");
     }
