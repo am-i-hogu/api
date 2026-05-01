@@ -317,10 +317,8 @@ public class OnboardingServiceTest {
         );
         SocialAccount socialAccount = new SocialAccount(
                 100L,
-                null,
                 OAuthProvider.GOOGLE,
                 "google-user-id",
-                null,
                 LocalDateTime.now()
         );
 
