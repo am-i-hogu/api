@@ -32,8 +32,8 @@ jwt:
 
 app:
   redirect:
-    onboarding-uri: http://localhost:8080/onboarding
-    login-success-uri: http://localhost:8080/oauth/callback?status=LOGIN_SUCCESS
+    onboarding-uri: http://localhost:3000/onboarding
+    login-success-uri: http://localhost:3000/oauth/callback?status=LOGIN_SUCCESS
 
 oauth:
   # google 소셜 로그인 정보
