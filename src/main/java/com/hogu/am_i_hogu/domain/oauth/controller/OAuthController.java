@@ -87,6 +87,7 @@ public class OAuthController {
         OnboardingResult result = onboardingService.createUser(authorizationHeader, nickname);
         ResponseCookie cookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
                 .httpOnly(true)
+                .secure(cookieSecure)
                 .path("/")
                 .build();
 

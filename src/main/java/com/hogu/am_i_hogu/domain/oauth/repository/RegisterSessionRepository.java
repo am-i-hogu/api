@@ -9,5 +9,5 @@ import java.util.Optional;
  * 회원가입 세션의 영속성 관리
  */
 public interface RegisterSessionRepository extends JpaRepository<RegisterSession, Long> {
-    Optional<RegisterSession> findBySocialAccountId(Long socialAccountId);
+    Optional<RegisterSession> findFirstBySocialAccountIdOrderByCreatedAtDesc(Long socialAccountId);
 }

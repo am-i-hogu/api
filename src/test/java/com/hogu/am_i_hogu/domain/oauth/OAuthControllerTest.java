@@ -151,8 +151,10 @@ public class OAuthControllerTest {
      */
     @Test
     void createUserTest() throws Exception {
-        when(jwtProvider.validateAccessToken(null))
-                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        when(jwtProvider.getTokenType("register-token"))
+                .thenReturn("register");
+        when(jwtProvider.isRegisterTokenType("register"))
+                .thenReturn(true);
         when(onboardingService.createUser("Bearer register-token", "nickname"))
                 .thenReturn(new OnboardingResult("new-access-token", "new-refresh-token"));
 
@@ -165,7 +167,7 @@ public class OAuthControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Set-Cookie", "refreshToken=new-refresh-token; Path=/; HttpOnly"))
+                .andExpect(header().string("Set-Cookie", "refreshToken=new-refresh-token; Path=/; Secure; HttpOnly"))
                 .andExpect(content().json("""
                         {
                           "accessToken": "new-access-token"
@@ -183,8 +185,10 @@ public class OAuthControllerTest {
      */
     @Test
     void createUserUnauthorizedTest() throws Exception {
-        when(jwtProvider.validateAccessToken(null))
-                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        when(jwtProvider.getTokenType("invalid-register-token"))
+                .thenReturn("register");
+        when(jwtProvider.isRegisterTokenType("register"))
+                .thenReturn(true);
         when(onboardingService.createUser("Bearer invalid-register-token", "nickname"))
                 .thenThrow(new CustomException(OAuthErrorCode.EMPTY_REGISTER_TOKEN));
 
@@ -209,8 +213,10 @@ public class OAuthControllerTest {
      */
     @Test
     void createUserBadRequestTest() throws Exception {
-        when(jwtProvider.validateAccessToken(null))
-                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        when(jwtProvider.getTokenType("register-token"))
+                .thenReturn("register");
+        when(jwtProvider.isRegisterTokenType("register"))
+                .thenReturn(true);
         when(onboardingService.createUser("Bearer register-token", "nickname!"))
                 .thenThrow(new CustomException(
                         OAuthErrorCode.INVALID_INPUT_VALUE,

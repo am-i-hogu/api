@@ -135,6 +135,27 @@ public class JwtProvider {
         }
     }
 
+    public String getTokenType(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .get(TOKEN_TYPE_CLAIM, String.class);
+        } catch (ExpiredJwtException e) {
+            return e.getClaims().get(TOKEN_TYPE_CLAIM, String.class);
+        }
+    }
+
+    public boolean isAccessTokenType(String tokenType) {
+        return ACCESS_TOKEN_TYPE.equals(tokenType);
+    }
+
+    public boolean isRegisterTokenType(String tokenType) {
+        return REGISTER_TOKEN_TYPE.equals(tokenType);
+    }
+
     // Access Token 해독하여 Authentication으로 변환
     public Authentication getAuthentication(String accessToken) {
         String userId = Jwts.parser()
