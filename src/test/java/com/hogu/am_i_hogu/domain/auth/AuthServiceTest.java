@@ -225,7 +225,7 @@ public class AuthServiceTest {
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
 
-        assertThatThrownBy(() -> authService.createUser("Bearer valid-register-token", "민돌!"))
+        assertThatThrownBy(() -> authService.createUser("Bearer valid-register-token", "nickname!"))
                 .isInstanceOfSatisfying(CustomException.class, exception -> {
                     assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_INPUT_VALUE);
                     List<ErrorResponse.ErrorDetail> errors = exception.getErrors();
@@ -257,7 +257,7 @@ public class AuthServiceTest {
         when(tokenHasher.hash("valid-register-token"))
                 .thenReturn("saved-hash");
 
-        assertThatThrownBy(() -> authService.createUser("Bearer valid-register-token", "민"))
+        assertThatThrownBy(() -> authService.createUser("Bearer valid-register-token", "n"))
                 .isInstanceOfSatisfying(CustomException.class, exception -> {
                     assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_INPUT_VALUE);
                     List<ErrorResponse.ErrorDetail> errors = exception.getErrors();
