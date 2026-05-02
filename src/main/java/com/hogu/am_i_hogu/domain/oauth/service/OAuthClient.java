@@ -1,7 +1,7 @@
 package com.hogu.am_i_hogu.domain.oauth.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
-import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
+import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import org.springframework.http.MediaType;
@@ -13,13 +13,13 @@ import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class GoogleOAuthClient {
-    private final GoogleOAuthProperties googleOAuthProperties;
+    private final OAuthClientProperties OAuthClientProperties;
     private final RestClient restClient;
 
     public GoogleOAuthClient(
-            GoogleOAuthProperties googleOAuthProperties,
+            OAuthClientProperties OAuthClientProperties,
             RestClient.Builder restClientBuilder) {
-        this.googleOAuthProperties = googleOAuthProperties;
+        this.OAuthClientProperties = OAuthClientProperties;
         this.restClient = restClientBuilder.build();
     }
 
@@ -31,14 +31,14 @@ public class GoogleOAuthClient {
     public TokenResponse requestToken(String code) {
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("code", code);
-        body.add("client_id", googleOAuthProperties.getClientId());
-        body.add("client_secret", googleOAuthProperties.getClientSecret());
-        body.add("redirect_uri", googleOAuthProperties.getRedirectUri());
+        body.add("client_id", OAuthClientProperties.getClientId());
+        body.add("client_secret", OAuthClientProperties.getClientSecret());
+        body.add("redirect_uri", OAuthClientProperties.getRedirectUri());
         body.add("grant_type", "authorization_code");
 
         try {
             return restClient.post()
-                    .uri(googleOAuthProperties.getTokenUri())
+                    .uri(OAuthClientProperties.getTokenUri())
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .body(body)
                     .retrieve()
