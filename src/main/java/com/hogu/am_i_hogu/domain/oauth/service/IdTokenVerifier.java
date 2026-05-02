@@ -11,18 +11,19 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class IdTokenVerifier {
-    private final JwtDecoder googleIdTokenJwtDecoder;
     private final OAuthProperties oauthProperties;
+    private final Map<OAuthProvider, JwtDecoder> jwtDecoders;
 
     public IdTokenVerifier(
-            JwtDecoder googleIdTokenJwtDecoder,
-            OAuthProperties oauthProperties
+            OAuthProperties oauthProperties,
+            Map<OAuthProvider, JwtDecoder> jwtDecoders
     ) {
-        this.googleIdTokenJwtDecoder = googleIdTokenJwtDecoder;
         this.oauthProperties = oauthProperties;
+        this.jwtDecoders = jwtDecoders;
     }
 
     /**
@@ -31,10 +32,15 @@ public class IdTokenVerifier {
      * @param expectedNonce 우리 서버에서 발급해 저장해둔 nonce 값
      * @return 검증이 완료된 Jwt 객체
      */
-    public Jwt verify(String idToken, String expectedNonce) {
+    public Jwt verify(String idToken, String expectedNonce, OAuthProvider provider) {
         try {
-            OAuthClientProperties properties = oauthProperties.getClientProperties(OAuthProvider.GOOGLE);
-            Jwt jwt = googleIdTokenJwtDecoder.decode(idToken);
+            JwtDecoder jwtDecoder = jwtDecoders.get(provider);
+            if (jwtDecoder == null) {
+                throw new CustomException(OAuthErrorCode.UNSUPPORTED_PROVIDER);
+            }
+
+            OAuthClientProperties properties = oauthProperties.getClientProperties(provider);
+            Jwt jwt = jwtDecoder.decode(idToken);
 
             String iss = jwt.getIssuer() != null ? jwt.getIssuer().toString() : null;
             List<String> aud = jwt.getAudience();

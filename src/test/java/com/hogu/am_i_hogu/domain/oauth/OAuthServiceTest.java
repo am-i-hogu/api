@@ -19,7 +19,6 @@ import com.hogu.am_i_hogu.domain.auth.repository.RefreshTokenRepository;
 import com.hogu.am_i_hogu.domain.auth.repository.RegisterSessionRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.SocialAccountRepository;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthCallbackHandler;
-import com.hogu.am_i_hogu.domain.oauth.service.OAuthCallbackHandlerFactory;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -39,7 +38,6 @@ public class OAuthServiceTest {
 
     private final OAuthProperties oauthProperties = mock(OAuthProperties.class);
     private final OAuthClientProperties oauthClientProperties = mock(OAuthClientProperties.class);
-    private final OAuthCallbackHandlerFactory oauthCallbackHandlerFactory = mock(OAuthCallbackHandlerFactory.class);
     private final OAuthCallbackHandler oauthCallbackHandler = mock(OAuthCallbackHandler.class);
     private final OAuthLoginStateRepository oauthLoginStateRepository = mock(OAuthLoginStateRepository.class);
     private final TsidGenerator tsidGenerator = mock(TsidGenerator.class);
@@ -53,7 +51,7 @@ public class OAuthServiceTest {
                     oauthProperties,
                     "http://localhost:3000/onboarding",
                     "http://localhost:3000/oauth/callback?status=LOGIN_SUCCESS",
-                    oauthCallbackHandlerFactory,
+                    oauthCallbackHandler,
                     oauthLoginStateRepository,
                     tsidGenerator,
                     socialAccountRepository,
@@ -198,9 +196,7 @@ public class OAuthServiceTest {
         );
         when(oauthLoginStateRepository.findByState("valid-state-value"))
                 .thenReturn(Optional.of(oauthLoginState));
-        when(oauthCallbackHandlerFactory.get(OAuthProvider.GOOGLE))
-                .thenReturn(oauthCallbackHandler);
-        when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState))
+        when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState, OAuthProvider.GOOGLE))
                 .thenThrow(new CustomException(OAuthErrorCode.INVALID_ID_TOKEN));
 
         assertThatThrownBy(() ->
@@ -240,9 +236,7 @@ public class OAuthServiceTest {
 
         when(oauthLoginStateRepository.findByState("valid-state-value"))
                 .thenReturn(Optional.of(oauthLoginState));
-        when(oauthCallbackHandlerFactory.get(OAuthProvider.GOOGLE))
-                .thenReturn(oauthCallbackHandler);
-        when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState))
+        when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState, OAuthProvider.GOOGLE))
                 .thenReturn(new OAuthUserInfo(OAuthProvider.GOOGLE, "google-auth-id"));
         when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "google-auth-id"))
                 .thenReturn(Optional.of(socialAccount));
@@ -265,8 +259,7 @@ public class OAuthServiceTest {
         assertThat(result.getRedirectUri()).isEqualTo("http://localhost:3000/oauth/callback?status=LOGIN_SUCCESS");
         assertThat(result.getCookieName()).isEqualTo("refreshToken");
         assertThat(result.getCookieValue()).isEqualTo("test-refresh-token");
-        verify(oauthCallbackHandlerFactory).get(OAuthProvider.GOOGLE);
-        verify(oauthCallbackHandler).handle("test-auth-code", oauthLoginState);
+        verify(oauthCallbackHandler).handle("test-auth-code", oauthLoginState, OAuthProvider.GOOGLE);
         verify(refreshTokenRepository).save(captor.capture());
         verify(oauthLoginStateRepository).save(oauthLoginState);
         verify(jwtProvider).createRefreshToken(10L, 300L);
@@ -295,9 +288,7 @@ public class OAuthServiceTest {
         );
         when(oauthLoginStateRepository.findByState("valid-state-value"))
                 .thenReturn(Optional.of(oauthLoginState));
-        when(oauthCallbackHandlerFactory.get(OAuthProvider.GOOGLE))
-                .thenReturn(oauthCallbackHandler);
-        when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState))
+        when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState, OAuthProvider.GOOGLE))
                 .thenReturn(new OAuthUserInfo(OAuthProvider.GOOGLE, "new-google-auth-id"));
         when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "new-google-auth-id"))
                 .thenReturn(Optional.empty());
@@ -323,8 +314,7 @@ public class OAuthServiceTest {
         assertThat(result.getRedirectUri()).isEqualTo("http://localhost:3000/onboarding");
         assertThat(result.getCookieName()).isEqualTo("registerToken");
         assertThat(result.getCookieValue()).isEqualTo("test-register-token");
-        verify(oauthCallbackHandlerFactory).get(OAuthProvider.GOOGLE);
-        verify(oauthCallbackHandler).handle("test-auth-code", oauthLoginState);
+        verify(oauthCallbackHandler).handle("test-auth-code", oauthLoginState, OAuthProvider.GOOGLE);
         verify(socialAccountRepository).save(socialAccountCaptor.capture());
         verify(registerSessionRepository).save(registerSessionCaptor.capture());
         verify(oauthLoginStateRepository).save(oauthLoginState);

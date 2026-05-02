@@ -32,7 +32,7 @@ public class OAuthService {
     private final OAuthProperties oauthProperties;
     private final String onboardingUri;
     private final String loginSuccessUri;
-    private final OAuthCallbackHandlerFactory oauthCallbackHandlerFactory;
+    private final OAuthCallbackHandler oauthCallbackHandler;
     private final OAuthLoginStateRepository oauthLoginStateRepository;
     private final TsidGenerator tsidGenerator;
     private final SocialAccountRepository socialAccountRepository;
@@ -45,7 +45,7 @@ public class OAuthService {
             OAuthProperties oauthProperties,
             @Value("${app.redirect.onboarding-uri}") String onboardingUri,
             @Value("${app.redirect.login-success-uri}") String loginSuccessUri,
-            OAuthCallbackHandlerFactory oauthCallbackHandlerFactory,
+            OAuthCallbackHandler oauthCallbackHandler,
             OAuthLoginStateRepository oauthLoginStateRepository,
             TsidGenerator tsidGenerator,
             SocialAccountRepository socialAccountRepository,
@@ -56,7 +56,7 @@ public class OAuthService {
         this.oauthProperties = oauthProperties;
         this.onboardingUri = onboardingUri;
         this.loginSuccessUri = loginSuccessUri;
-        this.oauthCallbackHandlerFactory = oauthCallbackHandlerFactory;
+        this.oauthCallbackHandler = oauthCallbackHandler;
         this.oauthLoginStateRepository = oauthLoginStateRepository;
         this.tsidGenerator = tsidGenerator;
         this.socialAccountRepository = socialAccountRepository;
@@ -93,16 +93,19 @@ public class OAuthService {
 
         OAuthClientProperties properties = oauthProperties.getClientProperties(provider);
 
-        return UriComponentsBuilder
+        UriComponentsBuilder builder = UriComponentsBuilder
                 .fromUriString(properties.getAuthorizationUri())
                 .queryParam("client_id", properties.getClientId())
                 .queryParam("response_type", "code")
                 .queryParam("scope", properties.getScope())
                 .queryParam("redirect_uri", properties.getRedirectUri())
                 .queryParam("state", state)
-                .queryParam("nonce", nonce)
-                .build()
-                .toUriString();
+                .queryParam("nonce", nonce);
+
+        properties.getAuthorizationParams()
+                .forEach(builder::queryParam);
+
+        return builder.build().toUriString();
     }
 
     /**
@@ -169,8 +172,11 @@ public class OAuthService {
             throw new CustomException(OAuthErrorCode.STATE_EXPIRED);
         }
 
-        OAuthUserInfo oauthUserInfo = oauthCallbackHandlerFactory.get(provider)
-                .handle(code, oauthLoginState);
+        OAuthUserInfo oauthUserInfo = oauthCallbackHandler.handle(
+                code,
+                oauthLoginState,
+                provider
+        );
 
         SocialAccount socialAccount = socialAccountRepository
                 .findByProviderAndProviderUserId(

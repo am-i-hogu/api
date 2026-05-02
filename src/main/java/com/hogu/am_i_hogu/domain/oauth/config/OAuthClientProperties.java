@@ -3,7 +3,9 @@ package com.hogu.am_i_hogu.domain.oauth.config;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * application.yml에 정의된 OAuth 설정값을 바인딩하는 설정 클래스
@@ -19,4 +21,5 @@ public class OAuthClientProperties {
     private String jwkSetUri;           // 공개키 목록 endpoint
     private List<String> issuerUris;    // token 발급 주체 정보
     private String scope;               // 유저에게 권한을 요구할 정보의 범위
+    private Map<String, String> authorizationParams = new HashMap<>();  // authorization url query에 포함할 옵션
 }
