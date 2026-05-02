@@ -4,7 +4,8 @@ import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 
 public enum OAuthProvider {
-    GOOGLE;
+    GOOGLE,
+    KAKAO;
 
     /**
      * 문자열 형태의 provider 이름을 Enum 객체로 변환
@@ -17,6 +18,7 @@ public enum OAuthProvider {
     public static OAuthProvider from(String providerName) {
         return switch(providerName) {
             case "GOOGLE" -> GOOGLE;
+            case "KAKAO" -> KAKAO;
 
             default -> throw new CustomException(OAuthErrorCode.UNSUPPORTED_PROVIDER);
         };
