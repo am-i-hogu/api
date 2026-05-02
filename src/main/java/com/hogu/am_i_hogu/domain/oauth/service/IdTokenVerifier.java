@@ -2,6 +2,8 @@ package com.hogu.am_i_hogu.domain.oauth.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
+import com.hogu.am_i_hogu.domain.oauth.config.OAuthProperties;
+import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -11,16 +13,16 @@ import java.time.Instant;
 import java.util.List;
 
 @Component
-public class GoogleIdTokenVerifier {
+public class IdTokenVerifier {
     private final JwtDecoder googleIdTokenJwtDecoder;
-    private final OAuthClientProperties OAuthClientProperties;
+    private final OAuthProperties oauthProperties;
 
-    public GoogleIdTokenVerifier(
+    public IdTokenVerifier(
             JwtDecoder googleIdTokenJwtDecoder,
-            OAuthClientProperties OAuthClientProperties
+            OAuthProperties oauthProperties
     ) {
         this.googleIdTokenJwtDecoder = googleIdTokenJwtDecoder;
-        this.OAuthClientProperties = OAuthClientProperties;
+        this.oauthProperties = oauthProperties;
     }
 
     /**
@@ -31,6 +33,7 @@ public class GoogleIdTokenVerifier {
      */
     public Jwt verify(String idToken, String expectedNonce) {
         try {
+            OAuthClientProperties properties = oauthProperties.getClientProperties(OAuthProvider.GOOGLE);
             Jwt jwt = googleIdTokenJwtDecoder.decode(idToken);
 
             String iss = jwt.getIssuer() != null ? jwt.getIssuer().toString() : null;
@@ -38,12 +41,12 @@ public class GoogleIdTokenVerifier {
             String nonce = jwt.getClaimAsString("nonce");
             Instant expiresAt = jwt.getExpiresAt();
 
-            List<String> allowedIssuers = OAuthClientProperties.getIssuerUris();
+            List<String> allowedIssuers = properties.getIssuerUris();
 
             if (allowedIssuers == null
                     || !allowedIssuers.contains(iss)
                     || aud == null
-                    || !aud.contains(OAuthClientProperties.getClientId())
+                    || !aud.contains(properties.getClientId())
                     || nonce == null
                     || !nonce.equals(expectedNonce)
                     || expiresAt == null

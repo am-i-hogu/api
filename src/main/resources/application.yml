@@ -64,7 +64,8 @@ oauth:
     authorization-uri: https://kauth.kakao.com/oauth/authorize
     token-uri: https://kauth.kakao.com/oauth/token
     jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
-    issuer-uri: https://kauth.kakao.com
+    issuer-uris:
+      - https://kauth.kakao.com
     scope: openid
 
 

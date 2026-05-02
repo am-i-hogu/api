@@ -14,15 +14,15 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class GoogleOAuthCallbackHandler implements OAuthCallbackHandler {
-    private final GoogleOAuthClient googleOAuthClient;
-    private final GoogleIdTokenVerifier googleIdTokenVerifier;
+    private final OAuthClient oauthClient;
+    private final IdTokenVerifier idTokenVerifier;
 
     public GoogleOAuthCallbackHandler(
-            GoogleOAuthClient googleOAuthClient,
-            GoogleIdTokenVerifier googleIdTokenVerifier
+            OAuthClient oauthClient,
+            IdTokenVerifier idTokenVerifier
     ) {
-        this.googleOAuthClient = googleOAuthClient;
-        this.googleIdTokenVerifier = googleIdTokenVerifier;
+        this.oauthClient = oauthClient;
+        this.idTokenVerifier = idTokenVerifier;
     }
 
     @Override
@@ -32,9 +32,9 @@ public class GoogleOAuthCallbackHandler implements OAuthCallbackHandler {
 
     @Override
     public OAuthUserInfo handle(String code, OAuthLoginState oauthLoginState) {
-        TokenResponse tokenResponse = googleOAuthClient.requestToken(code);
+        TokenResponse tokenResponse = oauthClient.requestToken(code, OAuthProvider.GOOGLE);
         String idToken = getIdToken(tokenResponse);
-        Jwt jwt = googleIdTokenVerifier.verify(idToken, oauthLoginState.getNonce());
+        Jwt jwt = idTokenVerifier.verify(idToken, oauthLoginState.getNonce());
 
         return new OAuthUserInfo(OAuthProvider.GOOGLE, jwt.getSubject());
     }
