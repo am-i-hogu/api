@@ -10,6 +10,7 @@ import com.hogu.am_i_hogu.domain.auth.exception.AuthErrorCode;
 import com.hogu.am_i_hogu.domain.auth.controller.AuthController;
 import com.hogu.am_i_hogu.domain.auth.dto.response.TokenPair;
 import com.hogu.am_i_hogu.domain.auth.service.AuthService;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -162,5 +163,48 @@ public class AuthControllerTest {
                           ]
                         }
                         """));
+    }
+
+    /**
+     * 토큰 재발급 요청 성공 테스트:
+     * - refresh token 쿠키를 담아 재발급 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) Set-Cookie 헤더가 새로운 refreshToken 정보를 포함하는지 확인
+     * - (3) 응답 본문에 accessToken이 포함되는지 확인
+     * - (4) AuthService가 refreshToken 값으로 호출되었는지 확인
+     */
+    @Test
+    void reissueTokenTest() throws Exception {
+        when(authService.reissueToken("refresh-token"))
+                .thenReturn(new TokenPair("new-access-token", "new-refresh-token"));
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("refreshToken", "refresh-token")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Set-Cookie", "refreshToken=new-refresh-token; Path=/; Secure; HttpOnly"))
+                .andExpect(content().json("""
+                        {
+                          "accessToken": "new-access-token"
+                        }
+                        """));
+
+        verify(authService).reissueToken("refresh-token");
+    }
+
+    /**
+     * 토큰 재발급 요청 인증 실패 테스트:
+     * - 잘못된 refresh token 쿠키를 담아 재발급 요청을 보내고,
+     * - (1) 응답 status가 401 Unauthorized인지 확인
+     * - (2) 응답 본문이 INVALID_REFRESH_TOKEN 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void reissueTokenUnauthorizedTest() throws Exception {
+        when(authService.reissueToken("invalid-refresh-token"))
+                .thenThrow(new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN));
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("refreshToken", "invalid-refresh-token")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string("{\"code\":\"INVALID_REFRESH_TOKEN\"}"));
     }
 }

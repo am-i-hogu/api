@@ -42,6 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
         String accessToken = getAccessToken(request);
 
+
         /**
          * access token 검증
          * - access token이 비어있다면 'errorCode'라는 이름의 속성에 코드 설정 후 다음 필터로 진행
