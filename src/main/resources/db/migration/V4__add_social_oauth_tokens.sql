@@ -4,8 +4,8 @@ CREATE TABLE social_oauth_tokens (
     social_account_id BIGINT NOT NULL,
     access_token_encrypted TEXT NOT NULL,
     refresh_token_encrypted TEXT NOT NULL,
-    access_token_expires_at DATETIME NULL,
-    refresh_token_expires_at DATETIME NULL,
+    access_token_expires_at DATETIME NOT NULL,
+    refresh_token_expires_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
 

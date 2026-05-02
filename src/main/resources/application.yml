@@ -55,6 +55,8 @@ oauth:
       - https://accounts.google.com
       - accounts.google.com
     scope: openid
+    authorization-params:
+      access_type: offline
 
   # kakao 소셜 로그인 정보
   kakao:
