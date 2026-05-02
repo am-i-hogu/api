@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface ImageAssetRepository extends JpaRepository<ImageAsset, Long> {
     List<ImageAsset> findByPost_IdOrderBySortOrderAsc(Long postId);
+    void deleteByPost_Id(Long postId);
 }
