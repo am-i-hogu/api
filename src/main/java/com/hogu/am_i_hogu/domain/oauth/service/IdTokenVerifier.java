@@ -1,7 +1,7 @@
 package com.hogu.am_i_hogu.domain.oauth.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
-import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
+import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -13,14 +13,14 @@ import java.util.List;
 @Component
 public class GoogleIdTokenVerifier {
     private final JwtDecoder googleIdTokenJwtDecoder;
-    private final GoogleOAuthProperties googleOAuthProperties;
+    private final OAuthClientProperties OAuthClientProperties;
 
     public GoogleIdTokenVerifier(
             JwtDecoder googleIdTokenJwtDecoder,
-            GoogleOAuthProperties googleOAuthProperties
+            OAuthClientProperties OAuthClientProperties
     ) {
         this.googleIdTokenJwtDecoder = googleIdTokenJwtDecoder;
-        this.googleOAuthProperties = googleOAuthProperties;
+        this.OAuthClientProperties = OAuthClientProperties;
     }
 
     /**
@@ -38,12 +38,12 @@ public class GoogleIdTokenVerifier {
             String nonce = jwt.getClaimAsString("nonce");
             Instant expiresAt = jwt.getExpiresAt();
 
-            List<String> allowedIssuers = googleOAuthProperties.getIssuerUris();
+            List<String> allowedIssuers = OAuthClientProperties.getIssuerUris();
 
             if (allowedIssuers == null
                     || !allowedIssuers.contains(iss)
                     || aud == null
-                    || !aud.contains(googleOAuthProperties.getClientId())
+                    || !aud.contains(OAuthClientProperties.getClientId())
                     || nonce == null
                     || !nonce.equals(expectedNonce)
                     || expiresAt == null
