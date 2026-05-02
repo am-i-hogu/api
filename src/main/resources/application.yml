@@ -56,6 +56,18 @@ oauth:
       - accounts.google.com
     scope: openid
 
+  # kakao 소셜 로그인 정보
+  kakao:
+    client-id: ${KAKAO_CLIENT_ID}
+    client-secret: ${KAKAO_CLIENT_SECRET}
+    redirect-uri: http://localhost:8080/api/auth/callback/KAKAO
+    authorization-uri: https://kauth.kakao.com/oauth/authorize
+    token-uri: https://kauth.kakao.com/oauth/token
+    jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
+    issuer-uri: https://kauth.kakao.com
+    scope: openid
+
+
 logging:
   level:
     org.hibernate.SQL: DEBUG
