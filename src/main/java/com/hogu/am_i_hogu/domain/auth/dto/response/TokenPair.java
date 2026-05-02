@@ -1,10 +1,16 @@
 package com.hogu.am_i_hogu.domain.auth.dto.response;
 
-public class ReissueResult {
+import lombok.Getter;
+
+@Getter
+public class TokenPair {
     private final String accessToken;
     private final String refreshToken;
 
-    public ReissueResult(String accessToken, String refreshToken) {
+    public TokenPair(
+            String accessToken,
+            String refreshToken
+    ) {
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
     }

@@ -13,7 +13,7 @@ import com.hogu.am_i_hogu.domain.auth.domain.RegisterSession;
 import com.hogu.am_i_hogu.domain.oauth.domain.SocialAccount;
 import com.hogu.am_i_hogu.domain.user.domain.User;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
-import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResult;
+import com.hogu.am_i_hogu.domain.auth.dto.response.TokenPair;
 import com.hogu.am_i_hogu.domain.auth.exception.AuthErrorCode;
 import com.hogu.am_i_hogu.domain.auth.repository.RefreshTokenRepository;
 import com.hogu.am_i_hogu.domain.auth.repository.RegisterSessionRepository;
@@ -383,7 +383,7 @@ public class AuthServiceTest {
         when(jwtProvider.createAccessToken(10L))
                 .thenReturn("new-access-token");
 
-        OnboardingResult result = authService.createUser("valid-register-token", "nickname");
+        TokenPair result = authService.createUser("valid-register-token", "nickname");
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         ArgumentCaptor<UserHoguStat> userHoguStatCaptor = ArgumentCaptor.forClass(UserHoguStat.class);

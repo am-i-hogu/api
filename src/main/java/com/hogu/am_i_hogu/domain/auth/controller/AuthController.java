@@ -2,7 +2,8 @@ package com.hogu.am_i_hogu.domain.auth.controller;
 
 import com.hogu.am_i_hogu.domain.auth.dto.request.OnboardingRequest;
 import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResponse;
-import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResult;
+import com.hogu.am_i_hogu.domain.auth.dto.response.ReissueResponse;
+import com.hogu.am_i_hogu.domain.auth.dto.response.TokenPair;
 import com.hogu.am_i_hogu.domain.auth.service.AuthService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -36,7 +37,7 @@ public class AuthController {
             @RequestBody OnboardingRequest requestBody
     ) {
         String nickname = requestBody.getNickname();
-        OnboardingResult result = authService.createUser(registerToken, nickname);
+        TokenPair result = authService.createUser(registerToken, nickname);
         ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
                 .httpOnly(true)
                 .secure(cookieSecure)
@@ -55,6 +56,24 @@ public class AuthController {
         return ResponseEntity.status(200)
                 .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
                 .header(HttpHeaders.SET_COOKIE, deleteRegisterTokenCookie.toString())
+                .body(response);
+    }
+
+    @PostMapping("/api/auth/refresh")
+    public ResponseEntity<ReissueResponse> reissueToken(
+            @RequestHeader("Authorization") String authorizationHeader
+    ) {
+        TokenPair result = authService.reissueToken(authorizationHeader);
+        ResponseCookie cookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .build();
+
+        ReissueResponse response = new ReissueResponse(result.getAccessToken());
+
+        return ResponseEntity.status(200)
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(response);
     }
 }
