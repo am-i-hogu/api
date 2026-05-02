@@ -12,7 +12,7 @@ import com.hogu.am_i_hogu.domain.auth.domain.RefreshToken;
 import com.hogu.am_i_hogu.domain.auth.domain.RegisterSession;
 import com.hogu.am_i_hogu.domain.oauth.domain.SocialAccount;
 import com.hogu.am_i_hogu.domain.user.domain.User;
-import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResult;
+import com.hogu.am_i_hogu.domain.auth.dto.response.TokenPair;
 import com.hogu.am_i_hogu.domain.auth.exception.AuthErrorCode;
 import com.hogu.am_i_hogu.domain.auth.repository.RefreshTokenRepository;
 import com.hogu.am_i_hogu.domain.auth.repository.RegisterSessionRepository;
@@ -58,7 +58,7 @@ public class AuthService {
     }
 
     @Transactional
-    public OnboardingResult createUser(String registerToken, String nickname) {
+    public TokenPair createUser(String registerToken, String nickname) {
         validateRegisterToken(registerToken);
         RegisterSession registerSession = loadAndValidateRegisterSession(registerToken);
         validateNickname(nickname);
@@ -68,7 +68,7 @@ public class AuthService {
         linkSocialAccount(registerSession, userId, createdAt);
         registerSession.markConsumed(createdAt);
 
-        return issueLoginTokens(userId, createdAt);
+        return issueTokenPair(userId, createdAt);
     }
 
     // register token 검증 (잘못된 값인지 / 비어있는지 / 만료되었는지)
@@ -147,7 +147,7 @@ public class AuthService {
     }
 
     // access token, refresh token 발급
-    private OnboardingResult issueLoginTokens(Long userId, LocalDateTime createdAt) {
+    private TokenPair issueTokenPair(Long userId, LocalDateTime createdAt) {
         Long refreshTokenId = tsidGenerator.nextId();
         String refreshToken = jwtProvider.createRefreshToken(userId, refreshTokenId);
         RefreshToken refreshTokenEntity = new RefreshToken(
@@ -160,7 +160,43 @@ public class AuthService {
 
         String accessToken = jwtProvider.createAccessToken(userId);
 
-        return new OnboardingResult(accessToken, refreshToken);
+        return new TokenPair(accessToken, refreshToken);
+    }
+
+    @Transactional
+    public TokenPair reissueToken(String refreshToken) {
+        JwtProvider.TokenValidationResult validationResult =
+                jwtProvider.validateRefreshToken(refreshToken);
+
+        if (validationResult == JwtProvider.TokenValidationResult.EMPTY) {
+            throw new CustomException(AuthErrorCode.EMPTY_REFRESH_TOKEN);
+        } else if (validationResult == JwtProvider.TokenValidationResult.EXPIRED) {
+            throw new CustomException(AuthErrorCode.REFRESH_TOKEN_EXPIRED);
+        } else if (validationResult == JwtProvider.TokenValidationResult.INVALID) {
+            throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        RefreshToken savedRefreshToken = loadAndValidateRefreshToken(refreshToken);
+        savedRefreshToken.markRotated();
+        savedRefreshToken.revoke(now);
+
+        return issueTokenPair(savedRefreshToken.getUserId(), now);
+    }
+
+    private RefreshToken loadAndValidateRefreshToken(String refreshToken) {
+        Long refreshTokenId = jwtProvider.getTokenId(refreshToken);
+        RefreshToken savedRefreshToken = refreshTokenRepository.findById(refreshTokenId)
+                .orElseThrow(() -> new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN));
+
+        if (!savedRefreshToken.getTokenHash().equals(tokenHasher.hash(refreshToken))) {
+            throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+        if (savedRefreshToken.isRevoked() || savedRefreshToken.isRotated()) {
+            throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        return savedRefreshToken;
     }
 
     // user 저장 시도 후 성공 시 user_hogu_stat 초기화, 실패 시 닉네임 중복 오류 throw

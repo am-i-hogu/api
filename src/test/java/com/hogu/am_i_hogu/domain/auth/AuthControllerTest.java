@@ -8,7 +8,7 @@ import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.SecurityConfig;
 import com.hogu.am_i_hogu.domain.auth.exception.AuthErrorCode;
 import com.hogu.am_i_hogu.domain.auth.controller.AuthController;
-import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResult;
+import com.hogu.am_i_hogu.domain.auth.dto.response.TokenPair;
 import com.hogu.am_i_hogu.domain.auth.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,7 +57,7 @@ public class AuthControllerTest {
     @Test
     void createUserTest() throws Exception {
         when(authService.createUser("register-token", "nickname"))
-                .thenReturn(new OnboardingResult("new-access-token", "new-refresh-token"));
+                .thenReturn(new TokenPair("new-access-token", "new-refresh-token"));
 
         mockMvc.perform(post("/api/users")
                         .cookie(new Cookie("registerToken", "register-token"))
