@@ -1,10 +1,13 @@
 package com.hogu.am_i_hogu.domain.post.controller;
 
 import com.hogu.am_i_hogu.domain.post.dto.request.PostCreateRequest;
+import com.hogu.am_i_hogu.domain.post.dto.request.PostUpdateRequest;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostCreateResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostDetailResponse;
+import com.hogu.am_i_hogu.domain.post.dto.response.PostUpdateResponse;
 import com.hogu.am_i_hogu.domain.post.service.PostCreateService;
 import com.hogu.am_i_hogu.domain.post.service.PostDetailService;
+import com.hogu.am_i_hogu.domain.post.service.PostUpdateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 public class PostController {
     private final PostCreateService postCreateService;
     private final PostDetailService postDetailService;
+    private final PostUpdateService postUpdateService;
 
     @GetMapping("/{postId}")
     public ResponseEntity<PostDetailResponse> getPostById(@PathVariable Long postId, Authentication authentication) {
@@ -37,5 +41,17 @@ public class PostController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    @PatchMapping("/{postId}")
+    public ResponseEntity<PostUpdateResponse> updatePost(
+            @PathVariable Long postId,
+            Authentication authentication,
+            @RequestBody(required = false) PostUpdateRequest request
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        PostUpdateResponse response = postUpdateService.update(postId, userId, request);
+
+        return ResponseEntity.ok(response);
     }
 }
