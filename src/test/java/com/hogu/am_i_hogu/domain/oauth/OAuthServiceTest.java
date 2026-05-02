@@ -4,7 +4,8 @@ import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.TokenHasher;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
-import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
+import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
+import com.hogu.am_i_hogu.domain.oauth.config.OAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.auth.domain.RefreshToken;
@@ -36,7 +37,8 @@ import static org.mockito.Mockito.*;
 
 public class OAuthServiceTest {
 
-    private final GoogleOAuthProperties googleOAuthProperties = mock(GoogleOAuthProperties.class);
+    private final OAuthProperties oauthProperties = mock(OAuthProperties.class);
+    private final OAuthClientProperties oauthClientProperties = mock(OAuthClientProperties.class);
     private final OAuthCallbackHandlerFactory oauthCallbackHandlerFactory = mock(OAuthCallbackHandlerFactory.class);
     private final OAuthCallbackHandler oauthCallbackHandler = mock(OAuthCallbackHandler.class);
     private final OAuthLoginStateRepository oauthLoginStateRepository = mock(OAuthLoginStateRepository.class);
@@ -48,7 +50,7 @@ public class OAuthServiceTest {
     private final RegisterSessionRepository registerSessionRepository = mock(RegisterSessionRepository.class);
     private final OAuthService oauthService =
             new OAuthService(
-                    googleOAuthProperties,
+                    oauthProperties,
                     "http://localhost:3000/onboarding",
                     "http://localhost:3000/oauth/callback?status=LOGIN_SUCCESS",
                     oauthCallbackHandlerFactory,
@@ -72,13 +74,15 @@ public class OAuthServiceTest {
      */
     @Test
     void getAuthorizationUrlTest() {
-        when(googleOAuthProperties.getAuthorizationUri())
+        when(oauthProperties.getClientProperties(OAuthProvider.GOOGLE))
+                .thenReturn(oauthClientProperties);
+        when(oauthClientProperties.getAuthorizationUri())
                 .thenReturn("https://accounts.google.com/o/oauth2/v2/auth");
-        when(googleOAuthProperties.getClientId())
+        when(oauthClientProperties.getClientId())
                 .thenReturn("test-client-id");
-        when(googleOAuthProperties.getRedirectUri())
+        when(oauthClientProperties.getRedirectUri())
                 .thenReturn("http://localhost:8080/api/auth/callback/GOOGLE");
-        when(googleOAuthProperties.getScope())
+        when(oauthClientProperties.getScope())
                 .thenReturn("openid");
         when(tsidGenerator.nextId())
                 .thenReturn(1L);

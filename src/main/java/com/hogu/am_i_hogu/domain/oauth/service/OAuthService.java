@@ -6,7 +6,8 @@ import com.hogu.am_i_hogu.common.security.TokenHasher;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.auth.domain.RefreshToken;
 import com.hogu.am_i_hogu.domain.auth.domain.RegisterSession;
-import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
+import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
+import com.hogu.am_i_hogu.domain.oauth.config.OAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.*;
 import com.hogu.am_i_hogu.domain.oauth.dto.OAuthUserInfo;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
@@ -28,7 +29,7 @@ import java.util.Base64;
 public class OAuthService {
     private final SecureRandom secureRandom = new SecureRandom();
 
-    private final GoogleOAuthProperties googleOAuthProperties;
+    private final OAuthProperties oauthProperties;
     private final String onboardingUri;
     private final String loginSuccessUri;
     private final OAuthCallbackHandlerFactory oauthCallbackHandlerFactory;
@@ -41,7 +42,7 @@ public class OAuthService {
     private final RegisterSessionRepository registerSessionRepository;
 
     public OAuthService(
-            GoogleOAuthProperties googleOAuthProperties,
+            OAuthProperties oauthProperties,
             @Value("${app.redirect.onboarding-uri}") String onboardingUri,
             @Value("${app.redirect.login-success-uri}") String loginSuccessUri,
             OAuthCallbackHandlerFactory oauthCallbackHandlerFactory,
@@ -52,7 +53,7 @@ public class OAuthService {
             TokenHasher tokenHasher,
             RefreshTokenRepository refreshTokenRepository,
             RegisterSessionRepository registerSessionRepository) {
-        this.googleOAuthProperties = googleOAuthProperties;
+        this.oauthProperties = oauthProperties;
         this.onboardingUri = onboardingUri;
         this.loginSuccessUri = loginSuccessUri;
         this.oauthCallbackHandlerFactory = oauthCallbackHandlerFactory;
@@ -74,27 +75,30 @@ public class OAuthService {
      */
     public String getAuthorizationUrl(OAuthProvider provider) {
         return switch (provider) {
-            case GOOGLE -> buildGoogleAuthorizationUrl();
+            case GOOGLE -> buildAuthorizationUrl(OAuthProvider.GOOGLE);
+            case KAKAO -> buildAuthorizationUrl(OAuthProvider.KAKAO);
         };
     }
 
     /**
-     * google 소셜 로그인을 위한 authorization URL 생성
+     * 소셜 로그인을 위한 authorization URL 생성
      * state, nonce 값을 생성하여 DB에 저장 후 URL에 포함
      *
-     * @return 사용자를 redirect 시킬 google 로그인 페이지 URL
+     * @return 사용자를 redirect 시킬 로그인 페이지 URL
      */
-    private String buildGoogleAuthorizationUrl() {
+    private String buildAuthorizationUrl(OAuthProvider provider) {
         String state = generateRandomValue();
         String nonce = generateRandomValue();
-        saveOAuthLoginState(OAuthProvider.GOOGLE, state, nonce);
+        saveOAuthLoginState(provider, state, nonce);
+
+        OAuthClientProperties properties = oauthProperties.getClientProperties(provider);
 
         return UriComponentsBuilder
-                .fromUriString(googleOAuthProperties.getAuthorizationUri())
-                .queryParam("client_id", googleOAuthProperties.getClientId())
+                .fromUriString(properties.getAuthorizationUri())
+                .queryParam("client_id", properties.getClientId())
                 .queryParam("response_type", "code")
-                .queryParam("scope", googleOAuthProperties.getScope())
-                .queryParam("redirect_uri", googleOAuthProperties.getRedirectUri())
+                .queryParam("scope", properties.getScope())
+                .queryParam("redirect_uri", properties.getRedirectUri())
                 .queryParam("state", state)
                 .queryParam("nonce", nonce)
                 .build()
