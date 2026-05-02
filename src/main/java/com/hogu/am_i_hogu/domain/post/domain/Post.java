@@ -23,7 +23,6 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "posts")
 public class Post {
-
     @Id
     private Long id;
 
@@ -56,4 +55,17 @@ public class Post {
 
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    public void update(String title, Category category, String content, LocalDateTime updatedAt) {
+        if (title != null) {
+            this.title = title;
+        }
+        if (category != null) {
+            this.category = category;
+        }
+        if (content != null) {
+            this.content = content;
+        }
+        this.updatedAt = updatedAt;
+    }
 }
