@@ -25,6 +25,7 @@ import java.util.Collections;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -272,6 +273,257 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_CATEGORIES"));
     }
 
+    // 정상 케이스: 작성자가 제목, 카테고리, 본문, 이미지를 수정하면 게시물과 이미지가 함께 갱신된다.
+    @Test
+    void updatePostChangesPostAndReplacesImages() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "기존 제목", "기존 본문", false, now);
+        insertImage(1001L, postId, "https://example.com/old-thumbnail.jpg", true, 0, now);
+        insertImage(1002L, postId, "https://example.com/old-image.jpg", false, 1, now);
+
+        String requestBody = """
+                {
+                  "title": "수정 제목",
+                  "categories": ["CONTRACT"],
+                  "content": "수정 본문",
+                  "images": [
+                    {
+                      "imageUrl": "https://example.com/new-thumbnail.png",
+                      "order": 0,
+                      "isThumbnail": true
+                    },
+                    {
+                      "imageUrl": "https://example.com/new-image.webp",
+                      "order": 1,
+                      "isThumbnail": false
+                    }
+                  ]
+                }
+                """;
+
+        mockMvc.perform(patch("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postId").value(postId));
+
+        String updatedTitle = jdbcTemplate.queryForObject(
+                "SELECT title FROM posts WHERE id = ?",
+                String.class,
+                postId
+        );
+        String updatedCategory = jdbcTemplate.queryForObject(
+                "SELECT category_code FROM posts WHERE id = ?",
+                String.class,
+                postId
+        );
+        String updatedContent = jdbcTemplate.queryForObject(
+                "SELECT content FROM posts WHERE id = ?",
+                String.class,
+                postId
+        );
+        Integer imageCount = countImages(postId);
+        Integer oldImageCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM image_assets WHERE post_id = ? AND url LIKE ?",
+                Integer.class,
+                postId,
+                "https://example.com/old-%"
+        );
+        String thumbnailUrl = jdbcTemplate.queryForObject(
+                "SELECT url FROM image_assets WHERE post_id = ? AND is_thumbnail = TRUE",
+                String.class,
+                postId
+        );
+
+        assertThat(updatedTitle).isEqualTo("수정 제목");
+        assertThat(updatedCategory).isEqualTo("CONTRACT");
+        assertThat(updatedContent).isEqualTo("수정 본문");
+        assertThat(imageCount).isEqualTo(2);
+        assertThat(oldImageCount).isZero();
+        assertThat(thumbnailUrl).isEqualTo("https://example.com/new-thumbnail.png");
+    }
+
+    // 정상 케이스: images 필드를 보내지 않으면 기존 이미지는 그대로 유지하고 요청한 게시물 필드만 수정한다.
+    @Test
+    void updatePostKeepsImagesWhenImagesFieldIsOmitted() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "기존 제목", "기존 본문", false, now);
+        insertImage(1001L, postId, "https://example.com/existing-thumbnail.jpg", true, 0, now);
+
+        String requestBody = """
+                {
+                  "title": "제목만 수정"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postId").value(postId));
+
+        String updatedTitle = jdbcTemplate.queryForObject(
+                "SELECT title FROM posts WHERE id = ?",
+                String.class,
+                postId
+        );
+        Integer imageCount = countImages(postId);
+        Integer existingImageCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM image_assets WHERE post_id = ? AND url = ?",
+                Integer.class,
+                postId,
+                "https://example.com/existing-thumbnail.jpg"
+        );
+
+        assertThat(updatedTitle).isEqualTo("제목만 수정");
+        assertThat(imageCount).isEqualTo(1);
+        assertThat(existingImageCount).isEqualTo(1);
+    }
+
+    // 정상 케이스: images를 빈 배열로 보내면 해당 게시물의 기존 이미지를 모두 삭제한다.
+    @Test
+    void updatePostDeletesImagesWhenImagesIsEmpty() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "기존 제목", "기존 본문", false, now);
+        insertImage(1001L, postId, "https://example.com/existing-thumbnail.jpg", true, 0, now);
+
+        String requestBody = """
+                {
+                  "images": []
+                }
+                """;
+
+        mockMvc.perform(patch("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.postId").value(postId));
+
+        assertThat(countImages(postId)).isZero();
+    }
+
+    // 실패 케이스: 작성자가 아닌 사용자가 게시물을 수정하면 403 Forbidden과 FORBIDDEN_ACCESS를 반환한다.
+    @Test
+    void updatePostRejectsNotWriter() throws Exception {
+        stubAuthenticatedUser();
+
+        Long otherUserId = 2L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(otherUserId, "other-hogu", now);
+        insertPost(postId, otherUserId, "USED_TRADE", "다른 사람 글", "본문입니다", false, now);
+
+        String requestBody = """
+                {
+                  "title": "수정 시도"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN_ACCESS"));
+    }
+
+    // 실패 케이스: 존재하지 않는 게시물을 수정하면 404 Not Found와 POST_NOT_FOUND를 반환한다.
+    @Test
+    void updatePostRejectsNotFoundPost() throws Exception {
+        stubAuthenticatedUser();
+
+        Long notFoundPostId = 9999L;
+        String requestBody = """
+                {
+                  "title": "수정 시도"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/posts/{postId}", notFoundPostId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+    }
+
+    // 실패 케이스: 삭제된 게시물을 수정하면 404 Not Found와 POST_ALREADY_DELETED를 반환한다.
+    @Test
+    void updatePostRejectsDeletedPost() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "삭제된 글", "본문입니다", true, now);
+
+        String requestBody = """
+                {
+                  "title": "수정 시도"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_ALREADY_DELETED"));
+    }
+
+    // 실패 케이스: 요청 body가 없으면 400 Bad Request와 EMPTY_REQUEST_BODY를 반환한다.
+    @Test
+    void updatePostRejectsEmptyRequestBody() throws Exception {
+        stubAuthenticatedUser();
+
+        mockMvc.perform(patch("/api/posts/{postId}", 1234L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EMPTY_REQUEST_BODY"));
+    }
+
+    // 실패 케이스: 이미지 order가 누락되면 DB 저장 전에 필드별 오류 코드를 반환한다.
+    @Test
+    void updatePostRejectsImageWithoutOrder() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "기존 제목", "기존 본문", false, now);
+
+        String requestBody = """
+                {
+                  "images": [
+                    {
+                      "imageUrl": "https://example.com/new-thumbnail.jpg",
+                      "isThumbnail": true
+                    }
+                  ]
+                }
+                """;
+
+        mockMvc.perform(patch("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("images"))
+                .andExpect(jsonPath("$.errors[0].code").value("EMPTY_IMAGE_ORDER"));
+    }
+
     // 정상 케이스: 비회원도 게시글 상세 정보를 조회할 수 있다.
     @Test
     void getPostDetailAsGuestReturnsPostDetail() throws Exception {
@@ -435,6 +687,88 @@ class PostControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(postId))
                 .andExpect(jsonPath("$.isMine").value(true));
+    }
+
+    private void insertUser(Long userId, String nickname, LocalDateTime now) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO users
+                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?)
+                """,
+                userId,
+                nickname,
+                null,
+                false,
+                null,
+                now,
+                now
+        );
+    }
+
+    private void insertPost(
+            Long postId,
+            Long writerUserId,
+            String categoryCode,
+            String title,
+            String content,
+            boolean isDeleted,
+            LocalDateTime now
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO posts
+                    (id, writer_user_id, category_code, title, content, view_count, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                postId,
+                writerUserId,
+                categoryCode,
+                title,
+                content,
+                0,
+                isDeleted,
+                isDeleted ? now : null,
+                now,
+                now
+        );
+    }
+
+    private void insertImage(
+            Long imageId,
+            Long postId,
+            String imageUrl,
+            boolean isThumbnail,
+            int sortOrder,
+            LocalDateTime now
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO image_assets
+                    (id, uploaded_by_user_id, post_id, url, content_type, size_bytes, is_thumbnail, sort_order, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                imageId,
+                TEST_USER_ID,
+                postId,
+                imageUrl,
+                "image/jpeg",
+                0L,
+                isThumbnail,
+                sortOrder,
+                now
+        );
+    }
+
+    private Integer countImages(Long postId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM image_assets WHERE post_id = ?",
+                Integer.class,
+                postId
+        );
     }
 
     /**
