@@ -135,6 +135,32 @@ public class JwtProvider {
         }
     }
 
+    // refresh token 검증
+    public TokenValidationResult validateRefreshToken(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return TokenValidationResult.EMPTY;
+        }
+
+        try {
+            String tokenType = Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(refreshToken)
+                    .getPayload()
+                    .get(TOKEN_TYPE_CLAIM, String.class);
+
+            if (!REFRESH_TOKEN_TYPE.equals(tokenType)) {
+                return TokenValidationResult.INVALID;
+            }
+
+            return TokenValidationResult.VALID;
+        } catch (ExpiredJwtException e) {
+            return TokenValidationResult.EXPIRED;
+        } catch (JwtException | IllegalArgumentException e) {
+            return TokenValidationResult.INVALID;
+        }
+    }
+
     public String getTokenType(String token) {
         try {
             return Jwts.parser()
