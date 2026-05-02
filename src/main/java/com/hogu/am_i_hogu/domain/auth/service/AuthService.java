@@ -163,6 +163,7 @@ public class AuthService {
         return new TokenPair(accessToken, refreshToken);
     }
 
+    // 토큰 재발급
     @Transactional
     public TokenPair reissueToken(String refreshToken) {
         JwtProvider.TokenValidationResult validationResult =
@@ -184,6 +185,7 @@ public class AuthService {
         return issueTokenPair(savedRefreshToken.getUserId(), now);
     }
 
+    // DB에 저장된 refresh token과 비교
     private RefreshToken loadAndValidateRefreshToken(String refreshToken) {
         Long refreshTokenId = jwtProvider.getTokenId(refreshToken);
         RefreshToken savedRefreshToken = refreshTokenRepository.findById(refreshTokenId)
@@ -193,7 +195,7 @@ public class AuthService {
             throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
         }
         if (savedRefreshToken.isRevoked() || savedRefreshToken.isRotated()) {
-            throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+            throw new CustomException(AuthErrorCode.REFRESH_TOKEN_REUSED);
         }
 
         return savedRefreshToken;

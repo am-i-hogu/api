@@ -59,11 +59,17 @@ public class AuthController {
                 .body(response);
     }
 
+    /**
+     * [AUTH-003] 토큰 재발급
+     *
+     * @param refreshToken  access token 재발급을 위한 refresh token
+     * @return  재발급된 access token, refresh token
+     */
     @PostMapping("/api/auth/refresh")
     public ResponseEntity<ReissueResponse> reissueToken(
-            @RequestHeader("Authorization") String authorizationHeader
+            @CookieValue(name = "refreshToken") String refreshToken
     ) {
-        TokenPair result = authService.reissueToken(authorizationHeader);
+        TokenPair result = authService.reissueToken(refreshToken);
         ResponseCookie cookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
                 .httpOnly(true)
                 .secure(cookieSecure)
