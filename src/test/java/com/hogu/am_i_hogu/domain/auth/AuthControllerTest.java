@@ -86,7 +86,7 @@ public class AuthControllerTest {
      * 온보딩 요청 인증 실패 테스트:
      * - access token 없이 잘못된 register token으로 온보딩 요청을 보내고,
      * - (1) 응답 status가 401 Unauthorized인지 확인
-     * - (2) 응답 본문이 EMPTY_REGISTER_TOKEN 오류 코드를 반환하는지 확인
+     * - (2) 응답 본문이 INVALID_REGISTER_TOKEN 오류 코드를 반환하는지 확인
      */
     @Test
     void createUserUnauthorizedTest() throws Exception {
@@ -95,7 +95,7 @@ public class AuthControllerTest {
         when(jwtProvider.isRegisterTokenType("register"))
                 .thenReturn(true);
         when(authService.createUser("Bearer invalid-register-token", "nickname"))
-                .thenThrow(new CustomException(AuthErrorCode.EMPTY_REGISTER_TOKEN));
+                .thenThrow(new CustomException(AuthErrorCode.INVALID_REGISTER_TOKEN));
 
         mockMvc.perform(post("/api/users")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-register-token")
@@ -106,7 +106,7 @@ public class AuthControllerTest {
                                 }
                                 """))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().string("{\"code\":\"EMPTY_REGISTER_TOKEN\"}"));
+                .andExpect(content().string("{\"code\":\"INVALID_REGISTER_TOKEN\"}"));
     }
 
     /**
