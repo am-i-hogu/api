@@ -6,6 +6,8 @@ import com.hogu.am_i_hogu.common.exception.ErrorResponse;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.TokenHasher;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
+import com.hogu.am_i_hogu.domain.User.domain.UserHoguStat;
+import com.hogu.am_i_hogu.domain.User.repository.UserHoguStatRepository;
 import com.hogu.am_i_hogu.domain.auth.domain.RefreshToken;
 import com.hogu.am_i_hogu.domain.auth.domain.RegisterSession;
 import com.hogu.am_i_hogu.domain.oauth.domain.SocialAccount;
@@ -39,6 +41,7 @@ public class AuthServiceTest {
     private final TsidGenerator tsidGenerator = mock(TsidGenerator.class);
     private final SocialAccountRepository socialAccountRepository = mock(SocialAccountRepository.class);
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
+    private final UserHoguStatRepository userHoguStatRepository = mock(UserHoguStatRepository.class);
     private final AuthService authService = new AuthService(
             jwtProvider,
             registerSessionRepository,
@@ -46,7 +49,8 @@ public class AuthServiceTest {
             tokenHasher,
             tsidGenerator,
             socialAccountRepository,
-            refreshTokenRepository
+            refreshTokenRepository,
+            userHoguStatRepository
     );
 
     /**
@@ -302,10 +306,11 @@ public class AuthServiceTest {
      * 온보딩 성공 테스트:
      * - 유효한 register token과 register session, social account를 준비하고,
      * - (1) user가 저장되는지 확인
-     * - (2) social account가 user와 연결되는지 확인
-     * - (3) register session이 사용 처리되는지 확인
-     * - (4) refresh token이 저장되는지 확인
-     * - (5) access token과 refresh token이 반환되는지 확인
+     * - (2) user stat이 함께 초기화되는지 확인
+     * - (3) social account가 user와 연결되는지 확인
+     * - (4) register session이 사용 처리되는지 확인
+     * - (5) refresh token이 저장되는지 확인
+     * - (6) access token과 refresh token이 반환되는지 확인
      */
     @Test
     void createUserSuccessTest() {
@@ -344,13 +349,19 @@ public class AuthServiceTest {
         OnboardingResult result = authService.createUser("Bearer valid-register-token", "nickname");
 
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+        ArgumentCaptor<UserHoguStat> userHoguStatCaptor = ArgumentCaptor.forClass(UserHoguStat.class);
         ArgumentCaptor<RefreshToken> refreshTokenCaptor = ArgumentCaptor.forClass(RefreshToken.class);
 
         verify(userRepository).save(userCaptor.capture());
+        verify(userHoguStatRepository).save(userHoguStatCaptor.capture());
         verify(refreshTokenRepository).save(refreshTokenCaptor.capture());
 
         assertThat(userCaptor.getValue().getId()).isEqualTo(10L);
         assertThat(userCaptor.getValue().getNickname()).isEqualTo("nickname");
+        assertThat(userHoguStatCaptor.getValue().getUserId()).isEqualTo(10L);
+        assertThat(userHoguStatCaptor.getValue().getHoguVoteCount()).isEqualTo(0);
+        assertThat(userHoguStatCaptor.getValue().getTotalVoteCount()).isEqualTo(0);
+        assertThat(userHoguStatCaptor.getValue().getHoguIndex()).isEqualTo(0);
         assertThat(socialAccount.getUserId()).isEqualTo(10L);
         assertThat(registerSession.isConsumed()).isTrue();
         assertThat(refreshTokenCaptor.getValue().getId()).isEqualTo(20L);
