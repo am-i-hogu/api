@@ -3,12 +3,14 @@ package com.hogu.am_i_hogu.domain.post.service;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.post.domain.ImageAsset;
 import com.hogu.am_i_hogu.domain.post.domain.Post;
+import com.hogu.am_i_hogu.domain.post.domain.PostVote;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostDetailResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostVoteResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostWriterResponse;
 import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
 import com.hogu.am_i_hogu.domain.post.repository.ImageAssetRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
+import com.hogu.am_i_hogu.domain.post.repository.PostVoteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,8 +21,13 @@ import java.util.List;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PostDetailService {
+    private static final String HOGU_VOTE = "HOGU";
+    private static final String NOT_HOGU_VOTE = "NOT_HOGU";
+    private static final String NONE_VOTE = "NONE";
+
     private final PostRepository postRepository;
     private final ImageAssetRepository imageAssetRepository;
+    private final PostVoteRepository postVoteRepository;
 
     /**
      * 게시글 상세 정보를 조회한다.
@@ -35,8 +42,9 @@ public class PostDetailService {
 
         List<String> imageUrls = getImageUrls(postId);
         boolean isMine = isMine(post, viewerUserId);
+        PostVoteResponse vote = getVoteResponse(postId, viewerUserId);
 
-        return getPostDetailResponse(post, imageUrls, isMine);
+        return getPostDetailResponse(post, imageUrls, isMine, vote);
     }
 
     /**
@@ -75,12 +83,22 @@ public class PostDetailService {
     }
 
     /**
-     * 투표 기능 구현 전까지 사용할 임시 기본 투표 응답 함수
+     * 게시글의 투표 집계와 현재 조회자의 투표 값을 조회한다.
      *
-     * @return 기본 투표 응답
+     * @param postId 투표를 조회할 게시글 ID
+     * @param viewerUserId 현재 조회 중인 사용자 ID, 비회원이면 null
+     * @return 투표 집계 응답
      */
-    private PostVoteResponse getDefaultVoteResponse() {
-        return new PostVoteResponse(0, 0, 0, "NONE");
+    private PostVoteResponse getVoteResponse(Long postId, Long viewerUserId) {
+        int yesVotes = Math.toIntExact(postVoteRepository.countByPostIdAndMyVote(postId, HOGU_VOTE));
+        int noVotes = Math.toIntExact(postVoteRepository.countByPostIdAndMyVote(postId, NOT_HOGU_VOTE));
+        String myVote = viewerUserId == null
+                ? NONE_VOTE
+                : postVoteRepository.findByPostIdAndUserId(postId, viewerUserId)
+                        .map(PostVote::getMyVote)
+                        .orElse(NONE_VOTE);
+
+        return new PostVoteResponse(yesVotes + noVotes, yesVotes, noVotes, myVote);
     }
 
     /**
@@ -102,7 +120,12 @@ public class PostDetailService {
      * @param isMine 현재 조회자가 작성자인지 여부
      * @return 게시글 상세 응답
      */
-    private PostDetailResponse getPostDetailResponse(Post post, List<String> imageUrls, boolean isMine) {
+    private PostDetailResponse getPostDetailResponse(
+            Post post,
+            List<String> imageUrls,
+            boolean isMine,
+            PostVoteResponse vote
+    ) {
         return new PostDetailResponse(
                 post.getId(),
                 isMine,
@@ -113,7 +136,7 @@ public class PostDetailService {
                 post.getViewCount(),
                 post.getContent(),
                 imageUrls,
-                getDefaultVoteResponse(),
+                vote,
                 new PostWriterResponse(
                         post.getWriter().getNickname(),
                         post.getWriter().getProfileImageUrl()
