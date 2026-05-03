@@ -6,6 +6,7 @@ import com.hogu.am_i_hogu.domain.post.dto.response.PostCreateResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostDetailResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostUpdateResponse;
 import com.hogu.am_i_hogu.domain.post.service.PostCreateService;
+import com.hogu.am_i_hogu.domain.post.service.PostDeleteService;
 import com.hogu.am_i_hogu.domain.post.service.PostDetailService;
 import com.hogu.am_i_hogu.domain.post.service.PostUpdateService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class PostController {
     private final PostCreateService postCreateService;
     private final PostDetailService postDetailService;
     private final PostUpdateService postUpdateService;
+    private final PostDeleteService postDeleteService;
 
     @GetMapping("/{postId}")
     public ResponseEntity<PostDetailResponse> getPostById(@PathVariable Long postId, Authentication authentication) {
@@ -53,5 +55,13 @@ public class PostController {
         PostUpdateResponse response = postUpdateService.update(postId, userId, request);
 
         return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<Void> deletePost(@PathVariable Long postId, Authentication authentication) {
+        Long userId = Long.valueOf(authentication.getName());
+        postDeleteService.delete(postId, userId);
+
+        return ResponseEntity.noContent().build();
     }
 }
