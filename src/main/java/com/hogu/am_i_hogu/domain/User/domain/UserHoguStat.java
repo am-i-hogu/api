@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @Getter
 @NoArgsConstructor(access= AccessLevel.PROTECTED)
 @Table(name="user_hogu_stats")
-public class UserHoguStats {
+public class UserHoguStat {
     @Id
     private Long userId;
 
@@ -30,7 +30,7 @@ public class UserHoguStats {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-    public UserHoguStats(
+    public UserHoguStat(
             Long userId,
             LocalDateTime updatedAt
     ) {
