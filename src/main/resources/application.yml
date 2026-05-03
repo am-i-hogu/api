@@ -38,6 +38,8 @@ jwt:
 app:
   cookie:
     secure: true
+  token-encryption:
+    secret: ${TOKEN_ENCRYPTION_SECRET}
   redirect:
     onboarding-uri: http://localhost:3000/onboarding
     login-success-uri: http://localhost:3000/oauth/callback?status=LOGIN_SUCCESS

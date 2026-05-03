@@ -2,6 +2,7 @@ package com.hogu.am_i_hogu.domain.oauth;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
+import com.hogu.am_i_hogu.common.security.TokenEncryptor;
 import com.hogu.am_i_hogu.common.security.TokenHasher;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
@@ -11,13 +12,17 @@ import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.auth.domain.RefreshToken;
 import com.hogu.am_i_hogu.domain.auth.domain.RegisterSession;
 import com.hogu.am_i_hogu.domain.oauth.domain.SocialAccount;
+import com.hogu.am_i_hogu.domain.oauth.domain.SocialOAuthToken;
 import com.hogu.am_i_hogu.domain.oauth.dto.OAuthUserInfo;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthAuthenticationResult;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.repository.OAuthLoginStateRepository;
 import com.hogu.am_i_hogu.domain.auth.repository.RefreshTokenRepository;
 import com.hogu.am_i_hogu.domain.auth.repository.RegisterSessionRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.SocialAccountRepository;
+import com.hogu.am_i_hogu.domain.oauth.repository.SocialOAuthTokenRepository;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthCallbackHandler;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
 import org.junit.jupiter.api.Test;
@@ -25,6 +30,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +52,8 @@ public class OAuthServiceTest {
     private final TokenHasher tokenHasher = mock(TokenHasher.class);
     private final RefreshTokenRepository refreshTokenRepository = mock(RefreshTokenRepository.class);
     private final RegisterSessionRepository registerSessionRepository = mock(RegisterSessionRepository.class);
+    private final TokenEncryptor tokenEncryptor = mock(TokenEncryptor.class);
+    private final SocialOAuthTokenRepository socialOAuthTokenRepository = mock(SocialOAuthTokenRepository.class);
     private final OAuthService oauthService =
             new OAuthService(
                     oauthProperties,
@@ -58,7 +66,9 @@ public class OAuthServiceTest {
                     jwtProvider,
                     tokenHasher,
                     refreshTokenRepository,
-                    registerSessionRepository
+                    registerSessionRepository,
+                    tokenEncryptor,
+                    socialOAuthTokenRepository
             );
 
     /**
@@ -82,6 +92,8 @@ public class OAuthServiceTest {
                 .thenReturn("http://localhost:8080/api/auth/callback/GOOGLE");
         when(oauthClientProperties.getScope())
                 .thenReturn("openid");
+        when(oauthClientProperties.getAuthorizationParams())
+                .thenReturn(new HashMap<>());
         when(tsidGenerator.nextId())
                 .thenReturn(1L);
 
@@ -233,16 +245,27 @@ public class OAuthServiceTest {
                 LocalDateTime.now()
         );
         socialAccount.linkToUser(10L, LocalDateTime.now());
+        TokenResponse tokenResponse = mock(TokenResponse.class);
+        OAuthAuthenticationResult authResult = new OAuthAuthenticationResult(
+                new OAuthUserInfo(OAuthProvider.GOOGLE, "google-auth-id"),
+                tokenResponse
+        );
 
         when(oauthLoginStateRepository.findByState("valid-state-value"))
                 .thenReturn(Optional.of(oauthLoginState));
         when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState, OAuthProvider.GOOGLE))
-                .thenReturn(new OAuthUserInfo(OAuthProvider.GOOGLE, "google-auth-id"));
+                .thenReturn(authResult);
         when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "google-auth-id"))
                 .thenReturn(Optional.of(socialAccount));
+        when(tokenResponse.getAccessToken()).thenReturn("provider-access-token");
+        when(tokenResponse.getExpiresIn()).thenReturn(3600);
+        when(tokenResponse.getRefreshToken()).thenReturn("provider-refresh-token");
+        when(tokenEncryptor.encrypt("provider-access-token")).thenReturn("encrypted-access-token");
+        when(tokenEncryptor.encrypt("provider-refresh-token")).thenReturn("encrypted-refresh-token");
+        when(socialOAuthTokenRepository.findBySocialAccountId(1L)).thenReturn(Optional.empty());
         when(tsidGenerator.nextId())
-                .thenReturn(300L);
-        when(jwtProvider.createRefreshToken(10L, 300L))
+                .thenReturn(300L, 301L);
+        when(jwtProvider.createRefreshToken(10L, 301L))
                 .thenReturn("test-refresh-token");
         when(tokenHasher.hash("test-refresh-token"))
                 .thenReturn("hashed-refresh-token");
@@ -254,17 +277,22 @@ public class OAuthServiceTest {
         );
 
         ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+        ArgumentCaptor<SocialOAuthToken> socialOAuthTokenCaptor = ArgumentCaptor.forClass(SocialOAuthToken.class);
 
         assertThat(oauthLoginState.isConsumed()).isTrue();
         assertThat(result.getRedirectUri()).isEqualTo("http://localhost:3000/oauth/callback?status=LOGIN_SUCCESS");
         assertThat(result.getCookieName()).isEqualTo("refreshToken");
         assertThat(result.getCookieValue()).isEqualTo("test-refresh-token");
         verify(oauthCallbackHandler).handle("test-auth-code", oauthLoginState, OAuthProvider.GOOGLE);
+        verify(socialOAuthTokenRepository).save(socialOAuthTokenCaptor.capture());
         verify(refreshTokenRepository).save(captor.capture());
         verify(oauthLoginStateRepository).save(oauthLoginState);
-        verify(jwtProvider).createRefreshToken(10L, 300L);
+        verify(jwtProvider).createRefreshToken(10L, 301L);
+        assertThat(socialOAuthTokenCaptor.getValue().getSocialAccountId()).isEqualTo(1L);
+        assertThat(socialOAuthTokenCaptor.getValue().getAccessTokenEncrypted()).isEqualTo("encrypted-access-token");
+        assertThat(socialOAuthTokenCaptor.getValue().getRefreshTokenEncrypted()).isEqualTo("encrypted-refresh-token");
         assertThat(captor.getValue().getUserId()).isEqualTo(10L);
-        assertThat(captor.getValue().getId()).isEqualTo(300L);
+        assertThat(captor.getValue().getId()).isEqualTo(301L);
         assertThat(captor.getValue().getTokenHash()).isEqualTo("hashed-refresh-token");
     }
 
@@ -286,16 +314,27 @@ public class OAuthServiceTest {
                 "test-nonce-value",
                 LocalDateTime.now()
         );
+        TokenResponse tokenResponse = mock(TokenResponse.class);
+        OAuthAuthenticationResult authResult = new OAuthAuthenticationResult(
+                new OAuthUserInfo(OAuthProvider.GOOGLE, "new-google-auth-id"),
+                tokenResponse
+        );
         when(oauthLoginStateRepository.findByState("valid-state-value"))
                 .thenReturn(Optional.of(oauthLoginState));
         when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState, OAuthProvider.GOOGLE))
-                .thenReturn(new OAuthUserInfo(OAuthProvider.GOOGLE, "new-google-auth-id"));
+                .thenReturn(authResult);
         when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "new-google-auth-id"))
                 .thenReturn(Optional.empty());
         when(socialAccountRepository.save(any(SocialAccount.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+        when(tokenResponse.getAccessToken()).thenReturn("provider-access-token");
+        when(tokenResponse.getExpiresIn()).thenReturn(3600);
+        when(tokenResponse.getRefreshToken()).thenReturn("provider-refresh-token");
+        when(tokenEncryptor.encrypt("provider-access-token")).thenReturn("encrypted-access-token");
+        when(tokenEncryptor.encrypt("provider-refresh-token")).thenReturn("encrypted-refresh-token");
+        when(socialOAuthTokenRepository.findBySocialAccountId(100L)).thenReturn(Optional.empty());
         when(tsidGenerator.nextId())
-                .thenReturn(100L, 200L);
+                .thenReturn(100L, 200L, 300L);
         when(jwtProvider.createRegisterToken(100L))
                 .thenReturn("test-register-token");
         when(tokenHasher.hash("test-register-token"))
@@ -308,6 +347,7 @@ public class OAuthServiceTest {
         );
 
         ArgumentCaptor<SocialAccount> socialAccountCaptor = ArgumentCaptor.forClass(SocialAccount.class);
+        ArgumentCaptor<SocialOAuthToken> socialOAuthTokenCaptor = ArgumentCaptor.forClass(SocialOAuthToken.class);
         ArgumentCaptor<RegisterSession> registerSessionCaptor = ArgumentCaptor.forClass(RegisterSession.class);
 
         assertThat(oauthLoginState.isConsumed()).isTrue();
@@ -316,11 +356,137 @@ public class OAuthServiceTest {
         assertThat(result.getCookieValue()).isEqualTo("test-register-token");
         verify(oauthCallbackHandler).handle("test-auth-code", oauthLoginState, OAuthProvider.GOOGLE);
         verify(socialAccountRepository).save(socialAccountCaptor.capture());
+        verify(socialOAuthTokenRepository).save(socialOAuthTokenCaptor.capture());
         verify(registerSessionRepository).save(registerSessionCaptor.capture());
         verify(oauthLoginStateRepository).save(oauthLoginState);
         assertThat(socialAccountCaptor.getValue().getId()).isEqualTo(100L);
         assertThat(socialAccountCaptor.getValue().getProviderUserId()).isEqualTo("new-google-auth-id");
+        assertThat(socialOAuthTokenCaptor.getValue().getSocialAccountId()).isEqualTo(100L);
         assertThat(registerSessionCaptor.getValue().getSocialAccountId()).isEqualTo(100L);
         assertThat(registerSessionCaptor.getValue().getRegisterTokenHash()).isEqualTo("hashed-register-token");
+    }
+
+    /**
+     * 기존 소셜 토큰 갱신 테스트:
+     * - 기존 social oauth token이 이미 저장되어 있고,
+     * - 이번 provider 응답에는 refresh token이 없는 상황을 준비한 뒤,
+     * - (1) access token만 새 값으로 갱신되는지 확인
+     * - (2) 기존 refresh token / 만료 시각은 유지되는지 확인
+     * - (3) 추가 insert 없이 기존 엔티티만 수정되는지 확인
+     */
+    @Test
+    void handleCallbackExistingSocialTokenWithoutRefreshTokenTest() {
+        OAuthLoginState oauthLoginState = new OAuthLoginState(
+                1L,
+                OAuthProvider.GOOGLE,
+                "valid-state-value",
+                "test-nonce-value",
+                LocalDateTime.now()
+        );
+        SocialAccount socialAccount = new SocialAccount(
+                1L,
+                OAuthProvider.GOOGLE,
+                "google-auth-id",
+                LocalDateTime.now()
+        );
+        socialAccount.linkToUser(10L, LocalDateTime.now());
+
+        TokenResponse tokenResponse = mock(TokenResponse.class);
+        OAuthAuthenticationResult authResult = new OAuthAuthenticationResult(
+                new OAuthUserInfo(OAuthProvider.GOOGLE, "google-auth-id"),
+                tokenResponse
+        );
+        LocalDateTime existingRefreshTokenExpiresAt = LocalDateTime.now().plusDays(30);
+        SocialOAuthToken savedSocialOAuthToken = new SocialOAuthToken(
+                200L,
+                1L,
+                "old-encrypted-access-token",
+                "old-encrypted-refresh-token",
+                LocalDateTime.now().plusHours(1),
+                existingRefreshTokenExpiresAt,
+                LocalDateTime.now().minusDays(1)
+        );
+
+        when(oauthLoginStateRepository.findByState("valid-state-value"))
+                .thenReturn(Optional.of(oauthLoginState));
+        when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState, OAuthProvider.GOOGLE))
+                .thenReturn(authResult);
+        when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "google-auth-id"))
+                .thenReturn(Optional.of(socialAccount));
+        when(tokenResponse.getAccessToken()).thenReturn("provider-access-token");
+        when(tokenResponse.getExpiresIn()).thenReturn(3600);
+        when(tokenResponse.getRefreshToken()).thenReturn(null);
+        when(tokenEncryptor.encrypt("provider-access-token")).thenReturn("new-encrypted-access-token");
+        when(socialOAuthTokenRepository.findBySocialAccountId(1L)).thenReturn(Optional.of(savedSocialOAuthToken));
+        when(tsidGenerator.nextId()).thenReturn(301L);
+        when(jwtProvider.createRefreshToken(10L, 301L)).thenReturn("test-refresh-token");
+        when(tokenHasher.hash("test-refresh-token")).thenReturn("hashed-refresh-token");
+
+        oauthService.handleCallback(
+                OAuthProvider.GOOGLE,
+                "test-auth-code",
+                "valid-state-value"
+        );
+
+        verify(socialOAuthTokenRepository, never()).save(any(SocialOAuthToken.class));
+        assertThat(savedSocialOAuthToken.getAccessTokenEncrypted()).isEqualTo("new-encrypted-access-token");
+        assertThat(savedSocialOAuthToken.getRefreshTokenEncrypted()).isEqualTo("old-encrypted-refresh-token");
+        assertThat(savedSocialOAuthToken.getRefreshTokenExpiresAt()).isEqualTo(existingRefreshTokenExpiresAt);
+    }
+
+    /**
+     * 최초 소셜 토큰 저장 시 refresh token 만료 시각이 없어도 저장되는지 테스트:
+     * - google token 응답처럼 refresh token은 오지만 refresh token 만료 정보는 없을 수 있는 상황을 준비하고,
+     * - (1) SOCIAL_SERVER_ERROR 없이 저장되는지 확인
+     * - (2) refresh token 만료 시각은 null로 저장되는지 확인
+     */
+    @Test
+    void handleCallbackWithoutRefreshTokenExpiryTest() {
+        OAuthLoginState oauthLoginState = new OAuthLoginState(
+                1L,
+                OAuthProvider.GOOGLE,
+                "valid-state-value",
+                "test-nonce-value",
+                LocalDateTime.now()
+        );
+        SocialAccount socialAccount = new SocialAccount(
+                1L,
+                OAuthProvider.GOOGLE,
+                "google-auth-id",
+                LocalDateTime.now()
+        );
+        socialAccount.linkToUser(10L, LocalDateTime.now());
+        TokenResponse tokenResponse = mock(TokenResponse.class);
+        OAuthAuthenticationResult authResult = new OAuthAuthenticationResult(
+                new OAuthUserInfo(OAuthProvider.GOOGLE, "google-auth-id"),
+                tokenResponse
+        );
+
+        when(oauthLoginStateRepository.findByState("valid-state-value"))
+                .thenReturn(Optional.of(oauthLoginState));
+        when(oauthCallbackHandler.handle("test-auth-code", oauthLoginState, OAuthProvider.GOOGLE))
+                .thenReturn(authResult);
+        when(socialAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, "google-auth-id"))
+                .thenReturn(Optional.of(socialAccount));
+        when(tokenResponse.getAccessToken()).thenReturn("provider-access-token");
+        when(tokenResponse.getExpiresIn()).thenReturn(3600);
+        when(tokenResponse.getRefreshToken()).thenReturn("provider-refresh-token");
+        when(tokenResponse.getRefreshTokenExpiresIn()).thenReturn(null);
+        when(tokenEncryptor.encrypt("provider-access-token")).thenReturn("encrypted-access-token");
+        when(tokenEncryptor.encrypt("provider-refresh-token")).thenReturn("encrypted-refresh-token");
+        when(socialOAuthTokenRepository.findBySocialAccountId(1L)).thenReturn(Optional.empty());
+        when(tsidGenerator.nextId()).thenReturn(300L, 301L);
+        when(jwtProvider.createRefreshToken(10L, 301L)).thenReturn("test-refresh-token");
+        when(tokenHasher.hash("test-refresh-token")).thenReturn("hashed-refresh-token");
+
+        oauthService.handleCallback(
+                OAuthProvider.GOOGLE,
+                "test-auth-code",
+                "valid-state-value"
+        );
+
+        ArgumentCaptor<SocialOAuthToken> socialOAuthTokenCaptor = ArgumentCaptor.forClass(SocialOAuthToken.class);
+        verify(socialOAuthTokenRepository).save(socialOAuthTokenCaptor.capture());
+        assertThat(socialOAuthTokenCaptor.getValue().getRefreshTokenExpiresAt()).isNull();
     }
 }

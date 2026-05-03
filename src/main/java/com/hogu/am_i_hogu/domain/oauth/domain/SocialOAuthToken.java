@@ -5,7 +5,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -31,7 +30,6 @@ public class SocialOAuthToken {
     @Column(nullable = false)
     LocalDateTime accessTokenExpiresAt;
 
-    @Column(nullable = false)
     LocalDateTime refreshTokenExpiresAt;
 
     @Column(nullable = false)
@@ -59,4 +57,17 @@ public class SocialOAuthToken {
         this.updatedAt = createdAt;
     }
 
+    public void updateTokens(
+            String accessTokenEncrypted,
+            String refreshTokenEncrypted,
+            LocalDateTime accessTokenExpiresAt,
+            LocalDateTime refreshTokenExpiresAt,
+            LocalDateTime updatedAt
+    ) {
+        this.accessTokenEncrypted = accessTokenEncrypted;
+        this.refreshTokenEncrypted = refreshTokenEncrypted;
+        this.accessTokenExpiresAt = accessTokenExpiresAt;
+        this.refreshTokenExpiresAt = refreshTokenExpiresAt;
+        this.updatedAt = updatedAt;
+    }
 }
