@@ -29,18 +29,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String requestURI = request.getRequestURI();
+        return "/api/users".equals(requestURI);
+    }
+
+    @Override
     protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
         String accessToken = getAccessToken(request);
-
-        // onboarding request라면
-        if (isOnboardingRequest(request)) {
-            handleOnboardingRequest(accessToken, request, response, filterChain);
-            return;
-        }
 
         /**
          * access token 검증
@@ -69,50 +69,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         Authentication authentication = jwtProvider.getAuthentication(accessToken);
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        filterChain.doFilter(request, response);
-    }
-
-    private boolean isOnboardingRequest(HttpServletRequest request) {
-        return "/api/users".equals(request.getRequestURI());
-    }
-
-    /**
-     * onboarding 요청을 처리
-     * - token이 비어있다면 attribute 세팅 후 다음 필터로 이동
-     * - token이 비어있지 않고
-     * - (1) register token인 경우: 다음 필터로 전진 (만료된 경우는 service에서 처리)
-     * - (2) access token인 경우: 토큰 상태에 따라 적절한 오류 처리
-     *     - 401: 만료된 access token, 잘못된 access token
-     *     - 403: 유효한 access token
-     */
-    private void handleOnboardingRequest(
-            String token,
-            HttpServletRequest request,
-            HttpServletResponse response,
-            FilterChain filterChain
-    ) throws IOException, ServletException {
-        if (token == null || token.isBlank()) {
-            request.setAttribute("errorCode", CommonErrorCode.EMPTY_ACCESS_TOKEN);
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        if (jwtProvider.isRegisterTokenType(jwtProvider.getTokenType(token))) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        JwtProvider.TokenValidationResult accessValidationResult = jwtProvider.validateAccessToken(token);
-        if (accessValidationResult == JwtProvider.TokenValidationResult.EXPIRED) {
-            handleAccessTokenError(request, response, CommonErrorCode.ACCESS_TOKEN_EXPIRED);
-            return;
-        } else if (accessValidationResult == JwtProvider.TokenValidationResult.INVALID) {
-            handleAccessTokenError(request, response, CommonErrorCode.INVALID_ACCESS_TOKEN);
-            return;
-        }
-
-        Authentication authentication = jwtProvider.getAuthentication(token);
-        SecurityContextHolder.getContext().setAuthentication(authentication);
         filterChain.doFilter(request, response);
     }
 

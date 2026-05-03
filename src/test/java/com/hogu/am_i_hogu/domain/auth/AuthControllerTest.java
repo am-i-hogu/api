@@ -106,7 +106,7 @@ public class AuthControllerTest {
 
     /**
      * 온보딩 요청 인증 실패 테스트:
-     * - access token 없이 잘못된 register token으로 온보딩 요청을 보내고,
+     * - 잘못된 register token으로 온보딩 요청을 보내고,
      * - (1) 응답 status가 401 Unauthorized인지 확인
      * - (2) 응답 본문이 INVALID_REGISTER_TOKEN 오류 코드를 반환하는지 확인
      */
