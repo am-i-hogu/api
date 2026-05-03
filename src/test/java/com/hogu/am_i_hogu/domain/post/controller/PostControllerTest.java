@@ -64,6 +64,7 @@ class PostControllerTest {
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate.update("DELETE FROM post_votes");
         jdbcTemplate.update("DELETE FROM image_assets");
         jdbcTemplate.update("DELETE FROM posts");
         jdbcTemplate.update("DELETE FROM user_hogu_stats");
@@ -272,6 +273,81 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
                 .andExpect(jsonPath("$.errors[0].field").value("categories"))
                 .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_CATEGORIES"));
+    }
+
+    // 실패 케이스: categories 배열 안에 null이 있으면 DB 조회 전에 INVALID_CATEGORIES를 반환한다.
+    @Test
+    void createPostRejectsNullCategoryCode() throws Exception {
+        stubAuthenticatedUser();
+
+        String requestBody = """
+                {
+                  "title": "제목입니다",
+                  "categories": [null],
+                  "content": "본문입니다",
+                  "images": []
+                }
+                """;
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("categories"))
+                .andExpect(jsonPath("$.errors[0].code").value("INVALID_CATEGORIES"));
+    }
+
+    // 실패 케이스: 썸네일이 2개 이상이면 단일 썸네일 정책에 따라 MULTIPLE_THUMBNAILS를 반환한다.
+    @Test
+    void createPostRejectsMultipleThumbnails() throws Exception {
+        stubAuthenticatedUser();
+
+        String requestBody = """
+            {
+              "title": "제목입니다",
+              "categories": ["USED_TRADE"],
+              "content": "본문입니다",
+              "images": [
+                {"imageUrl": "https://example.com/1.jpg", "order": 0, "isThumbnail": true},
+                {"imageUrl": "https://example.com/2.jpg", "order": 1, "isThumbnail": true}
+              ]
+            }
+            """;
+
+        mockMvc.perform(post("/api/posts")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("images"))
+                .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_THUMBNAILS"));
+    }
+
+    // 실패 케이스: images 배열 안에 null이 있으면 NullPointerException 대신 필드 오류를 반환한다.
+    @Test
+    void createPostRejectsNullImageItem() throws Exception {
+        stubAuthenticatedUser();
+
+        String requestBody = """
+                {
+                  "title": "제목입니다",
+                  "categories": ["USED_TRADE"],
+                  "content": "본문입니다",
+                  "images": [null]
+                }
+                """;
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("images"))
+                .andExpect(jsonPath("$.errors[0].code").value("EMPTY_IMAGE_URL"));
     }
 
     // 정상 케이스: 작성자가 제목, 카테고리, 본문, 이미지를 수정하면 게시물과 이미지가 함께 갱신된다.
@@ -525,6 +601,34 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errors[0].code").value("EMPTY_IMAGE_ORDER"));
     }
 
+    // 실패 케이스: 수정 요청의 썸네일이 2개 이상이면 MULTIPLE_THUMBNAILS를 반환한다.
+    @Test
+    void updatePostRejectsMultipleThumbnails() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "기존 제목", "기존 본문", false, now);
+
+        String requestBody = """
+                {
+                  "images": [
+                    {"imageUrl": "https://example.com/new-thumbnail-1.jpg", "order": 0, "isThumbnail": true},
+                    {"imageUrl": "https://example.com/new-thumbnail-2.jpg", "order": 1, "isThumbnail": true}
+                  ]
+                }
+                """;
+
+        mockMvc.perform(patch("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("images"))
+                .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_THUMBNAILS"));
+    }
+
     // 정상 케이스: 비회원도 게시글 상세 정보를 조회할 수 있다.
     @Test
     void getPostDetailAsGuestReturnsPostDetail() throws Exception {
@@ -690,6 +794,31 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.isMine").value(true));
     }
 
+    // 정상 케이스: 로그인 사용자가 상세 조회하면 투표 집계와 내가 선택한 투표 값을 반환한다.
+    @Test
+    void getPostDetailAsAuthenticatedUserReturnsVoteSummary() throws Exception {
+        Long postId = 1234L;
+        Long noVoteUserId = 2L;
+        Long noneVoteUserId = 3L;
+        LocalDateTime now = LocalDateTime.now();
+
+        insertUser(noVoteUserId, "no-voter", now);
+        insertUser(noneVoteUserId, "none-voter", now);
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "투표 있는 글", "본문입니다", false, now);
+        insertPostVote(TEST_USER_ID, postId, "HOGU", now);
+        insertPostVote(noVoteUserId, postId, "NOT_HOGU", now);
+        insertPostVote(noneVoteUserId, postId, "NONE", now);
+        stubAuthenticatedUser();
+
+        mockMvc.perform(get("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vote.totalVotes").value(2))
+                .andExpect(jsonPath("$.vote.yesVotes").value(1))
+                .andExpect(jsonPath("$.vote.noVotes").value(1))
+                .andExpect(jsonPath("$.vote.myVote").value("HOGU"));
+    }
+
     // 정상 케이스: 작성자가 게시물을 삭제하면 실제 row는 유지하고 삭제 상태로 변경한 뒤 204 No Content를 반환한다.
     @Test
     void deletePostSoftDeletesPostAndReturnsNoContent() throws Exception {
@@ -844,6 +973,22 @@ class PostControllerTest {
                 0L,
                 isThumbnail,
                 sortOrder,
+                now
+        );
+    }
+
+    private void insertPostVote(Long userId, Long postId, String myVote, LocalDateTime now) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO post_votes
+                    (user_id, post_id, my_vote, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?)
+                """,
+                userId,
+                postId,
+                myVote,
+                now,
                 now
         );
     }
