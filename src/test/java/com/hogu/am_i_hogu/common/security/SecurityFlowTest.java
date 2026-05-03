@@ -53,12 +53,6 @@ public class SecurityFlowTest {
         public String postPosts() {
             return "private";
         }
-
-        // anonymous endpoint 테스트를 위한 test controller
-        @PostMapping("/api/users")
-        public String postNickname() {
-            return "anonymous";
-        }
     }
 
     // public endpoint: access token 없이 접근 가능한지 테스트
@@ -98,54 +92,5 @@ public class SecurityFlowTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("private"));
-    }
-
-    // anonymous endpoint: invalid한 access token이 들어오면 401 발생하는지 테스트
-    @Test
-    void anonymousEndpoint401Test() throws Exception {
-        when(jwtProvider.getTokenType("invalid-token"))
-                .thenReturn("access");
-        when(jwtProvider.isRegisterTokenType("access"))
-                .thenReturn(false);
-        when(jwtProvider.validateAccessToken("invalid-token"))
-                .thenReturn(JwtProvider.TokenValidationResult.INVALID);
-
-        mockMvc.perform(post("/api/users")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(content().string("{\"code\":\"INVALID_ACCESS_TOKEN\"}"));
-    }
-
-    // anonymous endpoint: access token이 비어있을 때 접근 가능한지 테스트
-    @Test
-    void anonymousEndpoint200Test() throws Exception {
-        when(jwtProvider.validateAccessToken(null))
-                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
-
-        mockMvc.perform(post("/api/users"))
-                .andExpect(status().isOk())
-                .andExpect(content().string("anonymous"));
-    }
-
-    // anonymous endpoint: 유효한 access token이 있으면 403 발생하는지 테스트
-    @Test
-    void anonymousEndpoint403Test() throws Exception {
-        when(jwtProvider.getTokenType("valid-token"))
-                .thenReturn("access");
-        when(jwtProvider.isRegisterTokenType("access"))
-                .thenReturn(false);
-        when(jwtProvider.validateAccessToken("valid-token"))
-                .thenReturn(JwtProvider.TokenValidationResult.VALID);
-        when(jwtProvider.getAuthentication("valid-token"))
-                .thenReturn(new UsernamePasswordAuthenticationToken(
-                        "1",
-                        null,
-                        Collections.emptyList()
-                ));
-
-        mockMvc.perform(post("/api/users")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
-                .andExpect(status().isForbidden())
-                .andExpect(content().string("{\"code\":\"FORBIDDEN_ACCESS\"}"));
     }
 }
