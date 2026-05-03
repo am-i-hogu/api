@@ -1,6 +1,6 @@
-package com.hogu.am_i_hogu.domain.oauth.repository;
+package com.hogu.am_i_hogu.domain.auth.repository;
 
-import com.hogu.am_i_hogu.domain.oauth.domain.RegisterSession;
+import com.hogu.am_i_hogu.domain.auth.domain.RegisterSession;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

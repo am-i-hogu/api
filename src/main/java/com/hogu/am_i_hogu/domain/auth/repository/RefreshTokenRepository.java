@@ -1,6 +1,6 @@
-package com.hogu.am_i_hogu.domain.oauth.repository;
+package com.hogu.am_i_hogu.domain.auth.repository;
 
-import com.hogu.am_i_hogu.domain.oauth.domain.RefreshToken;
+import com.hogu.am_i_hogu.domain.auth.domain.RefreshToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 /**

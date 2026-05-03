@@ -1,4 +1,4 @@
-package com.hogu.am_i_hogu.domain.auth.domain;
+package com.hogu.am_i_hogu.domain.User.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
