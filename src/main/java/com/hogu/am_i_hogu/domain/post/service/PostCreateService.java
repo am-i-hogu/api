@@ -166,7 +166,7 @@ public class PostCreateService {
             errors.add(new ErrorResponse.ErrorDetail("images", "IMAGE_COUNT_EXCEEDED"));
         }
 
-        boolean hasThumbnail = false;
+        int thumbnailCount = 0;
         for (PostImageRequest image : images) {
             if (image.imageUrl() == null || image.imageUrl().isBlank()) {
                 errors.add(new ErrorResponse.ErrorDetail("images", "EMPTY_IMAGE_URL"));
@@ -176,13 +176,18 @@ public class PostCreateService {
                 errors.add(new ErrorResponse.ErrorDetail("images", "INVALID_IMAGE_URL"));
             }
             if (Boolean.TRUE.equals(image.isThumbnail())) {
-                hasThumbnail = true;
+                thumbnailCount++;
             }
         }
 
         // 이미지가 하나라도 있으면 목록/상세 대표 이미지 결정을 위해 썸네일 1개를 요구한다.
-        if (!images.isEmpty() && !hasThumbnail) {
+        if (!images.isEmpty() && thumbnailCount == 0) {
             errors.add(new ErrorResponse.ErrorDetail("images", "EMPTY_THUMBNAIL"));
+        }
+
+        // 썸네일이 2개 이상이라면 에러를 반환한다.
+        if (thumbnailCount > 1) {
+            errors.add(new ErrorResponse.ErrorDetail("images", "MULTIPLE_THUMBNAILS"));
         }
     }
 
