@@ -2,6 +2,7 @@ package com.hogu.am_i_hogu.domain.oauth.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
+import com.hogu.am_i_hogu.common.security.TokenEncryptor;
 import com.hogu.am_i_hogu.common.security.TokenHasher;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.auth.domain.RefreshToken;
@@ -10,7 +11,9 @@ import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
 import com.hogu.am_i_hogu.domain.oauth.config.OAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.*;
 import com.hogu.am_i_hogu.domain.oauth.dto.OAuthUserInfo;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthAuthenticationResult;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.repository.OAuthLoginStateRepository;
 import com.hogu.am_i_hogu.domain.auth.repository.RefreshTokenRepository;
@@ -24,6 +27,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Map;
 
 @Service
 public class OAuthService {
@@ -40,6 +44,8 @@ public class OAuthService {
     private final TokenHasher tokenHasher;
     private final RefreshTokenRepository refreshTokenRepository;
     private final RegisterSessionRepository registerSessionRepository;
+    private final TokenEncryptor tokenEncryptor;
+    private final SocialOAuthTokenRepository socialOAuthTokenRepository;
 
     public OAuthService(
             OAuthProperties oauthProperties,
@@ -52,7 +58,10 @@ public class OAuthService {
             JwtProvider jwtProvider,
             TokenHasher tokenHasher,
             RefreshTokenRepository refreshTokenRepository,
-            RegisterSessionRepository registerSessionRepository) {
+            RegisterSessionRepository registerSessionRepository,
+            TokenEncryptor tokenEncryptor,
+            SocialOAuthTokenRepository socialOAuthTokenRepository
+    ) {
         this.oauthProperties = oauthProperties;
         this.onboardingUri = onboardingUri;
         this.loginSuccessUri = loginSuccessUri;
@@ -64,6 +73,8 @@ public class OAuthService {
         this.tokenHasher = tokenHasher;
         this.refreshTokenRepository = refreshTokenRepository;
         this.registerSessionRepository = registerSessionRepository;
+        this.tokenEncryptor = tokenEncryptor;
+        this.socialOAuthTokenRepository = socialOAuthTokenRepository;
     }
 
     /**
@@ -102,8 +113,10 @@ public class OAuthService {
                 .queryParam("state", state)
                 .queryParam("nonce", nonce);
 
-        properties.getAuthorizationParams()
-                .forEach(builder::queryParam);
+        Map<String, String> authorizationParams = properties.getAuthorizationParams();
+        if (authorizationParams != null) {
+            authorizationParams.forEach(builder::queryParam);
+        }
 
         return builder.build().toUriString();
     }
@@ -172,7 +185,7 @@ public class OAuthService {
             throw new CustomException(OAuthErrorCode.STATE_EXPIRED);
         }
 
-        OAuthUserInfo oauthUserInfo = oauthCallbackHandler.handle(
+        OAuthAuthenticationResult authResult = oauthCallbackHandler.handle(
                 code,
                 oauthLoginState,
                 provider
@@ -180,10 +193,12 @@ public class OAuthService {
 
         SocialAccount socialAccount = socialAccountRepository
                 .findByProviderAndProviderUserId(
-                        oauthUserInfo.getProvider(),
-                        oauthUserInfo.getProviderUserId()
+                        authResult.getUserInfo().getProvider(),
+                        authResult.getUserInfo().getProviderUserId()
                 )
-                .orElseGet(() -> createUnlinkedSocialAccount(oauthUserInfo, now));
+                .orElseGet(() -> createUnlinkedSocialAccount(authResult.getUserInfo(), now));
+
+        saveSocialOAuthToken(socialAccount.getId(), authResult.getTokenResponse(), now);
 
         OAuthCallbackResult result = socialAccount.isLinked()
                 ? handleExistingUser(socialAccount, now)
@@ -262,5 +277,66 @@ public class OAuthService {
         );
 
         return socialAccountRepository.save(socialAccount);
+    }
+
+    private void saveSocialOAuthToken(
+            Long socialAccountId,
+            TokenResponse tokenResponse,
+            LocalDateTime now
+    ) {
+        if (tokenResponse == null || !hasText(tokenResponse.getAccessToken()) || tokenResponse.getExpiresIn() == null) {
+            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        }
+
+        String encryptedAccessToken = tokenEncryptor.encrypt(tokenResponse.getAccessToken());
+        LocalDateTime accessTokenExpiresAt = now.plusSeconds(tokenResponse.getExpiresIn());
+
+        SocialOAuthToken savedToken = socialOAuthTokenRepository.findBySocialAccountId(socialAccountId)
+                .orElse(null);
+
+        if (savedToken == null) {
+            if (!hasText(tokenResponse.getRefreshToken())) {
+                throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+            }
+
+            SocialOAuthToken newToken = new SocialOAuthToken(
+                    tsidGenerator.nextId(),
+                    socialAccountId,
+                    encryptedAccessToken,
+                    tokenEncryptor.encrypt(tokenResponse.getRefreshToken()),
+                    accessTokenExpiresAt,
+                    toRefreshTokenExpiresAt(now, tokenResponse.getRefreshTokenExpiresIn()),
+                    now
+            );
+            socialOAuthTokenRepository.save(newToken);
+            return;
+        }
+
+        String encryptedRefreshToken = savedToken.getRefreshTokenEncrypted();
+        LocalDateTime refreshTokenExpiresAt = savedToken.getRefreshTokenExpiresAt();
+
+        if (hasText(tokenResponse.getRefreshToken())) {
+            encryptedRefreshToken = tokenEncryptor.encrypt(tokenResponse.getRefreshToken());
+            refreshTokenExpiresAt = toRefreshTokenExpiresAt(now, tokenResponse.getRefreshTokenExpiresIn());
+        }
+
+        savedToken.updateTokens(
+                encryptedAccessToken,
+                encryptedRefreshToken,
+                accessTokenExpiresAt,
+                refreshTokenExpiresAt,
+                now
+        );
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private LocalDateTime toRefreshTokenExpiresAt(LocalDateTime now, Integer refreshTokenExpiresIn) {
+        if (refreshTokenExpiresIn == null) {            // google은 refresh_token_expires_in 반환하지 않음
+            return null;
+        }
+        return now.plusSeconds(refreshTokenExpiresIn);
     }
 }
