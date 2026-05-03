@@ -24,6 +24,7 @@ import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -687,6 +688,90 @@ class PostControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(postId))
                 .andExpect(jsonPath("$.isMine").value(true));
+    }
+
+    // 정상 케이스: 작성자가 게시물을 삭제하면 실제 row는 유지하고 삭제 상태로 변경한 뒤 204 No Content를 반환한다.
+    @Test
+    void deletePostSoftDeletesPostAndReturnsNoContent() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "삭제할 글", "본문입니다", false, now);
+
+        mockMvc.perform(delete("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNoContent());
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM posts WHERE id = ?",
+                Boolean.class,
+                postId
+        );
+        LocalDateTime deletedAt = jdbcTemplate.queryForObject(
+                "SELECT deleted_at FROM posts WHERE id = ?",
+                LocalDateTime.class,
+                postId
+        );
+
+        assertThat(isDeleted).isTrue();
+        assertThat(deletedAt).isNotNull();
+    }
+
+    // 실패 케이스: 존재하지 않는 게시물을 삭제하면 404 Not Found와 POST_NOT_FOUND를 반환한다.
+    @Test
+    void deletePostRejectsNotFoundPost() throws Exception {
+        stubAuthenticatedUser();
+
+        Long notFoundPostId = 9999L;
+
+        mockMvc.perform(delete("/api/posts/{postId}", notFoundPostId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+    }
+
+    // 실패 케이스: 이미 삭제된 게시물을 다시 삭제하면 404 Not Found와 POST_ALREADY_DELETED를 반환한다.
+    @Test
+    void deletePostRejectsDeletedPost() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "이미 삭제된 글", "본문입니다", true, now);
+
+        mockMvc.perform(delete("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_ALREADY_DELETED"));
+    }
+
+    // 실패 케이스: 작성자가 아닌 사용자가 게시물을 삭제하면 403 Forbidden과 FORBIDDEN_ACCESS를 반환한다.
+    @Test
+    void deletePostRejectsNotWriter() throws Exception {
+        stubAuthenticatedUser();
+
+        Long otherUserId = 2L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(otherUserId, "other-hogu", now);
+        insertPost(postId, otherUserId, "USED_TRADE", "다른 사람 글", "본문입니다", false, now);
+
+        mockMvc.perform(delete("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN_ACCESS"));
+    }
+
+    // 실패 케이스: postId가 숫자로 변환될 수 없는 값이면 400 Bad Request와 WRONG_POSTID_TYPE을 반환한다.
+    @Test
+    void deletePostRejectsWrongPostIdType() throws Exception {
+        stubAuthenticatedUser();
+
+        mockMvc.perform(delete("/api/posts/{postId}", "abc")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WRONG_POSTID_TYPE"));
     }
 
     private void insertUser(Long userId, String nickname, LocalDateTime now) {
