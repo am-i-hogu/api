@@ -6,6 +6,8 @@ import com.hogu.am_i_hogu.common.exception.ErrorResponse;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.TokenHasher;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
+import com.hogu.am_i_hogu.domain.User.domain.UserHoguStat;
+import com.hogu.am_i_hogu.domain.User.repository.UserHoguStatRepository;
 import com.hogu.am_i_hogu.domain.auth.domain.RefreshToken;
 import com.hogu.am_i_hogu.domain.auth.domain.RegisterSession;
 import com.hogu.am_i_hogu.domain.oauth.domain.SocialAccount;
@@ -33,6 +35,7 @@ public class AuthService {
     private final TsidGenerator tsidGenerator;
     private final SocialAccountRepository socialAccountRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final UserHoguStatRepository userHoguStatRepository;
 
     public AuthService(
             JwtProvider jwtProvider,
@@ -41,8 +44,8 @@ public class AuthService {
             TokenHasher tokenHasher,
             TsidGenerator tsidGenerator,
             SocialAccountRepository socialAccountRepository,
-            RefreshTokenRepository refreshTokenRepository
-    ) {
+            RefreshTokenRepository refreshTokenRepository,
+            UserHoguStatRepository userHoguStatRepository) {
         this.jwtProvider = jwtProvider;
         this.registerSessionRepository = registerSessionRepository;
         this.userRepository = userRepository;
@@ -50,6 +53,7 @@ public class AuthService {
         this.tsidGenerator = tsidGenerator;
         this.socialAccountRepository = socialAccountRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.userHoguStatRepository = userHoguStatRepository;
     }
 
     @Transactional
@@ -149,7 +153,10 @@ public class AuthService {
                 false,
                 createdAt
         );
+        UserHoguStat userStat = new UserHoguStat(userId, createdAt);
+
         userRepository.save(user);
+        userHoguStatRepository.save(userStat);
 
         SocialAccount socialAccount = socialAccountRepository.findById(registerSession.getSocialAccountId())
                 .orElseThrow(()-> new CustomException(CommonErrorCode.SERVER_ERROR));
