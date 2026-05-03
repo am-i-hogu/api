@@ -23,8 +23,10 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -178,18 +180,23 @@ public class PostUpdateService {
             errors.add(new ErrorResponse.ErrorDetail("images", "IMAGE_COUNT_EXCEEDED"));
         }
 
+        Set<String> imageUrls = new HashSet<>();
         int thumbnailCount = 0;
         for (PostImageRequest image : images) {
             if (image == null) {
                 errors.add(new ErrorResponse.ErrorDetail("images", "EMPTY_IMAGE_URL"));
                 continue;
             }
-            if (image.imageUrl() == null || image.imageUrl().isBlank()) {
+            String imageUrl = image.imageUrl();
+            if (imageUrl == null || imageUrl.isBlank()) {
                 errors.add(new ErrorResponse.ErrorDetail("images", "EMPTY_IMAGE_URL"));
                 continue;
             }
-            if (!isValidImageUrl(image.imageUrl())) {
+            if (!isValidImageUrl(imageUrl)) {
                 errors.add(new ErrorResponse.ErrorDetail("images", "INVALID_IMAGE_URL"));
+            }
+            if (!imageUrls.add(imageUrl)) {
+                errors.add(new ErrorResponse.ErrorDetail("images", "DUPLICATE_IMAGE_URL"));
             }
             if (image.order() == null) {
                 errors.add(new ErrorResponse.ErrorDetail("images", "EMPTY_IMAGE_ORDER"));
