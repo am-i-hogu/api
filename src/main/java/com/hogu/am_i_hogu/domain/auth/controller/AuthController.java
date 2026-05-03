@@ -35,7 +35,7 @@ public class AuthController {
      */
     @PostMapping("/api/users")
     public ResponseEntity<OnboardingResponse> createUser(
-            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestBody OnboardingRequest requestBody
     ) {
         String nickname = requestBody.getNickname();
