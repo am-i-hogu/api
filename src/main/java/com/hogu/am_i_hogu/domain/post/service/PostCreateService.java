@@ -24,8 +24,10 @@ import java.net.URISyntaxException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -134,7 +136,9 @@ public class PostCreateService {
             errors.add(new ErrorResponse.ErrorDetail("categories", "MULTIPLE_CATEGORIES"));
             return;
         }
-        if (!categoryRepository.existsById(request.categories().get(0))) {
+
+        String categoryCode = request.categories().get(0);
+        if (categoryCode == null || categoryCode.isBlank() || !categoryRepository.existsById(categoryCode)) {
             errors.add(new ErrorResponse.ErrorDetail("categories", "INVALID_CATEGORIES"));
         }
     }
@@ -166,14 +170,27 @@ public class PostCreateService {
             errors.add(new ErrorResponse.ErrorDetail("images", "IMAGE_COUNT_EXCEEDED"));
         }
 
+        Set<String> imageUrls = new HashSet<>();
         int thumbnailCount = 0;
         for (PostImageRequest image : images) {
-            if (image.imageUrl() == null || image.imageUrl().isBlank()) {
+            if (image == null) {
                 errors.add(new ErrorResponse.ErrorDetail("images", "EMPTY_IMAGE_URL"));
                 continue;
             }
-            if (!isValidImageUrl(image.imageUrl())) {
+
+            String imageUrl = image.imageUrl();
+            if (imageUrl == null || imageUrl.isBlank()) {
+                errors.add(new ErrorResponse.ErrorDetail("images", "EMPTY_IMAGE_URL"));
+                continue;
+            }
+            if (!isValidImageUrl(imageUrl)) {
                 errors.add(new ErrorResponse.ErrorDetail("images", "INVALID_IMAGE_URL"));
+            }
+            if (!imageUrls.add(imageUrl)) {
+                errors.add(new ErrorResponse.ErrorDetail("images", "DUPLICATE_IMAGE_URL"));
+            }
+            if (image.order() == null) {
+                errors.add(new ErrorResponse.ErrorDetail("images", "EMPTY_IMAGE_ORDER"));
             }
             if (Boolean.TRUE.equals(image.isThumbnail())) {
                 thumbnailCount++;
