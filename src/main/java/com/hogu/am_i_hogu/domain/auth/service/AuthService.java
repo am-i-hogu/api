@@ -57,9 +57,9 @@ public class AuthService {
     }
 
     @Transactional
-    public OnboardingResult createUser(String authorizationHeader, String nickname) {
-        String registerToken = loadAndValidateRegisterToken(authorizationHeader);
-        RegisterSession registerSession = loadAndValidateRegisterSession(registerToken);
+    public OnboardingResult createUser(String registerToken, String nickname) {
+        validateRegisterToken(registerToken);
+        RegisterSession registerSession = validateRegisterSession(registerToken);
         validateNickname(nickname);
 
         LocalDateTime createdAt = LocalDateTime.now();
@@ -68,38 +68,23 @@ public class AuthService {
         return issueLoginTokens(userId, createdAt);
     }
 
-    // register token 추출 후 검증 (register token 타입이 아닌지 / 비어있는지 / 만료되었는지)
-    private String loadAndValidateRegisterToken(String authorizationHeader) {
-        String registerToken = getRegisterToken(authorizationHeader);
-
+    // register token 검증 (잘못된 값인지 / 비어있는지 / 만료되었는지)
+    private void validateRegisterToken(String registerToken) {
         JwtProvider.TokenValidationResult validationResult = jwtProvider.validateRegisterToken(registerToken);
 
         if (validationResult == JwtProvider.TokenValidationResult.EMPTY) {                      // register token이 비어있는 경우
             throw new CustomException(AuthErrorCode.EMPTY_REGISTER_TOKEN);
-        } else if (validationResult == JwtProvider.TokenValidationResult.EXPIRED) {             // register token이 만료된 경우
+        }
+        if (validationResult == JwtProvider.TokenValidationResult.EXPIRED) {             // register token이 만료된 경우
             throw new CustomException(AuthErrorCode.REGISTER_TOKEN_EXPIRED);
-        } else if (validationResult == JwtProvider.TokenValidationResult.INVALID) {             // register token이 잘못된 값인 경우
+        }
+        if (validationResult == JwtProvider.TokenValidationResult.INVALID) {             // register token이 잘못된 값인 경우
             throw new CustomException(AuthErrorCode.INVALID_REGISTER_TOKEN);
         }
-
-        return registerToken;
-    }
-
-    // authorization header에서 register token 추출
-    private String getRegisterToken(String authorizationHeader) {
-        if (authorizationHeader == null || authorizationHeader.isBlank()) {     // 헤더가 비어있는 경우
-            return null;
-        }
-        if (!authorizationHeader.startsWith("Bearer ")) {                       // "Bearer" 타입으로 들어오지 않은 경우
-            return authorizationHeader;
-        }
-
-        String registerToken = authorizationHeader.substring(7);
-        return registerToken.isBlank() ? null : registerToken;
     }
 
     // register session 검색 및 검증 (DB에 저장된 값과 일치하는지 / 사용되었는지)
-    private RegisterSession loadAndValidateRegisterSession(String registerToken) {
+    private RegisterSession validateRegisterSession(String registerToken) {
         Long socialAccountId = jwtProvider.getSubjectAsLong(registerToken);
         RegisterSession registerSession = registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(socialAccountId)
                 .orElseThrow(()-> new CustomException(AuthErrorCode.INVALID_REGISTER_TOKEN));
