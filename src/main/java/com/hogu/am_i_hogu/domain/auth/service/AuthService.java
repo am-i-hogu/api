@@ -59,7 +59,7 @@ public class AuthService {
     @Transactional
     public OnboardingResult createUser(String registerToken, String nickname) {
         validateRegisterToken(registerToken);
-        RegisterSession registerSession = validateRegisterSession(registerToken);
+        RegisterSession registerSession = loadAndValidateRegisterSession(registerToken);
         validateNickname(nickname);
 
         LocalDateTime createdAt = LocalDateTime.now();
@@ -72,7 +72,7 @@ public class AuthService {
     private void validateRegisterToken(String registerToken) {
         JwtProvider.TokenValidationResult validationResult = jwtProvider.validateRegisterToken(registerToken);
 
-        if (validationResult == JwtProvider.TokenValidationResult.EMPTY) {                      // register token이 비어있는 경우
+        if (validationResult == JwtProvider.TokenValidationResult.EMPTY) {                // register token이 비어있는 경우
             throw new CustomException(AuthErrorCode.EMPTY_REGISTER_TOKEN);
         }
         if (validationResult == JwtProvider.TokenValidationResult.EXPIRED) {             // register token이 만료된 경우
@@ -84,7 +84,7 @@ public class AuthService {
     }
 
     // register session 검색 및 검증 (DB에 저장된 값과 일치하는지 / 사용되었는지)
-    private RegisterSession validateRegisterSession(String registerToken) {
+    private RegisterSession loadAndValidateRegisterSession(String registerToken) {
         Long socialAccountId = jwtProvider.getSubjectAsLong(registerToken);
         RegisterSession registerSession = registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(socialAccountId)
                 .orElseThrow(()-> new CustomException(AuthErrorCode.INVALID_REGISTER_TOKEN));
@@ -117,7 +117,7 @@ public class AuthService {
                     AuthErrorCode.SPECIAL_CHAR_NICKNAME.getCode()
             ));
         }
-        if (nickname.length() < 2 || nickname.length() > 20) {    // 닉네임 길이 위반한 경우
+        if (nickname.length() < 2 || nickname.length() > 20) {      // 닉네임 길이 위반한 경우
             errors.add(new ErrorResponse.ErrorDetail(
                     "nickname",
                     AuthErrorCode.NICKNAME_LENGTH_EXCEEDED.getCode()
