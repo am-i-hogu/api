@@ -19,7 +19,6 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class PostDetailService {
     private static final String HOGU_VOTE = "HOGU";
     private static final String NOT_HOGU_VOTE = "NOT_HOGU";
@@ -36,9 +35,11 @@ public class PostDetailService {
      * @param viewerUserId 현재 조회 중인 사용자 ID, 비회원이면 null
      * @return 게시글 상세 응답
      */
+    @Transactional
     public PostDetailResponse getDetail(Long postId, Long viewerUserId) {
         Post post = getPostOrThrow(postId);
         validateNotDeleted(post);
+        post.increaseViewCount();
 
         List<String> imageUrls = getImageUrls(postId);
         boolean isMine = isMine(post, viewerUserId);

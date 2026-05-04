@@ -708,7 +708,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.title").value("안녕하세요"))
                 .andExpect(jsonPath("$.createdAt").exists())
                 .andExpect(jsonPath("$.updatedAt").exists())
-                .andExpect(jsonPath("$.viewCount").value(12))
+                .andExpect(jsonPath("$.viewCount").value(13))
                 .andExpect(jsonPath("$.content").value("본문입니다"))
                 .andExpect(jsonPath("$.images[0]").value("https://example.com/image1.jpg"))
                 .andExpect(jsonPath("$.images[1]").value("https://example.com/image2.jpg"))
@@ -718,6 +718,13 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.vote.myVote").value("NONE"))
                 .andExpect(jsonPath("$.writer.nickname").value("hogu"))
                 .andExpect(jsonPath("$.writer.profileImageUrl").value("https://example.com/asdf1234-profile.jpg"));
+
+        Integer viewCount = jdbcTemplate.queryForObject(
+                "SELECT view_count FROM posts WHERE id = ?",
+                Integer.class,
+                postId
+        );
+        assertThat(viewCount).isEqualTo(13);
     }
 
     // 실패 케이스: 존재하지 않는 게시글을 조회하면 404 Not Found와 POST_NOT_FOUND를 반환한다.

@@ -74,4 +74,8 @@ public class Post {
         this.deletedAt = deletedAt;
         this.updatedAt = deletedAt;
     }
+
+    public void increaseViewCount() {
+        this.viewCount++;
+    }
 }
