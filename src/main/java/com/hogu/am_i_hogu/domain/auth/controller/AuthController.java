@@ -8,10 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 public class AuthController {
@@ -29,17 +26,17 @@ public class AuthController {
     /**
      * [ONBOARDING-001] 온보딩
      *
-     * @param authorizationHeader 요청으로 들어온 헤더
-     * @param requestBody         요청 본문
+     * @param registerToken 요청으로 들어온 register token
+     * @param requestBody 요청 본문
      * @return refresh token, access token
      */
     @PostMapping("/api/users")
     public ResponseEntity<OnboardingResponse> createUser(
-            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @CookieValue(name = "registerToken", required = false) String registerToken,
             @RequestBody OnboardingRequest requestBody
     ) {
         String nickname = requestBody.getNickname();
-        OnboardingResult result = authService.createUser(authorizationHeader, nickname);
+        OnboardingResult result = authService.createUser(registerToken, nickname);
         ResponseCookie cookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
                 .httpOnly(true)
                 .secure(cookieSecure)
