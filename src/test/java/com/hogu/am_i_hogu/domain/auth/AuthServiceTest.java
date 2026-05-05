@@ -203,7 +203,7 @@ public class AuthServiceTest {
                     assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_INPUT_VALUE);
                     List<ErrorResponse.ErrorDetail> errors = exception.getErrors();
                     assertThat(errors.get(0).getField()).isEqualTo("nickname");
-                    assertThat(errors.get(0).getCode()).isEqualTo(AuthErrorCode.EMPTY_NICKNAME.getCode());
+                    assertThat(errors.get(0).getCode()).isEqualTo("EMPTY_NICKNAME");
                 });
     }
 
@@ -235,7 +235,7 @@ public class AuthServiceTest {
                     assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_INPUT_VALUE);
                     List<ErrorResponse.ErrorDetail> errors = exception.getErrors();
                     assertThat(errors.get(0).getField()).isEqualTo("nickname");
-                    assertThat(errors.get(0).getCode()).isEqualTo(AuthErrorCode.SPECIAL_CHAR_NICKNAME.getCode());
+                    assertThat(errors.get(0).getCode()).isEqualTo("SPECIAL_CHAR_NICKNAME");
                 });
     }
 
@@ -267,7 +267,7 @@ public class AuthServiceTest {
                     assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_INPUT_VALUE);
                     List<ErrorResponse.ErrorDetail> errors = exception.getErrors();
                     assertThat(errors.get(0).getField()).isEqualTo("nickname");
-                    assertThat(errors.get(0).getCode()).isEqualTo(AuthErrorCode.NICKNAME_LENGTH_EXCEEDED.getCode());
+                    assertThat(errors.get(0).getCode()).isEqualTo("NICKNAME_LENGTH_EXCEEDED");
                 });
     }
 
@@ -335,7 +335,7 @@ public class AuthServiceTest {
                     assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_INPUT_VALUE);
                     List<ErrorResponse.ErrorDetail> errors = exception.getErrors();
                     assertThat(errors.get(0).getField()).isEqualTo("nickname");
-                    assertThat(errors.get(0).getCode()).isEqualTo(AuthErrorCode.DUPLICATE_NICKNAME.getCode());
+                    assertThat(errors.get(0).getCode()).isEqualTo("DUPLICATE_NICKNAME");
                 });
     }
 
