@@ -108,7 +108,7 @@ public class AuthService {
         if (nickname == null || nickname.isBlank()) {               // 닉네임이 비어있는 경우
             errors.add(new ErrorResponse.ErrorDetail(
                     "nickname",
-                    AuthErrorCode.EMPTY_NICKNAME.getCode()
+                    "EMPTY_NICKNAME"
             ));
             throw new CustomException(AuthErrorCode.INVALID_INPUT_VALUE, errors);
         }
@@ -116,13 +116,13 @@ public class AuthService {
         if (!nickname.matches("^[가-힣a-zA-Z0-9]+$")) {        // 닉네임에 특수문자가 포함된 경우
             errors.add(new ErrorResponse.ErrorDetail(
                     "nickname",
-                    AuthErrorCode.SPECIAL_CHAR_NICKNAME.getCode()
+                    "SPECIAL_CHAR_NICKNAME"
             ));
         }
         if (nickname.length() < 2 || nickname.length() > 20) {      // 닉네임 길이 위반한 경우
             errors.add(new ErrorResponse.ErrorDetail(
                     "nickname",
-                    AuthErrorCode.NICKNAME_LENGTH_EXCEEDED.getCode()
+                    "NICKNAME_LENGTH_EXCEEDED"
             ));
         }
 
@@ -169,7 +169,7 @@ public class AuthService {
         } catch (DataIntegrityViolationException e) {
             throw new CustomException(
                     AuthErrorCode.INVALID_INPUT_VALUE,
-                    List.of(new ErrorResponse.ErrorDetail("nickname", AuthErrorCode.DUPLICATE_NICKNAME.getCode()))
+                    List.of(new ErrorResponse.ErrorDetail("nickname", "DUPLICATE_NICKNAME"))
             );
         }
 

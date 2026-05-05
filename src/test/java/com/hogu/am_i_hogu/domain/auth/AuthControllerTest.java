@@ -139,7 +139,7 @@ public class AuthControllerTest {
         when(authService.createUser("register-token", "nickname!"))
                 .thenThrow(new CustomException(
                         AuthErrorCode.INVALID_INPUT_VALUE,
-                        List.of(new ErrorResponse.ErrorDetail("nickname", AuthErrorCode.SPECIAL_CHAR_NICKNAME.getCode()))
+                        List.of(new ErrorResponse.ErrorDetail("nickname", "SPECIAL_CHAR_NICKNAME"))
                 ));
 
         mockMvc.perform(post("/api/users")
