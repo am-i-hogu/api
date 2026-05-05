@@ -66,6 +66,7 @@ public class AuthService {
         LocalDateTime createdAt = LocalDateTime.now();
         Long userId = saveUser(nickname, createdAt);
         linkSocialAccount(registerSession, userId, createdAt);
+        registerSession.markConsumed(createdAt);
 
         return issueLoginTokens(userId, createdAt);
     }
@@ -131,7 +132,7 @@ public class AuthService {
         }
     }
 
-    // 신규 유저 생성 후 register session 사용 처리
+    // 신규 유저 생성 후 저장
     private long saveUser(String nickname, LocalDateTime createdAt) {
         Long userId = tsidGenerator.nextId();
         User user = new User(
@@ -187,6 +188,5 @@ public class AuthService {
                 .orElseThrow(()-> new CustomException(CommonErrorCode.SERVER_ERROR));
 
         socialAccount.linkToUser(userId, createdAt);
-        registerSession.markConsumed(createdAt);
     }
 }
