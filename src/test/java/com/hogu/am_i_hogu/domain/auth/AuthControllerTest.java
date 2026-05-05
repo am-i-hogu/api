@@ -9,7 +9,8 @@ import com.hogu.am_i_hogu.common.security.SecurityConfig;
 import com.hogu.am_i_hogu.domain.auth.exception.AuthErrorCode;
 import com.hogu.am_i_hogu.domain.auth.controller.AuthController;
 import com.hogu.am_i_hogu.domain.auth.dto.response.TokenPair;
-import com.hogu.am_i_hogu.domain.auth.service.AuthService;
+import com.hogu.am_i_hogu.domain.auth.service.OnboardingService;
+import com.hogu.am_i_hogu.domain.auth.service.ReissueService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +21,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import jakarta.servlet.http.Cookie;
 import java.util.List;
 
 import static org.mockito.Mockito.verify;
@@ -45,7 +45,10 @@ public class AuthControllerTest {
     private JwtAccessDeniedHandler jwtAccessDeniedHandler;
 
     @MockitoBean
-    private AuthService authService;
+    private OnboardingService onboardingService;
+
+    @MockitoBean
+    private ReissueService reissueService;
 
     /**
      * 온보딩 요청 성공 테스트:
@@ -57,7 +60,7 @@ public class AuthControllerTest {
      */
     @Test
     void createUserTest() throws Exception {
-        when(authService.createUser("register-token", "nickname"))
+        when(onboardingService.createUser("register-token", "nickname"))
                 .thenReturn(new TokenPair("new-access-token", "new-refresh-token"));
 
         mockMvc.perform(post("/api/users")
@@ -80,7 +83,7 @@ public class AuthControllerTest {
                         }
                         """));
 
-        verify(authService).createUser("register-token", "nickname");
+        verify(onboardingService).createUser("register-token", "nickname");
     }
 
     /**
@@ -91,7 +94,7 @@ public class AuthControllerTest {
      */
     @Test
     void createUserWithoutRegisterTokenCookieTest() throws Exception {
-        when(authService.createUser(null, "nickname"))
+        when(onboardingService.createUser(null, "nickname"))
                 .thenThrow(new CustomException(AuthErrorCode.EMPTY_REGISTER_TOKEN));
 
         mockMvc.perform(post("/api/users")
@@ -113,7 +116,7 @@ public class AuthControllerTest {
      */
     @Test
     void createUserUnauthorizedTest() throws Exception {
-        when(authService.createUser("invalid-register-token", "nickname"))
+        when(onboardingService.createUser("invalid-register-token", "nickname"))
                 .thenThrow(new CustomException(AuthErrorCode.INVALID_REGISTER_TOKEN));
 
         mockMvc.perform(post("/api/users")
@@ -137,7 +140,7 @@ public class AuthControllerTest {
      */
     @Test
     void createUserBadRequestTest() throws Exception {
-        when(authService.createUser("register-token", "nickname!"))
+        when(onboardingService.createUser("register-token", "nickname!"))
                 .thenThrow(new CustomException(
                         AuthErrorCode.INVALID_INPUT_VALUE,
                         List.of(new ErrorResponse.ErrorDetail("nickname", "SPECIAL_CHAR_NICKNAME"))
@@ -175,7 +178,7 @@ public class AuthControllerTest {
      */
     @Test
     void reissueTokenTest() throws Exception {
-        when(authService.reissueToken("refresh-token"))
+        when(reissueService.reissueToken("refresh-token"))
                 .thenReturn(new TokenPair("new-access-token", "new-refresh-token"));
 
         mockMvc.perform(post("/api/auth/refresh")
@@ -188,7 +191,7 @@ public class AuthControllerTest {
                         }
                         """));
 
-        verify(authService).reissueToken("refresh-token");
+        verify(reissueService).reissueToken("refresh-token");
     }
 
     /**
@@ -199,7 +202,7 @@ public class AuthControllerTest {
      */
     @Test
     void reissueTokenUnauthorizedTest() throws Exception {
-        when(authService.reissueToken("invalid-refresh-token"))
+        when(reissueService.reissueToken("invalid-refresh-token"))
                 .thenThrow(new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN));
 
         mockMvc.perform(post("/api/auth/refresh")

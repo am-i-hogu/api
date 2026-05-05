@@ -27,33 +27,33 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-public class AuthService {
+public class OnboardingService {
 
     private final JwtProvider jwtProvider;
     private final RegisterSessionRepository registerSessionRepository;
     private final UserRepository userRepository;
     private final TokenHasher tokenHasher;
     private final TsidGenerator tsidGenerator;
+    private final TokenIssueService tokenIssueService;
     private final SocialAccountRepository socialAccountRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
     private final UserHoguStatRepository userHoguStatRepository;
 
-    public AuthService(
+    public OnboardingService(
             JwtProvider jwtProvider,
             RegisterSessionRepository registerSessionRepository,
             UserRepository userRepository,
             TokenHasher tokenHasher,
             TsidGenerator tsidGenerator,
+            TokenIssueService tokenIssueService,
             SocialAccountRepository socialAccountRepository,
-            RefreshTokenRepository refreshTokenRepository,
             UserHoguStatRepository userHoguStatRepository) {
         this.jwtProvider = jwtProvider;
         this.registerSessionRepository = registerSessionRepository;
         this.userRepository = userRepository;
         this.tokenHasher = tokenHasher;
         this.tsidGenerator = tsidGenerator;
+        this.tokenIssueService = tokenIssueService;
         this.socialAccountRepository = socialAccountRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
         this.userHoguStatRepository = userHoguStatRepository;
     }
 
@@ -68,7 +68,7 @@ public class AuthService {
         linkSocialAccount(registerSession, userId, createdAt);
         registerSession.markConsumed(createdAt);
 
-        return issueTokenPair(userId, createdAt);
+        return tokenIssueService.issueTokenPair(userId, createdAt);
     }
 
     // register token 검증 (잘못된 값인지 / 비어있는지 / 만료되었는지)
@@ -144,61 +144,6 @@ public class AuthService {
         saveUserOrThrowDuplicate(user, userId, createdAt);
 
         return userId;
-    }
-
-    // access token, refresh token 발급
-    private TokenPair issueTokenPair(Long userId, LocalDateTime createdAt) {
-        Long refreshTokenId = tsidGenerator.nextId();
-        String refreshToken = jwtProvider.createRefreshToken(userId, refreshTokenId);
-        RefreshToken refreshTokenEntity = new RefreshToken(
-                refreshTokenId,
-                userId,
-                tokenHasher.hash(refreshToken),
-                createdAt
-        );
-        refreshTokenRepository.save(refreshTokenEntity);
-
-        String accessToken = jwtProvider.createAccessToken(userId);
-
-        return new TokenPair(accessToken, refreshToken);
-    }
-
-    // 토큰 재발급
-    @Transactional
-    public TokenPair reissueToken(String refreshToken) {
-        JwtProvider.TokenValidationResult validationResult =
-                jwtProvider.validateRefreshToken(refreshToken);
-
-        if (validationResult == JwtProvider.TokenValidationResult.EMPTY) {
-            throw new CustomException(AuthErrorCode.EMPTY_REFRESH_TOKEN);
-        } else if (validationResult == JwtProvider.TokenValidationResult.EXPIRED) {
-            throw new CustomException(AuthErrorCode.REFRESH_TOKEN_EXPIRED);
-        } else if (validationResult == JwtProvider.TokenValidationResult.INVALID) {
-            throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        RefreshToken savedRefreshToken = loadAndValidateRefreshToken(refreshToken);
-        savedRefreshToken.markRotated();
-        savedRefreshToken.revoke(now);
-
-        return issueTokenPair(savedRefreshToken.getUserId(), now);
-    }
-
-    // DB에 저장된 refresh token과 비교
-    private RefreshToken loadAndValidateRefreshToken(String refreshToken) {
-        Long refreshTokenId = jwtProvider.getTokenId(refreshToken);
-        RefreshToken savedRefreshToken = refreshTokenRepository.findById(refreshTokenId)
-                .orElseThrow(() -> new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN));
-
-        if (!savedRefreshToken.getTokenHash().equals(tokenHasher.hash(refreshToken))) {
-            throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
-        }
-        if (savedRefreshToken.isRevoked() || savedRefreshToken.isRotated()) {
-            throw new CustomException(AuthErrorCode.REFRESH_TOKEN_REUSED);
-        }
-
-        return savedRefreshToken;
     }
 
     // user 저장 시도 후 성공 시 user_hogu_stat 초기화, 실패 시 닉네임 중복 오류 throw

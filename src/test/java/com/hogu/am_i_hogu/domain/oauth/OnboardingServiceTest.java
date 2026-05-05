@@ -40,7 +40,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-public class OAuthServiceTest {
+public class OnboardingServiceTest {
 
     private final OAuthProperties oauthProperties = mock(OAuthProperties.class);
     private final OAuthClientProperties oauthClientProperties = mock(OAuthClientProperties.class);

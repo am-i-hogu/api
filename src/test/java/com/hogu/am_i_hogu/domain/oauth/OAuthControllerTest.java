@@ -8,7 +8,7 @@ import com.hogu.am_i_hogu.domain.oauth.controller.OAuthController;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
-import com.hogu.am_i_hogu.domain.auth.service.AuthService;
+import com.hogu.am_i_hogu.domain.auth.service.OnboardingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -43,7 +43,7 @@ public class OAuthControllerTest {
     private OAuthService oauthService;
 
     @MockitoBean
-    private AuthService authService;
+    private OnboardingService onboardingService;
 
     /**
      * 지원하는 provider로 로그인 요청 시 OAuth provider 로그인 페이지로 redirect 되는지 테스트:
