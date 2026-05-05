@@ -39,13 +39,14 @@ public class PostDetailService {
     public PostDetailResponse getDetail(Long postId, Long viewerUserId) {
         Post post = getPostOrThrow(postId);
         validateNotDeleted(post);
-        post.increaseViewCount();
+        postRepository.increaseViewCount(postId);
+        int viewCount = getViewCountOrThrow(postId);
 
         List<String> imageUrls = getImageUrls(postId);
         boolean isMine = isMine(post, viewerUserId);
         PostVoteResponse vote = getVoteResponse(postId, viewerUserId);
 
-        return getPostDetailResponse(post, imageUrls, isMine, vote);
+        return getPostDetailResponse(post, imageUrls, isMine, viewCount, vote);
     }
 
     /**
@@ -68,6 +69,17 @@ public class PostDetailService {
         if (post.isDeleted()) {
             throw new CustomException(PostErrorCode.POST_ALREADY_DELETED);
         }
+    }
+
+    /**
+     * 조회수 증가 후 DB에 저장된 최신 조회수를 다시 조회한다.
+     *
+     * @param postId 조회수를 조회할 게시글 ID
+     * @return DB에 저장된 최신 조회수
+     */
+    private int getViewCountOrThrow(Long postId) {
+        return postRepository.findViewCountById(postId)
+                .orElseThrow(() -> new CustomException(PostErrorCode.POST_NOT_FOUND));
     }
 
     /**
@@ -125,6 +137,7 @@ public class PostDetailService {
             Post post,
             List<String> imageUrls,
             boolean isMine,
+            int viewCount,
             PostVoteResponse vote
     ) {
         return new PostDetailResponse(
@@ -134,7 +147,7 @@ public class PostDetailService {
                 post.getTitle(),
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
-                post.getViewCount(),
+                viewCount,
                 post.getContent(),
                 imageUrls,
                 vote,
