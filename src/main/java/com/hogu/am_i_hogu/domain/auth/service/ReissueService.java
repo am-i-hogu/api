@@ -34,6 +34,18 @@ public class ReissueService {
     // 토큰 재발급
     @Transactional
     public TokenPair reissueToken(String refreshToken) {
+        RefreshToken savedRefreshToken = loadAndValidateRefreshToken(refreshToken);
+
+        LocalDateTime now = LocalDateTime.now();
+        savedRefreshToken.markRotated();
+        savedRefreshToken.revoke(now);
+
+        return tokenIssueService.issueTokenPair(savedRefreshToken.getUserId(), now);
+    }
+
+    // refresh token 검증
+    private RefreshToken loadAndValidateRefreshToken(String refreshToken) {
+        // JWT 레벨 검증
         JwtProvider.TokenValidationResult validationResult =
                 jwtProvider.validateRefreshToken(refreshToken);
 
@@ -47,16 +59,7 @@ public class ReissueService {
             throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        RefreshToken savedRefreshToken = loadAndValidateRefreshToken(refreshToken);
-        savedRefreshToken.markRotated();
-        savedRefreshToken.revoke(now);
-
-        return tokenIssueService.issueTokenPair(savedRefreshToken.getUserId(), now);
-    }
-
-    // DB에 저장된 refresh token과 비교
-    private RefreshToken loadAndValidateRefreshToken(String refreshToken) {
+        // DB 저장값 검증
         Long refreshTokenId = jwtProvider.getTokenId(refreshToken);
         RefreshToken savedRefreshToken = refreshTokenRepository.findById(refreshTokenId)
                 .orElseThrow(() -> new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN));
