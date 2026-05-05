@@ -19,6 +19,7 @@ import com.hogu.am_i_hogu.domain.oauth.repository.OAuthLoginStateRepository;
 import com.hogu.am_i_hogu.domain.auth.repository.RefreshTokenRepository;
 import com.hogu.am_i_hogu.domain.auth.repository.RegisterSessionRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.SocialAccountRepository;
+import com.hogu.am_i_hogu.domain.oauth.repository.SocialOAuthTokenRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

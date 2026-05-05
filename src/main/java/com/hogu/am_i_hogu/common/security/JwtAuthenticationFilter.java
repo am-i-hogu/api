@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.stream.Stream;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -31,7 +32,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String requestURI = request.getRequestURI();
-        return "/api/users".equals(requestURI);
+
+        return Stream.of("/api/users", "/api/auth/refresh")
+                .anyMatch(request.getRequestURI()::equals);
     }
 
     @Override

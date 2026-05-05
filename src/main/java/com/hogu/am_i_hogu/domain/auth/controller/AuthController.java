@@ -4,7 +4,8 @@ import com.hogu.am_i_hogu.domain.auth.dto.request.OnboardingRequest;
 import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResponse;
 import com.hogu.am_i_hogu.domain.auth.dto.response.ReissueResponse;
 import com.hogu.am_i_hogu.domain.auth.dto.response.TokenPair;
-import com.hogu.am_i_hogu.domain.auth.service.AuthService;
+import com.hogu.am_i_hogu.domain.auth.service.OnboardingService;
+import com.hogu.am_i_hogu.domain.auth.service.ReissueService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
@@ -13,14 +14,17 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 public class AuthController {
-    private final AuthService authService;
+    private final OnboardingService onboardingService;
+    private final ReissueService reissueService;
     private final boolean cookieSecure;
 
     public AuthController(
-            AuthService authService,
+            OnboardingService onboardingService,
+            ReissueService reissueService,
             @Value("${app.cookie.secure}") boolean cookieSecure
     ) {
-        this.authService = authService;
+        this.onboardingService = onboardingService;
+        this.reissueService = reissueService;
         this.cookieSecure = cookieSecure;
     }
 
@@ -37,7 +41,7 @@ public class AuthController {
             @RequestBody OnboardingRequest requestBody
     ) {
         String nickname = requestBody.getNickname();
-        TokenPair result = authService.createUser(registerToken, nickname);
+        TokenPair result = onboardingService.createUser(registerToken, nickname);
         ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
                 .httpOnly(true)
                 .secure(cookieSecure)
@@ -67,9 +71,9 @@ public class AuthController {
      */
     @PostMapping("/api/auth/refresh")
     public ResponseEntity<ReissueResponse> reissueToken(
-            @CookieValue(name = "refreshToken") String refreshToken
+            @CookieValue(name = "refreshToken", required = false) String refreshToken
     ) {
-        TokenPair result = authService.reissueToken(refreshToken);
+        TokenPair result = reissueService.reissueToken(refreshToken);
         ResponseCookie cookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
                 .httpOnly(true)
                 .secure(cookieSecure)
