@@ -37,16 +37,24 @@ public class AuthController {
     ) {
         String nickname = requestBody.getNickname();
         OnboardingResult result = authService.createUser(registerToken, nickname);
-        ResponseCookie cookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
+        ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
                 .httpOnly(true)
                 .secure(cookieSecure)
                 .path("/")
                 .build();
 
+        ResponseCookie deleteRegisterTokenCookie = ResponseCookie.from("registerToken", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .maxAge(0)
+                .build();
+
         OnboardingResponse response = new OnboardingResponse(result.getAccessToken());
 
         return ResponseEntity.status(200)
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, deleteRegisterTokenCookie.toString())
                 .body(response);
     }
 }
