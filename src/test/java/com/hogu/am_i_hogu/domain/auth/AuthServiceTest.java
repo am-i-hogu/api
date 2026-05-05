@@ -22,6 +22,7 @@ import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
 import com.hogu.am_i_hogu.domain.auth.service.AuthService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -303,6 +304,42 @@ public class AuthServiceTest {
     }
 
     /**
+     * 닉네임 중복 race condition 처리 테스트:
+     * saveAndFlush 시점에 unique 제약 위반이 발생하면
+     * INVALID_INPUT_VALUE 예외와 DUPLICATE_NICKNAME 상세 오류로 변환되는지 확인
+     */
+    @Test
+    void duplicateNicknameTest() {
+        RegisterSession registerSession = new RegisterSession(
+                1L,
+                100L,
+                "saved-hash",
+                LocalDateTime.now()
+        );
+
+        when(jwtProvider.validateRegisterToken("valid-register-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-register-token"))
+                .thenReturn(100L);
+        when(registerSessionRepository.findFirstBySocialAccountIdOrderByCreatedAtDesc(100L))
+                .thenReturn(Optional.of(registerSession));
+        when(tokenHasher.hash("valid-register-token"))
+                .thenReturn("saved-hash");
+        when(tsidGenerator.nextId())
+                .thenReturn(10L);
+        when(userRepository.saveAndFlush(any(User.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate nickname"));
+
+        assertThatThrownBy(() -> authService.createUser("valid-register-token", "nickname"))
+                .isInstanceOfSatisfying(CustomException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_INPUT_VALUE);
+                    List<ErrorResponse.ErrorDetail> errors = exception.getErrors();
+                    assertThat(errors.get(0).getField()).isEqualTo("nickname");
+                    assertThat(errors.get(0).getCode()).isEqualTo(AuthErrorCode.DUPLICATE_NICKNAME.getCode());
+                });
+    }
+
+    /**
      * 온보딩 성공 테스트:
      * - 유효한 register token과 register session, social account를 준비하고,
      * - (1) user가 저장되는지 확인
@@ -352,7 +389,7 @@ public class AuthServiceTest {
         ArgumentCaptor<UserHoguStat> userHoguStatCaptor = ArgumentCaptor.forClass(UserHoguStat.class);
         ArgumentCaptor<RefreshToken> refreshTokenCaptor = ArgumentCaptor.forClass(RefreshToken.class);
 
-        verify(userRepository).save(userCaptor.capture());
+        verify(userRepository).saveAndFlush(userCaptor.capture());
         verify(userHoguStatRepository).save(userHoguStatCaptor.capture());
         verify(refreshTokenRepository).save(refreshTokenCaptor.capture());
 
