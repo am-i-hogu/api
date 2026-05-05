@@ -59,7 +59,7 @@ public class ImageUploadService {
             return "image";
         }
 
-        // 임시로 파일명이 깨지지 않도록 영어 대/소문자, 숫자, '.', '_', '-'는 모두 '_'로 치환한다.
+        // 임시로 파일명이 깨지지 않도록 영어 대/소문자, 숫자, '.', '_', '-'를 제외한 문자를 모두 '_'로 치환한다.
         return filename.replaceAll("[^A-Za-z0-9._-]", "_");
     }
 }
