@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * JwtAuthenticationEntryPoint, JwtAccessDeniedHandler
  * 통합 테스트
  */
-@WebMvcTest(SecurityFlowTest.TestController.class)
+@WebMvcTest(controllers = SecurityFlowTest.TestController.class)
 @Import({
         SecurityConfig.class,
         JwtAuthenticationFilter.class,

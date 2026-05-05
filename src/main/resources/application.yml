@@ -4,6 +4,11 @@ spring:
   application:
     name: am-i-hogu
 
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
   datasource:
     # 로컬 MySQL 연결 설정
     url: jdbc:mysql://localhost:3306/${DB_NAME:hogu_db}?useUnicode=true&serverTimezone=Asia/Seoul
