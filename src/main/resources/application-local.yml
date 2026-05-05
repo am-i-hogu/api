@@ -1,3 +1,7 @@
 app:
   cookie:
     secure: false
+  redirect:
+    # local test를 위한 uri이기 때문에 port를 8080으로 설정
+    onboarding-uri: http://localhost:8080/api/users
+    login-success-uri: http://localhost:8080/api/auth/refresh
