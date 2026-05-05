@@ -1,6 +1,7 @@
 package com.hogu.am_i_hogu.domain.post.controller;
 
 import com.hogu.am_i_hogu.common.security.JwtProvider;
+import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +59,9 @@ class PostControllerTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PostRepository postRepository;
 
     @MockitoBean
     private JwtProvider jwtProvider;
@@ -725,6 +729,24 @@ class PostControllerTest {
                 postId
         );
         assertThat(viewCount).isEqualTo(13);
+    }
+
+    // 정상 케이스: 조회수는 엔티티 값을 읽고 저장하지 않고 DB에서 직접 1 증가시킨다.
+    @Test
+    void increaseViewCountAddsOneInDatabase() {
+        Long postId = 1235L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "조회수 테스트", "본문입니다", false, now);
+
+        int updatedRows = postRepository.increaseViewCount(postId);
+
+        Integer viewCount = jdbcTemplate.queryForObject(
+                "SELECT view_count FROM posts WHERE id = ?",
+                Integer.class,
+                postId
+        );
+        assertThat(updatedRows).isEqualTo(1);
+        assertThat(viewCount).isEqualTo(1);
     }
 
     // 실패 케이스: 존재하지 않는 게시글을 조회하면 404 Not Found와 POST_NOT_FOUND를 반환한다.
