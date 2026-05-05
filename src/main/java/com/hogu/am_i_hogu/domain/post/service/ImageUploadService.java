@@ -16,6 +16,12 @@ public class ImageUploadService {
 
     private static final long MAX_IMAGE_SIZE_BYTES = 5L * 1024L * 1024L;
     private static final Set<String> SUPPORTED_EXTENSIONS = Set.of("jpg", "jpeg", "png", "webp");
+    private static final Set<String> SUPPORTED_CONTENT_TYPES = Set.of(
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/webp"
+    );
 
     private final TsidGenerator tsidGenerator;
 
@@ -35,6 +41,10 @@ public class ImageUploadService {
         }
         if (image.getSize() > MAX_IMAGE_SIZE_BYTES) {
             throw new CustomException(ImageErrorCode.FILE_SIZE_EXCEEDED);
+        }
+        String contentType = image.getContentType();
+        if (contentType == null || !SUPPORTED_CONTENT_TYPES.contains(contentType.toLowerCase(Locale.ROOT))) {
+            throw new CustomException(ImageErrorCode.UNSUPPORTED_FORMAT);
         }
         if (!SUPPORTED_EXTENSIONS.contains(extractExtension(image.getOriginalFilename()))) {
             throw new CustomException(ImageErrorCode.UNSUPPORTED_FORMAT);

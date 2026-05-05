@@ -113,6 +113,32 @@ class ImageControllerTest {
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_FORMAT"));
     }
 
+    // 실패 케이스: 확장자는 허용되더라도 Content-Type이 이미지가 아니면 UNSUPPORTED_FORMAT을 반환한다.
+    @Test
+    void uploadImageRejectsUnsupportedContentType() throws Exception {
+        when(jwtProvider.validateAccessToken("valid-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getAuthentication("valid-token"))
+                .thenReturn(new UsernamePasswordAuthenticationToken(
+                        "1",
+                        null,
+                        Collections.emptyList()
+                ));
+
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "post-image.jpg",
+                MediaType.TEXT_PLAIN_VALUE,
+                "not-image-content".getBytes()
+        );
+
+        mockMvc.perform(multipart("/api/images")
+                        .file(image)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_FORMAT"));
+    }
+
     // 실패 케이스: 5MB를 초과한 이미지 파일을 업로드하면 413 Payload Too Large와 FILE_SIZE_EXCEEDED를 반환한다.
     @Test
     void uploadImageRejectsFileLargerThanFiveMb() throws Exception {
