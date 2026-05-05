@@ -68,7 +68,11 @@ public class AuthControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Set-Cookie", "refreshToken=new-refresh-token; Path=/; Secure; HttpOnly"))
+                .andExpect(header().stringValues(
+                        "Set-Cookie",
+                        "refreshToken=new-refresh-token; Path=/; Secure; HttpOnly",
+                        "registerToken=; Path=/; Max-Age=0; Expires=Thu, 1 Jan 1970 00:00:00 GMT; Secure; HttpOnly"
+                ))
                 .andExpect(content().json("""
                         {
                           "accessToken": "new-access-token"
