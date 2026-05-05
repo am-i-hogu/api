@@ -19,6 +19,7 @@ import com.hogu.am_i_hogu.domain.auth.repository.RegisterSessionRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.SocialAccountRepository;
 import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -63,7 +64,8 @@ public class AuthService {
         validateNickname(nickname);
 
         LocalDateTime createdAt = LocalDateTime.now();
-        Long userId = saveUserAndLinkSocialAccount(nickname, registerSession, createdAt);
+        Long userId = saveUser(nickname, createdAt);
+        linkSocialAccount(registerSession, userId, createdAt);
 
         return issueLoginTokens(userId, createdAt);
     }
@@ -129,8 +131,8 @@ public class AuthService {
         }
     }
 
-    // 신규 유저 생성 후 register session 사용 처리 및 social account 연결
-    private long saveUserAndLinkSocialAccount(String nickname, RegisterSession registerSession, LocalDateTime createdAt) {
+    // 신규 유저 생성 후 register session 사용 처리
+    private long saveUser(String nickname, LocalDateTime createdAt) {
         Long userId = tsidGenerator.nextId();
         User user = new User(
                 userId,
@@ -138,15 +140,7 @@ public class AuthService {
                 false,
                 createdAt
         );
-        UserHoguStat userStat = new UserHoguStat(userId, createdAt);
-
-        userRepository.save(user);
-        userHoguStatRepository.save(userStat);
-
-        SocialAccount socialAccount = socialAccountRepository.findById(registerSession.getSocialAccountId())
-                .orElseThrow(()-> new CustomException(CommonErrorCode.SERVER_ERROR));
-        socialAccount.linkToUser(userId, createdAt);
-        registerSession.markConsumed(createdAt);
+        saveUserOrThrowDuplicate(user, userId, createdAt);
 
         return userId;
     }
@@ -166,5 +160,33 @@ public class AuthService {
         String accessToken = jwtProvider.createAccessToken(userId);
 
         return new OnboardingResult(accessToken, refreshToken);
+    }
+
+    // user 저장 시도 후 성공 시 user_hogu_stat 초기화, 실패 시 닉네임 중복 오류 throw
+    private void saveUserOrThrowDuplicate(User user, Long userId, LocalDateTime createdAt) {
+        try {
+            userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException(
+                    AuthErrorCode.INVALID_INPUT_VALUE,
+                    List.of(new ErrorResponse.ErrorDetail("nickname", AuthErrorCode.DUPLICATE_NICKNAME.getCode()))
+            );
+        }
+
+        UserHoguStat userStat = new UserHoguStat(userId, createdAt);
+        userHoguStatRepository.save(userStat);
+    }
+
+    // 유저와 소셜 계정 연결
+    private void linkSocialAccount(
+            RegisterSession registerSession,
+            Long userId,
+            LocalDateTime createdAt
+    ) {
+        SocialAccount socialAccount = socialAccountRepository.findById(registerSession.getSocialAccountId())
+                .orElseThrow(()-> new CustomException(CommonErrorCode.SERVER_ERROR));
+
+        socialAccount.linkToUser(userId, createdAt);
+        registerSession.markConsumed(createdAt);
     }
 }
