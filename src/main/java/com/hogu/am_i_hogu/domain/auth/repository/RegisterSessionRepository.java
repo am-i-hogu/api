@@ -1,7 +1,9 @@
 package com.hogu.am_i_hogu.domain.auth.repository;
 
 import com.hogu.am_i_hogu.domain.auth.domain.RegisterSession;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 
 import java.util.Optional;
 
@@ -9,5 +11,6 @@ import java.util.Optional;
  * 회원가입 세션의 영속성 관리
  */
 public interface RegisterSessionRepository extends JpaRepository<RegisterSession, Long> {
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<RegisterSession> findFirstBySocialAccountIdOrderByCreatedAtDesc(Long socialAccountId);
 }
