@@ -44,6 +44,9 @@ dependencies {
 	// TSID
 	implementation 'com.github.f4b6a3:tsid-creator:5.2.6'
 
+	// JsonNullable
+	implementation 'org.openapitools:jackson-databind-nullable:0.2.6'
+
 	// Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
