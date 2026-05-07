@@ -1,22 +1,32 @@
 package com.hogu.am_i_hogu.domain.user.controller;
 
+import com.hogu.am_i_hogu.common.security.JwtProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.hamcrest.Matchers;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -46,10 +56,242 @@ public class UserControllerTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @MockitoBean
+    private JwtProvider jwtProvider;
+
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("DELETE FROM user_hogu_stats");
         jdbcTemplate.update("DELETE FROM users");
+    }
+
+    /**
+     * 닉네임 업데이트 성공 테스트:
+     * profileImageUrl 없이 nickname 필드만 포함해 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 업데이트 된 프로필 정보를 반환하는지 확인
+     * - (3) users 테이블에 nickname 정보가 업데이트 되었는지 확인
+     * - (4) users 테이블에 profileImageUrl이 변경되지 않았는지 확인
+     */
+    @Test
+    void nicknameUpdateReturnsUserInfoAndUpdateNickname() throws Exception {
+        stubAuthenticatedUser();
+        LocalDateTime now = LocalDateTime.now();
+        jdbcTemplate.update(
+                """
+                INSERT INTO users
+                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?)
+                """,
+                1L,
+                "oldNickname",
+                null,
+                false,
+                null,
+                now,
+                now
+        );
+
+        String requestBody = """
+                {
+                    "nickname" : "newNickname"
+                }
+                """;
+        mockMvc.perform(patch("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.nickname").value("newNickname"))
+                .andExpect(jsonPath("$.profileImageUrl").value(Matchers.nullValue()));
+
+        String savedNickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                1L
+        );
+        assertThat(savedNickname).isEqualTo("newNickname");
+
+        String savedProfileImageUrl = jdbcTemplate.queryForObject(
+                "SELECT profile_image_url FROM users WHERE id = ?",
+                String.class,
+                1L
+        );
+        assertThat(savedProfileImageUrl).isNull();
+    }
+
+    /**
+     * 프로필 사진 업데이트 성공 테스트:
+     * nickname 없이 profileImageUrl 필드만 포함해 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 업데이트 된 프로필 정보를 반환하는지 확인
+     * - (3) users 테이블에 profileImageUrl 정보가 업데이트 되었는지 확인
+     * - (4) users 테이블에 nickname이 변경되지 않았는지 확인
+     */
+    @Test
+    void profileImageUpdateReturnUserInfoAndUpdateProfileImage() throws Exception {
+        stubAuthenticatedUser();
+        LocalDateTime now = LocalDateTime.now();
+        jdbcTemplate.update(
+                """
+                INSERT INTO users
+                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?)
+                """,
+                1L,
+                "nickname",
+                null,
+                false,
+                null,
+                now,
+                now
+        );
+
+        String requestBody = """
+                {
+                    "profileImageUrl" : "http://localhost:8080/temporary/images/1/profile-image.jpg"
+                }
+                """;
+        mockMvc.perform(patch("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.nickname").value("nickname"))
+                .andExpect(jsonPath("$.profileImageUrl").value("http://localhost:8080/temporary/images/1/profile-image.jpg"));
+
+        String savedNickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                1L
+        );
+        assertThat(savedNickname).isEqualTo("nickname");
+
+        String savedProfileImageUrl = jdbcTemplate.queryForObject(
+                "SELECT profile_image_url FROM users WHERE id = ?",
+                String.class,
+                1L
+        );
+        assertThat(savedProfileImageUrl).isEqualTo("http://localhost:8080/temporary/images/1/profile-image.jpg");
+    }
+
+    /**
+     * 프로필 업데이트 성공 테스트:
+     * nickname, profileImageUrl 필드를 포함해 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 업데이트 된 프로필 정보를 반환하는지 확인
+     * - (3) users 테이블에 nickname, profileImageUrl 정보가 업데이트 되었는지 확인
+     */
+    @Test
+    void profileUpdateReturnUserInfoAndUpdateProfile() throws Exception {
+        stubAuthenticatedUser();
+        LocalDateTime now = LocalDateTime.now();
+        jdbcTemplate.update(
+                """
+                INSERT INTO users
+                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?)
+                """,
+                1L,
+                "oldNickname",
+                null,
+                false,
+                null,
+                now,
+                now
+        );
+
+        String requestBody = """
+                {
+                    "nickname" : "newNickname",
+                    "profileImageUrl" : "http://localhost:8080/temporary/images/1/profile-image.jpg"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.nickname").value("newNickname"))
+                .andExpect(jsonPath("$.profileImageUrl").value("http://localhost:8080/temporary/images/1/profile-image.jpg"));
+
+        String savedNickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                1L
+        );
+        assertThat(savedNickname).isEqualTo("newNickname");
+
+        String savedProfileImageUrl = jdbcTemplate.queryForObject(
+                "SELECT profile_image_url FROM users WHERE id = ?",
+                String.class,
+                1L
+        );
+        assertThat(savedProfileImageUrl).isEqualTo("http://localhost:8080/temporary/images/1/profile-image.jpg");
+    }
+
+    /**
+     * 프로필 사진 삭제 성공 테스트:
+     * nickname 필드 없이 profileImageUrl 필드만 포함해 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 업데이트 된 프로필 정보를 반환하는지 확인
+     * - (3) users 테이블에 nickname, profileImageUrl 정보가 업데이트 되었는지 확인
+     */
+    @Test
+    void deleteProfileImageReturnsUserInfoAndDeleteProfileImage() throws Exception {
+        stubAuthenticatedUser();
+        LocalDateTime now = LocalDateTime.now();
+        jdbcTemplate.update(
+                """
+                INSERT INTO users
+                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?)
+                """,
+                1L,
+                "nickname",
+                "http://localhost:8080/temporary/images/1/profile-image.jpg",
+                false,
+                null,
+                now,
+                now
+        );
+
+        String requestBody = """
+                {
+                    "profileImageUrl" : null
+                }
+                """;
+
+        mockMvc.perform(patch("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.nickname").value("nickname"))
+                .andExpect(jsonPath("$.profileImageUrl").value(Matchers.nullValue()));
+
+        String savedNickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                1L
+        );
+        assertThat(savedNickname).isEqualTo("nickname");
+
+        String savedProfileImageUrl = jdbcTemplate.queryForObject(
+                "SELECT profile_image_url FROM users WHERE id = ?",
+                String.class,
+                1L
+        );
+        assertThat(savedProfileImageUrl).isNull();
     }
 
     /**
@@ -100,7 +342,7 @@ public class UserControllerTest {
     /**
      * 닉네임 중복 검사 실패 테스트:
      * 비어있는 nickname을 요청으로 보내고,
-     * - (1) 응답 status가 404인지 확인
+     * - (1) 응답 status가 400인지 확인
      * - (2) <필드 정보: nickname, 오류 코드: EMPTY_NICKNAME> 반환 확인
      */
     @Test
@@ -164,5 +406,20 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.errors[0].code").value("SPECIAL_CHAR_NICKNAME"))
                 .andExpect(jsonPath("$.errors[1].field").value("nickname"))
                 .andExpect(jsonPath("$.errors[1].code").value("NICKNAME_LENGTH_EXCEEDED"));
+    }
+
+    /**
+     * 테스트에서 사용할 가짜 로그인 사용자를 설정
+     * Authorization 헤더에 "Bearer valid-token"이 들어오면 TEST_USER_ID 사용자로 인증된 상태가 됨
+     */
+    private void stubAuthenticatedUser() {
+        when(jwtProvider.validateAccessToken("valid-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getAuthentication("valid-token"))
+                .thenReturn(new UsernamePasswordAuthenticationToken(
+                        String.valueOf(1L),
+                        null,
+                        Collections.emptyList()
+                ));
     }
 }
