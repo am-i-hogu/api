@@ -142,8 +142,8 @@ public class OAuthControllerTest {
     /**
      * 지원하지 않는 provider callback 요청 테스트:
      * - access token 없이 지원하지 않는 provider로 callback 요청을 보내고,
-     * - (1) 응답 status가 400 Bad Request인지 확인
-     * - (2) 응답 본문이 UNSUPPORTED_PROVIDER 오류 코드를 반환하는지 확인
+     * - (1) 응답 status가 302 Found인지 확인
+     * - (2) Location 헤더가 프론트 실패 redirect URI와 같은지 확인
      */
     @Test
     void callbackUnsupportedProviderTest() throws Exception {
@@ -153,7 +153,10 @@ public class OAuthControllerTest {
         mockMvc.perform(get("/api/auth/callback/INVALID_PROVIDER")
                         .param("code", "test-code")
                         .param("state", "test-state"))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("{\"code\":\"UNSUPPORTED_PROVIDER\"}"));
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        "Location",
+                        "http://localhost:3000/oauth/callback?status=LOGIN_FAILED&code=UNSUPPORTED_PROVIDER"
+                ));
     }
 }
