@@ -2,9 +2,11 @@ package com.hogu.am_i_hogu.domain.post.controller;
 
 import com.hogu.am_i_hogu.domain.post.dto.request.PostCreateRequest;
 import com.hogu.am_i_hogu.domain.post.dto.request.PostUpdateRequest;
+import com.hogu.am_i_hogu.domain.post.dto.response.PostBookmarkResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostCreateResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostDetailResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostUpdateResponse;
+import com.hogu.am_i_hogu.domain.post.service.PostBookmarkService;
 import com.hogu.am_i_hogu.domain.post.service.PostCreateService;
 import com.hogu.am_i_hogu.domain.post.service.PostDeleteService;
 import com.hogu.am_i_hogu.domain.post.service.PostDetailService;
@@ -23,6 +25,7 @@ public class PostController {
     private final PostDetailService postDetailService;
     private final PostUpdateService postUpdateService;
     private final PostDeleteService postDeleteService;
+    private final PostBookmarkService postBookmarkService;
 
     @GetMapping("/{postId}")
     public ResponseEntity<PostDetailResponse> getPostById(@PathVariable Long postId, Authentication authentication) {
@@ -63,5 +66,27 @@ public class PostController {
         postDeleteService.delete(postId, userId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{postId}/bookmarks")
+    public ResponseEntity<PostBookmarkResponse> createBookmark(
+            @PathVariable Long postId,
+            Authentication authentication
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        PostBookmarkResponse response = postBookmarkService.create(userId, postId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{postId}/bookmarks")
+    public ResponseEntity<PostBookmarkResponse> deleteBookmark(
+            @PathVariable Long postId,
+            Authentication authentication
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        PostBookmarkResponse response = postBookmarkService.delete(userId, postId);
+
+        return ResponseEntity.ok(response);
     }
 }
