@@ -40,7 +40,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-public class OnboardingServiceTest {
+public class OAuthServiceTest {
 
     private final OAuthProperties oauthProperties = mock(OAuthProperties.class);
     private final OAuthClientProperties oauthClientProperties = mock(OAuthClientProperties.class);
@@ -136,6 +136,32 @@ public class OnboardingServiceTest {
                         "invalid-state-value"))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(OAuthErrorCode.INVALID_STATE));
+    }
+
+    /**
+     * provider가 일치하지 않는 state 값 테스트:
+     * callback 처리 시 state에 저장된 provider와 요청 provider가 다르면
+     * OAUTH_PROVIDER_MISMATCH 예외가 발생하는지 확인
+     */
+    @Test
+    void oauthProviderMismatchTest() {
+        OAuthLoginState oauthLoginState = new OAuthLoginState(
+                1L,
+                OAuthProvider.GOOGLE,
+                "valid-state-value",
+                "test-nonce-value",
+                LocalDateTime.now()
+        );
+        when(oauthLoginStateRepository.findByState("valid-state-value"))
+                .thenReturn(Optional.of(oauthLoginState));
+
+        assertThatThrownBy(() ->
+                oauthService.handleCallback(
+                        OAuthProvider.KAKAO,
+                        "test-auth-code",
+                        "valid-state-value"))
+                .isInstanceOfSatisfying(CustomException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(OAuthErrorCode.PROVIDER_MISMATCH));
     }
 
     /**

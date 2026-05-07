@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 public enum OAuthErrorCode implements ErrorCodeType {
     UNSUPPORTED_PROVIDER(HttpStatus.BAD_REQUEST, "UNSUPPORTED_PROVIDER"),
+    PROVIDER_MISMATCH(HttpStatus.BAD_REQUEST, "PROVIDER_MISMATCH"),
     INVALID_STATE(HttpStatus.UNAUTHORIZED, "INVALID_STATE"),
     STATE_REUSED(HttpStatus.UNAUTHORIZED, "STATE_REUSED"),
     STATE_EXPIRED(HttpStatus.UNAUTHORIZED, "STATE_EXPIRED"),

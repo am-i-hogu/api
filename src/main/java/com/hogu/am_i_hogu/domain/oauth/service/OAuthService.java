@@ -178,6 +178,10 @@ public class OAuthService {
         OAuthLoginState oauthLoginState = oauthLoginStateRepository.findByState(state)
                 .orElseThrow(()->new CustomException(OAuthErrorCode.INVALID_STATE));
 
+        if (oauthLoginState.getProvider() != provider) {
+            throw new CustomException(OAuthErrorCode.PROVIDER_MISMATCH);
+        }
+
         LocalDateTime now = LocalDateTime.now();
         if (oauthLoginState.isConsumed()) {
             throw new CustomException(OAuthErrorCode.STATE_REUSED);
