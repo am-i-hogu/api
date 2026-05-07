@@ -305,7 +305,7 @@ public class OnboardingServiceTest {
     /**
      * 닉네임 중복 race condition 처리 테스트:
      * saveAndFlush 시점에 unique 제약 위반이 발생하면
-     * INVALID_INPUT_VALUE 예외와 DUPLICATE_NICKNAME 상세 오류로 변환되는지 확인
+     * DUPLICATE_NICKNAME 예외로 변환되는지 확인
      */
     @Test
     void duplicateNicknameTest() {
@@ -330,12 +330,8 @@ public class OnboardingServiceTest {
                 .thenThrow(new DataIntegrityViolationException("duplicate nickname"));
 
         assertThatThrownBy(() -> onboardingService.createUser("valid-register-token", "nickname"))
-                .isInstanceOfSatisfying(CustomException.class, exception -> {
-                    assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_INPUT_VALUE);
-                    List<ErrorResponse.ErrorDetail> errors = exception.getErrors();
-                    assertThat(errors.get(0).getField()).isEqualTo("nickname");
-                    assertThat(errors.get(0).getCode()).isEqualTo("DUPLICATE_NICKNAME");
-                });
+                .isInstanceOfSatisfying(CustomException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(AuthErrorCode.DUPLICATE_NICKNAME));
     }
 
     /**

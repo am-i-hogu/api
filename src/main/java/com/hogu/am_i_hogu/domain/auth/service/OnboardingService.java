@@ -151,10 +151,7 @@ public class OnboardingService {
         try {
             userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {
-            throw new CustomException(
-                    AuthErrorCode.INVALID_INPUT_VALUE,
-                    List.of(new ErrorResponse.ErrorDetail("nickname", "DUPLICATE_NICKNAME"))
-            );
+            throw new CustomException(AuthErrorCode.DUPLICATE_NICKNAME);
         }
 
         UserHoguStat userStat = new UserHoguStat(userId, createdAt);
