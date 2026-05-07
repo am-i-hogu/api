@@ -76,22 +76,7 @@ public class UserControllerTest {
     @Test
     void nicknameUpdateReturnsUserInfoAndUpdateNickname() throws Exception {
         stubAuthenticatedUser();
-        LocalDateTime now = LocalDateTime.now();
-        jdbcTemplate.update(
-                """
-                INSERT INTO users
-                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
-                VALUES
-                    (?, ?, ?, ?, ?, ?, ?)
-                """,
-                1L,
-                "oldNickname",
-                null,
-                false,
-                null,
-                now,
-                now
-        );
+        insertUser(1L, "oldNickname", null);
 
         String requestBody = """
                 {
@@ -133,22 +118,7 @@ public class UserControllerTest {
     @Test
     void profileImageUpdateReturnUserInfoAndUpdateProfileImage() throws Exception {
         stubAuthenticatedUser();
-        LocalDateTime now = LocalDateTime.now();
-        jdbcTemplate.update(
-                """
-                INSERT INTO users
-                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
-                VALUES
-                    (?, ?, ?, ?, ?, ?, ?)
-                """,
-                1L,
-                "nickname",
-                null,
-                false,
-                null,
-                now,
-                now
-        );
+        insertUser(1L, "nickname", null);
 
         String requestBody = """
                 {
@@ -189,22 +159,7 @@ public class UserControllerTest {
     @Test
     void profileUpdateReturnUserInfoAndUpdateProfile() throws Exception {
         stubAuthenticatedUser();
-        LocalDateTime now = LocalDateTime.now();
-        jdbcTemplate.update(
-                """
-                INSERT INTO users
-                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
-                VALUES
-                    (?, ?, ?, ?, ?, ?, ?)
-                """,
-                1L,
-                "oldNickname",
-                null,
-                false,
-                null,
-                now,
-                now
-        );
+        insertUser(1L, "oldNickname", null);
 
         String requestBody = """
                 {
@@ -247,22 +202,7 @@ public class UserControllerTest {
     @Test
     void deleteProfileImageReturnsUserInfoAndDeleteProfileImage() throws Exception {
         stubAuthenticatedUser();
-        LocalDateTime now = LocalDateTime.now();
-        jdbcTemplate.update(
-                """
-                INSERT INTO users
-                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
-                VALUES
-                    (?, ?, ?, ?, ?, ?, ?)
-                """,
-                1L,
-                "nickname",
-                "http://localhost:8080/temporary/images/1/profile-image.jpg",
-                false,
-                null,
-                now,
-                now
-        );
+        insertUser(1L, "nickname", "http://localhost:8080/temporary/images/1/profile-image.jpg");
 
         String requestBody = """
                 {
@@ -292,6 +232,96 @@ public class UserControllerTest {
                 1L
         );
         assertThat(savedProfileImageUrl).isNull();
+    }
+
+    /**
+     * 프로필 업데이트 실패 테스트:
+     * 요청 body 없이 프로필 수정 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) EMPTY_REQUEST_BODY 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void profileUpdateRejectsEmptyRequestBody() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "nickname", null);
+
+        mockMvc.perform(patch("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                    .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EMPTY_REQUEST_BODY"));
+    }
+
+    /**
+     * 프로필 업데이트 실패 테스트:
+     * 빈 객체를 body로 프로필 수정 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) EMPTY_REQUEST_BODY 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void profileUpdateRejectsEmptyJsonObject() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "nickname", null);
+
+        mockMvc.perform(patch("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {
+                            }
+                            """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EMPTY_REQUEST_BODY"));
+    }
+
+    /**
+     * 프로필 업데이트 실패 테스트:
+     * 이미 사용 중인 닉네임으로 프로필 수정 요청을 보내고,
+     * - (1) 응답 status가 409 Conflict인지 확인
+     * - (2) DUPLICATE_NICKNAME 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void profileUpdateRejectsDuplicateNickname() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "oldNickname", null);
+        insertUser(2L, "duplicatedNickname", null);
+
+        String requestBody = """
+                {
+                    "nickname" : "duplicatedNickname"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(requestBody))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DUPLICATE_NICKNAME"));
+    }
+
+    /**
+     * 프로필 업데이트 실패 테스트:
+     * 인증된 사용자와 일치하는 user row가 DB에 없을 때 프로필 수정 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) USER_NOT_FOUND 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void profileUpdateRejectsWhenUserNotFound() throws Exception {
+        stubAuthenticatedUser();
+
+        String requestBody = """
+                {
+                    "nickname" : "newNickname"
+                }
+                """;
+
+        mockMvc.perform(patch("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(requestBody))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
     }
 
     /**
@@ -342,7 +372,7 @@ public class UserControllerTest {
     /**
      * 닉네임 중복 검사 실패 테스트:
      * 비어있는 nickname을 요청으로 보내고,
-     * - (1) 응답 status가 400인지 확인
+     * - (1) 응답 status가 400 Bad Request인지 확인
      * - (2) <필드 정보: nickname, 오류 코드: EMPTY_NICKNAME> 반환 확인
      */
     @Test
@@ -358,7 +388,7 @@ public class UserControllerTest {
     /**
      * 닉네임 중복 검사 실패 테스트:
      * 특수문자를 포함한 nickname을 요청으로 보내고,
-     * - (1) 응답 status가 404인지 확인
+     * - (1) 응답 status가 400 Bad Request인지 확인
      * - (2) <필드 정보: nickname, 오류 코드: SPECIAL_CHAR_NICKNAME> 반환 확인
      */
     @Test
@@ -374,7 +404,7 @@ public class UserControllerTest {
     /**
      * 닉네임 중복 검사 실패 테스트:
      * 길이가 20을 초과하는 nickname을 요청으로 보내고,
-     * - (1) 응답 status가 404인지 확인
+     * - (1) 응답 status가 400 Bad Request인지 확인
      * - (2) <필드 정보: nickname, 오류 코드: NICKNAME_LENGTH_EXCEEDED> 반환 확인
      */
     @Test
@@ -391,7 +421,7 @@ public class UserControllerTest {
     /**
      * 닉네임 중복 검사 실패 테스트:
      * 특수문자를 포함하며 길이가 20을 초과하는 nickname을 요청으로 보내고,
-     * - (1) 응답 status가 404인지 확인
+     * - (1) 응답 status가 400 Bad Request인지 확인
      * - (2) <필드 정보: nickname, 오류 코드: SPECIAL_CHAR_NICKNAME>,
      *      <필드 정보: nickname, 오류 코드: NICKNAME_LENGTH_EXCEEDED 반환 확인
      */
@@ -410,7 +440,7 @@ public class UserControllerTest {
 
     /**
      * 테스트에서 사용할 가짜 로그인 사용자를 설정
-     * Authorization 헤더에 "Bearer valid-token"이 들어오면 TEST_USER_ID 사용자로 인증된 상태가 됨
+     * Authorization 헤더에 "Bearer valid-token"이 들어오면 userId = 1L 사용자로 인증된 상태가 됨
      */
     private void stubAuthenticatedUser() {
         when(jwtProvider.validateAccessToken("valid-token"))
@@ -421,5 +451,24 @@ public class UserControllerTest {
                         null,
                         Collections.emptyList()
                 ));
+    }
+
+    private void insertUser(Long id, String nickname, String profileImageUrl) {
+        LocalDateTime now = LocalDateTime.now();
+        jdbcTemplate.update(
+                """
+                INSERT INTO users
+                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?)
+                """,
+                id,
+                nickname,
+                profileImageUrl,
+                false,
+                null,
+                now,
+                now
+        );
     }
 }
