@@ -2,24 +2,39 @@ package com.hogu.am_i_hogu.domain.user.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.exception.ErrorResponse;
+import com.hogu.am_i_hogu.domain.user.domain.User;
 import com.hogu.am_i_hogu.domain.user.dto.request.UpdateProfileRequest;
 import com.hogu.am_i_hogu.domain.user.dto.response.UpdateProfileResponse;
 import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
+import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
+import jakarta.transaction.Transactional;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.hogu.am_i_hogu.domain.user.service.UpdateProfileService.ProfileImageRequestType.*;
+
 @Service
 public class UpdateProfileService {
+
+    private final UserRepository userRepository;
+
+    public UpdateProfileService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
     public enum ProfileImageRequestType {
         KEEP,
         UPDATE,
         DELETE;
     }
 
+    @Transactional
     public UpdateProfileResponse updateProfile(
             Long userId,
             UpdateProfileRequest request
@@ -28,27 +43,33 @@ public class UpdateProfileService {
             throw new CustomException(UserErrorCode.EMPTY_REQUEST_BODY);
         }
 
-        ProfileImageRequestType requestType = resolveProfileImageRequest(request);
-        validate(request, requestType);
+        ProfileImageRequestType imageRequestType = resolveProfileImageRequest(request);
+        validate(request, imageRequestType);
 
         String nickname = request.nickname();
         String profileImageUrl = extractProfileImageUrl(request);
 
-        // TODO: requestType에 따라 DB에 사용자 정보 업데이트
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
+        updateProfile(user, nickname, profileImageUrl, imageRequestType);
 
-        return new UpdateProfileResponse(userId, nickname, profileImageUrl);
+        return new UpdateProfileResponse(
+                user.getId(),
+                user.getNickname(),
+                user.getProfileImageUrl()
+        );
     }
 
-    private void validate(UpdateProfileRequest request, ProfileImageRequestType requestType) {
+    private void validate(UpdateProfileRequest request, ProfileImageRequestType imageRequestType) {
 
         if (request.nickname() == null
-                && requestType == ProfileImageRequestType.KEEP) {
+                && imageRequestType == KEEP) {
             throw new CustomException(UserErrorCode.EMPTY_REQUEST_BODY);
         }
 
         List<ErrorResponse.ErrorDetail> errors = new ArrayList<>();
         validateNickname(request, errors);
-        validateProfileImageUrl(request, requestType, errors);
+        validateProfileImageUrl(request, imageRequestType, errors);
 
         if (!errors.isEmpty()) {
             throw new CustomException(UserErrorCode.INVALID_INPUT_VALUE, errors);
@@ -100,12 +121,12 @@ public class UpdateProfileService {
     // 프로필 사진 url 검증
     private void validateProfileImageUrl(
             UpdateProfileRequest request,
-            ProfileImageRequestType requestType,
+            ProfileImageRequestType imageRequestType,
             List<ErrorResponse.ErrorDetail> errors
     ) {
         // 유지/삭제 요청은 url이 들어오지 않거나 null로 들어오므로 검증 스킵
-        if (requestType == ProfileImageRequestType.KEEP
-                || requestType == ProfileImageRequestType.DELETE) {
+        if (imageRequestType == KEEP
+                || imageRequestType == DELETE) {
             return;
         }
 
@@ -143,14 +164,35 @@ public class UpdateProfileService {
     private ProfileImageRequestType resolveProfileImageRequest(UpdateProfileRequest request) {
 
         if (request.profileImageUrl() == null || !request.profileImageUrl().isPresent()) {
-            return ProfileImageRequestType.KEEP;
+            return KEEP;
         }
 
         String profileImageUrl = request.profileImageUrl().orElse(null);
         if (profileImageUrl == null) {
-            return ProfileImageRequestType.DELETE;
+            return DELETE;
         }
 
-        return ProfileImageRequestType.UPDATE;
+        return UPDATE;
+    }
+
+    private void updateProfile(
+            User user,
+            String nickname,
+            String profileImageUrl,
+            ProfileImageRequestType imageRequestType
+    ) {
+        LocalDateTime now = LocalDateTime.now();
+
+        user.updateNickname(nickname, now);
+        switch (imageRequestType) {
+            case KEEP -> {}
+            case UPDATE -> user.updateProfileImage(profileImageUrl, now);
+            case DELETE -> user.updateProfileImage(null, now);
+        }
+        try {
+            userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException(UserErrorCode.DUPLICATE_NICKNAME);
+        }
     }
 }
