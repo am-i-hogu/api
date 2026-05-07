@@ -38,9 +38,12 @@ jwt:
 app:
   cookie:
     secure: true
+  token-encryption:
+    secret: ${TOKEN_ENCRYPTION_SECRET}
   redirect:
     onboarding-uri: http://localhost:3000/onboarding
     login-success-uri: http://localhost:3000/oauth/callback?status=LOGIN_SUCCESS
+    login-failure-uri: http://localhost:3000/oauth/callback?status=LOGIN_FAILED
 
 oauth:
   # google 소셜 로그인 정보
@@ -55,6 +58,21 @@ oauth:
       - https://accounts.google.com
       - accounts.google.com
     scope: openid
+    authorization-params:
+      access_type: offline
+
+  # kakao 소셜 로그인 정보
+  kakao:
+    client-id: ${KAKAO_CLIENT_ID}
+    client-secret: ${KAKAO_CLIENT_SECRET}
+    redirect-uri: http://localhost:8080/api/auth/callback/KAKAO
+    authorization-uri: https://kauth.kakao.com/oauth/authorize
+    token-uri: https://kauth.kakao.com/oauth/token
+    jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
+    issuer-uris:
+      - https://kauth.kakao.com
+    scope: openid
+
 
 logging:
   level:

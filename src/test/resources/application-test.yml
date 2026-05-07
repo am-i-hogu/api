@@ -17,9 +17,12 @@ jwt:
 app:
   cookie:
     secure: true
+  token-encryption:
+    secret: 0SYHAlsZfTy7E4sI59brKOlP3PpK6WC8jvBdjNw8xOo=
   redirect:
     onboarding-uri: http://localhost:8080/onboarding
     login-success-uri: http://localhost:8080/oauth/callback?status=LOGIN_SUCCESS
+    login-failure-uri: http://localhost:3000/oauth/callback?status=LOGIN_FAILED
 
 oauth:
   google:
@@ -32,4 +35,14 @@ oauth:
     issuer-uris:
       - https://accounts.google.com
       - accounts.google.com
+    scope: openid
+  kakao:
+    client-id: test-client-id
+    client-secret: test-client-secret
+    redirect-uri: http://localhost:8080/api/auth/callback/KAKAO
+    authorization-uri: https://kauth.kakao.com/oauth/authorize
+    token-uri: https://kauth.kakao.com/oauth/token
+    jwk-set-uri: https://kauth.kakao.com/.well-known/jwks.json
+    issuer-uris:
+      - https://kauth.kakao.com
     scope: openid

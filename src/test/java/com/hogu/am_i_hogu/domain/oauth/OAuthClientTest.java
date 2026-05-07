@@ -1,10 +1,12 @@
 package com.hogu.am_i_hogu.domain.oauth;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
-import com.hogu.am_i_hogu.domain.oauth.config.GoogleOAuthProperties;
+import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
+import com.hogu.am_i_hogu.domain.oauth.config.OAuthProperties;
+import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
-import com.hogu.am_i_hogu.domain.oauth.service.GoogleOAuthClient;
+import com.hogu.am_i_hogu.domain.oauth.service.OAuthClient;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpHeaders;
@@ -21,8 +23,9 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
-public class GoogleOAuthClientTest {
-    private final GoogleOAuthProperties googleOAuthProperties = new GoogleOAuthProperties();
+public class OAuthClientTest {
+    private final OAuthClientProperties oauthClientProperties = new OAuthClientProperties();
+    private final OAuthProperties oauthProperties = mock(OAuthProperties.class);
     private final RestClient.Builder restClientBuilder = mock(RestClient.Builder.class);
     private final RestClient restClient = mock(RestClient.class);
     private final RestClient.RequestBodyUriSpec requestBodyUriSpec = mock(RestClient.RequestBodyUriSpec.class);
@@ -39,13 +42,15 @@ public class GoogleOAuthClientTest {
      */
     @Test
     void requestTokenTest() {
-        googleOAuthProperties.setClientId("test-client-id");
-        googleOAuthProperties.setClientSecret("test-client-secret");
-        googleOAuthProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
-        googleOAuthProperties.setTokenUri("https://oauth2.googleapis.com/token");
+        oauthClientProperties.setClientId("test-client-id");
+        oauthClientProperties.setClientSecret("test-client-secret");
+        oauthClientProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
+        oauthClientProperties.setTokenUri("https://oauth2.googleapis.com/token");
 
         TokenResponse tokenResponse = mock(TokenResponse.class);
 
+        when(oauthProperties.getClientProperties(OAuthProvider.GOOGLE))
+                .thenReturn(oauthClientProperties);
         when(restClientBuilder.build())
                 .thenReturn(restClient);
         when(restClient.post())
@@ -61,10 +66,10 @@ public class GoogleOAuthClientTest {
         when(responseSpec.body(TokenResponse.class))
                 .thenReturn(tokenResponse);
 
-        GoogleOAuthClient googleOAuthClient =
-                new GoogleOAuthClient(googleOAuthProperties, restClientBuilder);
+        OAuthClient oauthClient =
+                new OAuthClient(oauthProperties, restClientBuilder);
 
-        TokenResponse response = googleOAuthClient.requestToken("test-auth-code");
+        TokenResponse response = oauthClient.requestToken("test-auth-code", OAuthProvider.GOOGLE);
 
         ArgumentCaptor<MultiValueMap<String, String>> captor =
                 ArgumentCaptor.forClass(MultiValueMap.class);
@@ -94,11 +99,13 @@ public class GoogleOAuthClientTest {
      */
     @Test
     void invalidAuthCodeTest() {
-        googleOAuthProperties.setClientId("test-client-id");
-        googleOAuthProperties.setClientSecret("test-client-secret");
-        googleOAuthProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
-        googleOAuthProperties.setTokenUri("https://oauth2.googleapis.com/token");
+        oauthClientProperties.setClientId("test-client-id");
+        oauthClientProperties.setClientSecret("test-client-secret");
+        oauthClientProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
+        oauthClientProperties.setTokenUri("https://oauth2.googleapis.com/token");
 
+        when(oauthProperties.getClientProperties(OAuthProvider.GOOGLE))
+                .thenReturn(oauthClientProperties);
         when(restClientBuilder.build())
                 .thenReturn(restClient);
         when(restClient.post())
@@ -120,10 +127,10 @@ public class GoogleOAuthClientTest {
                         StandardCharsets.UTF_8
                 ));
 
-        GoogleOAuthClient googleOAuthClient =
-                new GoogleOAuthClient(googleOAuthProperties, restClientBuilder);
+        OAuthClient oauthClient =
+                new OAuthClient(oauthProperties, restClientBuilder);
 
-        assertThatThrownBy(() -> googleOAuthClient.requestToken("invalid-auth-code"))
+        assertThatThrownBy(() -> oauthClient.requestToken("invalid-auth-code", OAuthProvider.GOOGLE))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(OAuthErrorCode.INVALID_AUTH_CODE));
     }
@@ -135,11 +142,13 @@ public class GoogleOAuthClientTest {
      */
     @Test
     void socialServerErrorTest() {
-        googleOAuthProperties.setClientId("test-client-id");
-        googleOAuthProperties.setClientSecret("test-client-secret");
-        googleOAuthProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
-        googleOAuthProperties.setTokenUri("https://oauth2.googleapis.com/token");
+        oauthClientProperties.setClientId("test-client-id");
+        oauthClientProperties.setClientSecret("test-client-secret");
+        oauthClientProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
+        oauthClientProperties.setTokenUri("https://oauth2.googleapis.com/token");
 
+        when(oauthProperties.getClientProperties(OAuthProvider.GOOGLE))
+                .thenReturn(oauthClientProperties);
         when(restClientBuilder.build())
                 .thenReturn(restClient);
         when(restClient.post())
@@ -161,10 +170,10 @@ public class GoogleOAuthClientTest {
                         StandardCharsets.UTF_8
                 ));
 
-        GoogleOAuthClient googleOAuthClient =
-                new GoogleOAuthClient(googleOAuthProperties, restClientBuilder);
+        OAuthClient oauthClient =
+                new OAuthClient(oauthProperties, restClientBuilder);
 
-        assertThatThrownBy(() -> googleOAuthClient.requestToken("test-auth-code"))
+        assertThatThrownBy(() -> oauthClient.requestToken("test-auth-code", OAuthProvider.GOOGLE))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(OAuthErrorCode.SOCIAL_SERVER_ERROR));
     }

@@ -12,7 +12,7 @@ import com.hogu.am_i_hogu.domain.auth.domain.RefreshToken;
 import com.hogu.am_i_hogu.domain.auth.domain.RegisterSession;
 import com.hogu.am_i_hogu.domain.oauth.domain.SocialAccount;
 import com.hogu.am_i_hogu.domain.user.domain.User;
-import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResult;
+import com.hogu.am_i_hogu.domain.auth.dto.response.TokenPair;
 import com.hogu.am_i_hogu.domain.auth.exception.AuthErrorCode;
 import com.hogu.am_i_hogu.domain.auth.repository.RefreshTokenRepository;
 import com.hogu.am_i_hogu.domain.auth.repository.RegisterSessionRepository;
@@ -27,38 +27,38 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-public class AuthService {
+public class OnboardingService {
 
     private final JwtProvider jwtProvider;
     private final RegisterSessionRepository registerSessionRepository;
     private final UserRepository userRepository;
     private final TokenHasher tokenHasher;
     private final TsidGenerator tsidGenerator;
+    private final TokenIssueService tokenIssueService;
     private final SocialAccountRepository socialAccountRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
     private final UserHoguStatRepository userHoguStatRepository;
 
-    public AuthService(
+    public OnboardingService(
             JwtProvider jwtProvider,
             RegisterSessionRepository registerSessionRepository,
             UserRepository userRepository,
             TokenHasher tokenHasher,
             TsidGenerator tsidGenerator,
+            TokenIssueService tokenIssueService,
             SocialAccountRepository socialAccountRepository,
-            RefreshTokenRepository refreshTokenRepository,
             UserHoguStatRepository userHoguStatRepository) {
         this.jwtProvider = jwtProvider;
         this.registerSessionRepository = registerSessionRepository;
         this.userRepository = userRepository;
         this.tokenHasher = tokenHasher;
         this.tsidGenerator = tsidGenerator;
+        this.tokenIssueService = tokenIssueService;
         this.socialAccountRepository = socialAccountRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
         this.userHoguStatRepository = userHoguStatRepository;
     }
 
     @Transactional
-    public OnboardingResult createUser(String registerToken, String nickname) {
+    public TokenPair createUser(String registerToken, String nickname) {
         validateRegisterToken(registerToken);
         RegisterSession registerSession = loadAndValidateRegisterSession(registerToken);
         validateNickname(nickname);
@@ -68,7 +68,7 @@ public class AuthService {
         linkSocialAccount(registerSession, userId, createdAt);
         registerSession.markConsumed(createdAt);
 
-        return issueLoginTokens(userId, createdAt);
+        return tokenIssueService.issueTokenPair(userId, createdAt);
     }
 
     // register token 검증 (잘못된 값인지 / 비어있는지 / 만료되었는지)
@@ -144,23 +144,6 @@ public class AuthService {
         saveUserOrThrowDuplicate(user, userId, createdAt);
 
         return userId;
-    }
-
-    // access token, refresh token 발급
-    private OnboardingResult issueLoginTokens(Long userId, LocalDateTime createdAt) {
-        Long refreshTokenId = tsidGenerator.nextId();
-        String refreshToken = jwtProvider.createRefreshToken(userId, refreshTokenId);
-        RefreshToken refreshTokenEntity = new RefreshToken(
-                refreshTokenId,
-                userId,
-                tokenHasher.hash(refreshToken),
-                createdAt
-        );
-        refreshTokenRepository.save(refreshTokenEntity);
-
-        String accessToken = jwtProvider.createAccessToken(userId);
-
-        return new OnboardingResult(accessToken, refreshToken);
     }
 
     // user 저장 시도 후 성공 시 user_hogu_stat 초기화, 실패 시 닉네임 중복 오류 throw

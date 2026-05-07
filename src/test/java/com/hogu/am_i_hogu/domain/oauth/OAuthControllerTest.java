@@ -1,5 +1,6 @@
 package com.hogu.am_i_hogu.domain.oauth;
 
+import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtAccessDeniedHandler;
 import com.hogu.am_i_hogu.common.security.JwtAuthenticationEntryPoint;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
@@ -7,8 +8,9 @@ import com.hogu.am_i_hogu.common.security.SecurityConfig;
 import com.hogu.am_i_hogu.domain.oauth.controller.OAuthController;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
+import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
-import com.hogu.am_i_hogu.domain.auth.service.AuthService;
+import com.hogu.am_i_hogu.domain.auth.service.OnboardingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -43,7 +45,7 @@ public class OAuthControllerTest {
     private OAuthService oauthService;
 
     @MockitoBean
-    private AuthService authService;
+    private OnboardingService onboardingService;
 
     /**
      * 지원하는 provider로 로그인 요청 시 OAuth provider 로그인 페이지로 redirect 되는지 테스트:
@@ -115,10 +117,33 @@ public class OAuthControllerTest {
     }
 
     /**
+     * 지원하는 provider callback 요청 실패 테스트:
+     * - callback 처리 중 CustomException이 발생하면
+     * - (1) 응답 status가 302 Found인지 확인
+     * - (2) Location 헤더가 프론트 실패 redirect URI와 같은지 확인
+     */
+    @Test
+    void callbackFailureRedirectTest() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        when(oauthService.handleCallback(OAuthProvider.GOOGLE, "test-code", "test-state"))
+                .thenThrow(new CustomException(OAuthErrorCode.INVALID_STATE));
+
+        mockMvc.perform(get("/api/auth/callback/GOOGLE")
+                        .param("code", "test-code")
+                        .param("state", "test-state"))
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        "Location",
+                        "http://localhost:3000/oauth/callback?status=LOGIN_FAILED&code=INVALID_STATE"
+                ));
+    }
+
+    /**
      * 지원하지 않는 provider callback 요청 테스트:
      * - access token 없이 지원하지 않는 provider로 callback 요청을 보내고,
-     * - (1) 응답 status가 400 Bad Request인지 확인
-     * - (2) 응답 본문이 UNSUPPORTED_PROVIDER 오류 코드를 반환하는지 확인
+     * - (1) 응답 status가 302 Found인지 확인
+     * - (2) Location 헤더가 프론트 실패 redirect URI와 같은지 확인
      */
     @Test
     void callbackUnsupportedProviderTest() throws Exception {
@@ -128,7 +153,10 @@ public class OAuthControllerTest {
         mockMvc.perform(get("/api/auth/callback/INVALID_PROVIDER")
                         .param("code", "test-code")
                         .param("state", "test-state"))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("{\"code\":\"UNSUPPORTED_PROVIDER\"}"));
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        "Location",
+                        "http://localhost:3000/oauth/callback?status=LOGIN_FAILED&code=UNSUPPORTED_PROVIDER"
+                ));
     }
 }

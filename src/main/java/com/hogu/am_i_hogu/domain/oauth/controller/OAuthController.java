@@ -1,10 +1,10 @@
 package com.hogu.am_i_hogu.domain.oauth.controller;
 
+import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
 import org.springframework.beans.factory.annotation.Value;
-import com.hogu.am_i_hogu.domain.auth.service.AuthService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -17,13 +17,16 @@ public class OAuthController {
 
     private final OAuthService oauthService;
     private final boolean cookieSecure;
+    private final String loginFailureUri;
 
     public OAuthController(
             OAuthService oauthService,
-            @Value("${app.cookie.secure}") boolean cookieSecure
+            @Value("${app.cookie.secure}") boolean cookieSecure,
+            @Value("${app.redirect.login-failure-uri}") String loginFailureUri
     ) {
         this.oauthService = oauthService;
         this.cookieSecure = cookieSecure;
+        this.loginFailureUri = loginFailureUri;
     }
 
     /**
@@ -57,18 +60,30 @@ public class OAuthController {
             @RequestParam String code,
             @RequestParam String state
     ) {
-        OAuthProvider oauthProvider = OAuthProvider.from(provider);
-        OAuthCallbackResult result = oauthService.handleCallback(oauthProvider, code, state);
+        try {
+            OAuthProvider oauthProvider = OAuthProvider.from(provider);
+            OAuthCallbackResult result = oauthService.handleCallback(oauthProvider, code, state);
 
-        ResponseCookie cookie = ResponseCookie.from(result.getCookieName(), result.getCookieValue())
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .path("/")
-                .build();
+            ResponseCookie cookie = ResponseCookie.from(result.getCookieName(), result.getCookieValue())
+                    .httpOnly(true)
+                    .secure(cookieSecure)
+                    .path("/")
+                    .build();
 
-        return ResponseEntity.status(302)
-                .location(URI.create(result.getRedirectUri()))
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .build();
+            return ResponseEntity.status(302)
+                    .location(URI.create(result.getRedirectUri()))
+                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .build();
+        } catch (CustomException e) {
+            String failureRedirectUri = buildFailureRedirectUri(e.getErrorCode().getCode());
+
+            return ResponseEntity.status(302)
+                    .location(URI.create(failureRedirectUri))
+                    .build();
+        }
+    }
+
+    private String buildFailureRedirectUri(String errorCode) {
+        return loginFailureUri + "&code=" + errorCode;
     }
 }

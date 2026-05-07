@@ -3,11 +3,11 @@ package com.hogu.am_i_hogu.domain.auth.dto.response;
 import lombok.Getter;
 
 @Getter
-public class OnboardingResult {
+public class TokenPair {
     private final String accessToken;
     private final String refreshToken;
 
-    public OnboardingResult(
+    public TokenPair(
             String accessToken,
             String refreshToken
     ) {
