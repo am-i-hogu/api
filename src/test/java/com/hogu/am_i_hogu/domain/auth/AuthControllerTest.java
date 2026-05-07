@@ -9,6 +9,7 @@ import com.hogu.am_i_hogu.common.security.SecurityConfig;
 import com.hogu.am_i_hogu.domain.auth.exception.AuthErrorCode;
 import com.hogu.am_i_hogu.domain.auth.controller.AuthController;
 import com.hogu.am_i_hogu.domain.auth.dto.response.TokenPair;
+import com.hogu.am_i_hogu.domain.auth.service.LogoutService;
 import com.hogu.am_i_hogu.domain.auth.service.OnboardingService;
 import com.hogu.am_i_hogu.domain.auth.service.ReissueService;
 import jakarta.servlet.http.Cookie;
@@ -49,6 +50,9 @@ public class AuthControllerTest {
 
     @MockitoBean
     private ReissueService reissueService;
+
+    @MockitoBean
+    private LogoutService logoutService;
 
     /**
      * 온보딩 요청 성공 테스트:
