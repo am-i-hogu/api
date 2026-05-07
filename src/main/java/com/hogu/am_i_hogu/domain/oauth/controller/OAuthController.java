@@ -60,8 +60,8 @@ public class OAuthController {
             @RequestParam String code,
             @RequestParam String state
     ) {
-        OAuthProvider oauthProvider = OAuthProvider.from(provider);
         try {
+            OAuthProvider oauthProvider = OAuthProvider.from(provider);
             OAuthCallbackResult result = oauthService.handleCallback(oauthProvider, code, state);
 
             ResponseCookie cookie = ResponseCookie.from(result.getCookieName(), result.getCookieValue())

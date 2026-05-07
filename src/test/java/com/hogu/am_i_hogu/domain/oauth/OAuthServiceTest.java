@@ -141,7 +141,7 @@ public class OAuthServiceTest {
     /**
      * provider가 일치하지 않는 state 값 테스트:
      * callback 처리 시 state에 저장된 provider와 요청 provider가 다르면
-     * OAUTH_PROVIDER_MISMATCH 예외가 발생하는지 확인
+     * PROVIDER_MISMATCH 예외가 발생하는지 확인
      */
     @Test
     void oauthProviderMismatchTest() {
