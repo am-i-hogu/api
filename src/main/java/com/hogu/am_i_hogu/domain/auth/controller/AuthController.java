@@ -4,27 +4,32 @@ import com.hogu.am_i_hogu.domain.auth.dto.request.OnboardingRequest;
 import com.hogu.am_i_hogu.domain.auth.dto.response.OnboardingResponse;
 import com.hogu.am_i_hogu.domain.auth.dto.response.ReissueResponse;
 import com.hogu.am_i_hogu.domain.auth.dto.response.TokenPair;
+import com.hogu.am_i_hogu.domain.auth.service.LogoutService;
 import com.hogu.am_i_hogu.domain.auth.service.OnboardingService;
 import com.hogu.am_i_hogu.domain.auth.service.ReissueService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 public class AuthController {
     private final OnboardingService onboardingService;
     private final ReissueService reissueService;
+    private final LogoutService logoutService;
     private final boolean cookieSecure;
 
     public AuthController(
             OnboardingService onboardingService,
             ReissueService reissueService,
+            LogoutService logoutService,
             @Value("${app.cookie.secure}") boolean cookieSecure
     ) {
         this.onboardingService = onboardingService;
         this.reissueService = reissueService;
+        this.logoutService = logoutService;
         this.cookieSecure = cookieSecure;
     }
 
@@ -85,5 +90,24 @@ public class AuthController {
         return ResponseEntity.status(200)
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(response);
+    }
+
+    @PostMapping("/api/auth/logout")
+    public ResponseEntity<Void> logout(
+            @CookieValue(name = "refreshToken", required = false) String refreshToken,
+            Authentication authentication
+    ) {
+        logoutService.logout(authentication, refreshToken);
+
+        ResponseCookie cookie = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .maxAge(0)
+                .build();
+
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .build();
     }
 }
