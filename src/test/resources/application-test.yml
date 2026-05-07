@@ -22,6 +22,7 @@ app:
   redirect:
     onboarding-uri: http://localhost:8080/onboarding
     login-success-uri: http://localhost:8080/oauth/callback?status=LOGIN_SUCCESS
+    login-failure-uri: http://localhost:3000/oauth/callback?status=LOGIN_FAILED
 
 oauth:
   google:
