@@ -1,5 +1,6 @@
 package com.hogu.am_i_hogu.domain.oauth;
 
+import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtAccessDeniedHandler;
 import com.hogu.am_i_hogu.common.security.JwtAuthenticationEntryPoint;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
@@ -7,6 +8,7 @@ import com.hogu.am_i_hogu.common.security.SecurityConfig;
 import com.hogu.am_i_hogu.domain.oauth.controller.OAuthController;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
+import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
 import com.hogu.am_i_hogu.domain.auth.service.OnboardingService;
 import org.junit.jupiter.api.Test;
@@ -112,6 +114,29 @@ public class OAuthControllerTest {
                 .andExpect(header().string("Set-Cookie", "refreshToken=test-refresh-token; Path=/; Secure; HttpOnly"));
 
         verify(oauthService).handleCallback(OAuthProvider.GOOGLE, "test-code", "test-state");
+    }
+
+    /**
+     * 지원하는 provider callback 요청 실패 테스트:
+     * - callback 처리 중 CustomException이 발생하면
+     * - (1) 응답 status가 302 Found인지 확인
+     * - (2) Location 헤더가 프론트 실패 redirect URI와 같은지 확인
+     */
+    @Test
+    void callbackFailureRedirectTest() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        when(oauthService.handleCallback(OAuthProvider.GOOGLE, "test-code", "test-state"))
+                .thenThrow(new CustomException(OAuthErrorCode.INVALID_STATE));
+
+        mockMvc.perform(get("/api/auth/callback/GOOGLE")
+                        .param("code", "test-code")
+                        .param("state", "test-state"))
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        "Location",
+                        "http://localhost:3000/oauth/callback?status=LOGIN_FAILED&code=INVALID_STATE"
+                ));
     }
 
     /**
