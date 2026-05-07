@@ -3,8 +3,8 @@ package com.hogu.am_i_hogu.domain.user.controller;
 import com.hogu.am_i_hogu.domain.user.dto.request.UpdateProfileRequest;
 import com.hogu.am_i_hogu.domain.user.dto.response.CheckNicknameResponse;
 import com.hogu.am_i_hogu.domain.user.dto.response.UpdateProfileResponse;
-import com.hogu.am_i_hogu.domain.user.service.NicknameService;
-import com.hogu.am_i_hogu.domain.user.service.UpdateProfileService;
+import com.hogu.am_i_hogu.domain.user.service.NicknameCheckService;
+import com.hogu.am_i_hogu.domain.user.service.ProfileUpdateService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -13,15 +13,15 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
-    private final NicknameService nicknameService;
-    private final UpdateProfileService updateProfileService;
+    private final NicknameCheckService nicknameCheckService;
+    private final ProfileUpdateService profileUpdateService;
 
     public UserController(
-            NicknameService nicknameService,
-            UpdateProfileService updateProfileService
+            NicknameCheckService nicknameCheckService,
+            ProfileUpdateService profileUpdateService
     ) {
-        this.nicknameService = nicknameService;
-        this.updateProfileService = updateProfileService;
+        this.nicknameCheckService = nicknameCheckService;
+        this.profileUpdateService = profileUpdateService;
     }
 
     @PatchMapping("/me")
@@ -30,7 +30,7 @@ public class UserController {
             @RequestBody(required = false) UpdateProfileRequest request
     ) {
         Long userId = Long.valueOf(authentication.getName());
-        UpdateProfileResponse response = updateProfileService.updateProfile(userId, request);
+        UpdateProfileResponse response = profileUpdateService.updateProfile(userId, request);
 
         return ResponseEntity.ok(response);
     }
@@ -39,7 +39,7 @@ public class UserController {
     public ResponseEntity<CheckNicknameResponse> checkNickname(
             @RequestParam(name="nickname") String nickname
     ) {
-        CheckNicknameResponse response = nicknameService.checkNickname(nickname);
+        CheckNicknameResponse response = nicknameCheckService.checkNickname(nickname);
         return ResponseEntity.ok(response);
     }
 }

@@ -11,10 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-public class NicknameService {
+public class NicknameCheckService {
     private final UserRepository userRepository;
 
-    public NicknameService(UserRepository userRepository) {
+    public NicknameCheckService(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 

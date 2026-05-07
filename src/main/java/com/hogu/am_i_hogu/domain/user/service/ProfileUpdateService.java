@@ -17,14 +17,14 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.hogu.am_i_hogu.domain.user.service.UpdateProfileService.ProfileImageRequestType.*;
+import static com.hogu.am_i_hogu.domain.user.service.ProfileUpdateService.ProfileImageRequestType.*;
 
 @Service
-public class UpdateProfileService {
+public class ProfileUpdateService {
 
     private final UserRepository userRepository;
 
-    public UpdateProfileService(UserRepository userRepository) {
+    public ProfileUpdateService(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 
