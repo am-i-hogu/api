@@ -49,4 +49,22 @@ public class User {
         this.createdAt = createdAt;
         this.updatedAt = createdAt;
     }
+
+    public void updateNickname(
+            String nickname,
+            LocalDateTime updatedAt
+    ) {
+        if (nickname != null) {
+            this.nickname = nickname;
+            this.updatedAt = updatedAt;
+        }
+    }
+
+    public void updateProfileImage(
+            String profileImageUrl,
+            LocalDateTime updatedAt
+    ) {
+            this.profileImageUrl = profileImageUrl;
+            this.updatedAt = updatedAt;
+    }
 }
