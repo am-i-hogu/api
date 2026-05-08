@@ -35,6 +35,18 @@ public class LogoutService {
         savedRefreshToken.revoke(LocalDateTime.now());
     }
 
+    /**
+     * refresh token 검증
+     * - 올바른 jwt refresh token인지 확인
+     * - authentication에 들어있는 유저 정보와 일치하는 유저 정보를 담고 있는지 확인
+     * - refresh token 정보가 DB에 저장되어 있는지 확인
+     * - DB에 저장된 정보를 찾아 hash 값이 일치하는지 확인
+     * - revoke된 refresh token인지 확인
+     *
+     * @param authentication    유저 인증 정보
+     * @param refreshToken      요청으로 들어온 refresh token
+     * @return 검증에 문제가 있는 경우 null, 문제가 없는 경우 DB에 저장되어 있었던 refresh token 정보
+     */
     private RefreshToken loadAndValidateRefreshToken(
             Authentication authentication,
             String refreshToken
@@ -63,6 +75,7 @@ public class LogoutService {
         return savedRefreshToken;
     }
 
+    // 올바른 jwt refresh token인지 검증
     private boolean isValidRefreshTokenRequest(String refreshToken) {
         if (refreshToken == null || refreshToken.isBlank()) {
             return false;
@@ -71,6 +84,7 @@ public class LogoutService {
         return jwtProvider.validateRefreshToken(refreshToken) == JwtProvider.TokenValidationResult.VALID;
     }
 
+    // authentication에 들어있는 유저 정보와 일치하는 유저 정보를 담고 있는지 확인
     private boolean matchesAuthenticatedUser(Authentication authentication, String refreshToken) {
         if (authentication == null) {
             return true;
@@ -82,6 +96,7 @@ public class LogoutService {
         return authenticatedUserId.equals(refreshTokenUserId);
     }
 
+    // DB에 저장된 정보와 hash 값이 일치하는지 확인
     private boolean matchesStoredToken(RefreshToken savedRefreshToken, String refreshToken) {
         return savedRefreshToken.getTokenHash().equals(tokenHasher.hash(refreshToken));
     }
