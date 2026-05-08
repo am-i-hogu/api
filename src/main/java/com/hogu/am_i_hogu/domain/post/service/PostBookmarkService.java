@@ -9,6 +9,7 @@ import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
 import com.hogu.am_i_hogu.domain.post.repository.PostBookmarkRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,21 +24,26 @@ public class PostBookmarkService {
 
     @Transactional
     public PostBookmarkResponse create(Long userId, Long postId) {
-        validateBookmarkablePost(postId);
+        Post post = getPostOrThrow(postId);
+        validateNotDeleted(post);
 
         PostBookmarkId id = new PostBookmarkId(userId, postId);
         if (postBookmarkRepository.existsById(id)) {
             throw new CustomException(PostErrorCode.DUPLICATE_REQUEST);
         }
 
-        postBookmarkRepository.save(new PostBookmark(id, LocalDateTime.now()));
+        try {
+            postBookmarkRepository.saveAndFlush(new PostBookmark(id, LocalDateTime.now()));
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException(PostErrorCode.DUPLICATE_REQUEST);
+        }
 
         return new PostBookmarkResponse(true);
     }
 
     @Transactional
     public PostBookmarkResponse delete(Long userId, Long postId) {
-        validateBookmarkablePost(postId);
+        getPostOrThrow(postId);
 
         PostBookmarkId id = new PostBookmarkId(userId, postId);
         if (postBookmarkRepository.existsById(id)) {
@@ -47,9 +53,12 @@ public class PostBookmarkService {
         return new PostBookmarkResponse(false);
     }
 
-    private void validateBookmarkablePost(Long postId) {
-        Post post = postRepository.findById(postId)
+    private Post getPostOrThrow(Long postId) {
+        return postRepository.findById(postId)
                 .orElseThrow(() -> new CustomException(PostErrorCode.POST_NOT_FOUND));
+    }
+
+    private void validateNotDeleted(Post post) {
         if (post.isDeleted()) {
             throw new CustomException(PostErrorCode.POST_ALREADY_DELETED);
         }
