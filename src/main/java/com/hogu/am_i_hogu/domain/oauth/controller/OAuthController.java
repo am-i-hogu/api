@@ -4,10 +4,12 @@ import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
+import com.hogu.am_i_hogu.domain.oauth.service.UserDeletionService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -16,15 +18,18 @@ import java.net.URI;
 public class OAuthController {
 
     private final OAuthService oauthService;
+    private final UserDeletionService userDeletionService;
     private final boolean cookieSecure;
     private final String loginFailureUri;
 
     public OAuthController(
             OAuthService oauthService,
+            UserDeletionService userDeletionService,
             @Value("${app.cookie.secure}") boolean cookieSecure,
             @Value("${app.redirect.login-failure-uri}") String loginFailureUri
     ) {
         this.oauthService = oauthService;
+        this.userDeletionService = userDeletionService;
         this.cookieSecure = cookieSecure;
         this.loginFailureUri = loginFailureUri;
     }
@@ -85,5 +90,22 @@ public class OAuthController {
 
     private String buildFailureRedirectUri(String errorCode) {
         return loginFailureUri + "&code=" + errorCode;
+    }
+
+    @DeleteMapping("/api/users/me")
+    public ResponseEntity<Void> deleteUser(Authentication authentication) {
+        Long userId = Long.valueOf(authentication.getName());
+        userDeletionService.deleteUser(userId);
+
+        ResponseCookie cookie = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .maxAge(0)
+                .build();
+
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .build();
     }
 }
