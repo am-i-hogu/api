@@ -996,6 +996,53 @@ class PostControllerTest {
         assertThat(bookmarkCount).isZero();
     }
 
+    // 정상 케이스: 삭제된 게시물이어도 기존 북마크는 취소할 수 있다.
+    @Test
+    void deleteBookmarkAllowsDeletedPostAndReturnsFalse() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "삭제된 북마크 글", "본문입니다", true, now);
+        insertPostBookmark(TEST_USER_ID, postId, now);
+
+        mockMvc.perform(delete("/api/posts/{postId}/bookmarks", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isBookmarked").value(false));
+
+        Integer bookmarkCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_bookmarks WHERE user_id = ? AND post_id = ?",
+                Integer.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(bookmarkCount).isZero();
+    }
+
+    // 정상 케이스: 북마크가 없는 게시물에 취소 요청이 와도 멱등하게 isBookmarked=false를 반환한다.
+    @Test
+    void deleteBookmarkWithoutExistingBookmarkReturnsFalse() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "북마크 없는 글", "본문입니다", false, now);
+
+        mockMvc.perform(delete("/api/posts/{postId}/bookmarks", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isBookmarked").value(false));
+
+        Integer bookmarkCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_bookmarks WHERE user_id = ? AND post_id = ?",
+                Integer.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(bookmarkCount).isZero();
+    }
+
     // 실패 케이스: 존재하지 않는 게시물을 북마크하면 404 Not Found와 POST_NOT_FOUND를 반환한다.
     @Test
     void createBookmarkRejectsNotFoundPost() throws Exception {
