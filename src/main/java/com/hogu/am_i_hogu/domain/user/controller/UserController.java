@@ -24,6 +24,13 @@ public class UserController {
         this.profileUpdateService = profileUpdateService;
     }
 
+    /**
+     * [USER-001] 유저 프로필 수정
+     *
+     * @param authentication    유저 인증 정보
+     * @param request           프로필 수정 사항
+     * @return 수정 사항이 반영된 프로필 정보
+     */
     @PatchMapping("/me")
     public ResponseEntity<UpdateProfileResponse> updateProfile(
             Authentication authentication,
@@ -35,6 +42,12 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * [USER-002] 닉네임 중복 확인
+     *
+     * @param nickname  중복 확인할 닉네임
+     * @return 닉네임 사용 가능 여부
+     */
     @GetMapping("/check-nickname")
     public ResponseEntity<CheckNicknameResponse> checkNickname(
             @RequestParam(name="nickname") String nickname
