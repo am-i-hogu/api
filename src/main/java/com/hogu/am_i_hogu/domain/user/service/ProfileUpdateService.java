@@ -60,6 +60,15 @@ public class ProfileUpdateService {
         );
     }
 
+    /**
+     * 입력으로 들어온 수정 사항 검증
+     * - 요청 body가 들어오지 않은 경우
+     * - 닉네임 검증
+     * - 프로필 이미지 url 검증
+     *
+     * @param request           프로필 수정 사항
+     * @param imageRequestType  이미지 관련 요청 타입 (유지/변경/삭제)
+     */
     private void validate(UpdateProfileRequest request, ProfileImageRequestType imageRequestType) {
 
         if (request.nickname() == null
@@ -76,7 +85,12 @@ public class ProfileUpdateService {
         }
     }
 
-    // 닉네임 검증
+    /**
+     * 닉네임 검증
+     *
+     * @param request   요청
+     * @param errors    오류 list
+     */
     private void validateNickname(
             UpdateProfileRequest request,
             List<ErrorResponse.ErrorDetail> errors
@@ -114,11 +128,19 @@ public class ProfileUpdateService {
         }
     }
 
+    // 요청에서 프로필 사진 url 추출
     private String extractProfileImageUrl(UpdateProfileRequest request) {
         return request.profileImageUrl() == null ? null : request.profileImageUrl().orElse(null);
     }
 
-    // 프로필 사진 url 검증
+    /**
+     * 프로필 사진 url 검증
+     * url이 들어오지 않거나 null로 들어오는 유지/삭제 요청에 대해서는 검증하지 않음
+     *
+     * @param request           요청
+     * @param imageRequestType  이미지 관련 요청 타입 (유지/변경/삭제)
+     * @param errors            오류 list
+     */
     private void validateProfileImageUrl(
             UpdateProfileRequest request,
             ProfileImageRequestType imageRequestType,
@@ -150,6 +172,7 @@ public class ProfileUpdateService {
         }
     }
 
+    // 이미지 URL이 http 또는 https URL 형식인지 확인
     private boolean isValidImageUrl(String imageUrl) {
         try {
             URI uri = new URI(imageUrl);
@@ -175,6 +198,7 @@ public class ProfileUpdateService {
         return UPDATE;
     }
 
+    // 프로필 업데이트
     private void updateProfile(
             User user,
             String nickname,
@@ -189,6 +213,7 @@ public class ProfileUpdateService {
             case UPDATE -> user.updateProfileImage(profileImageUrl, now);
             case DELETE -> user.updateProfileImage(null, now);
         }
+
         try {
             userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException e) {

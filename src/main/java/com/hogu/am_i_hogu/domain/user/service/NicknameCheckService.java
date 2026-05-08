@@ -25,6 +25,14 @@ public class NicknameCheckService {
         return new CheckNicknameResponse(isAvailable);
     }
 
+    /**
+     * 닉네임 검증
+     * - 비어있는 경우
+     * - 특수문자가 포함된 경우
+     * - 길이 초과/미달인 경우
+     *
+     * @param nickname 요청으로 들어온 닉네임
+     */
     private void validateNickname(String nickname) {
         List<ErrorResponse.ErrorDetail> errors = new ArrayList<>();
 
@@ -54,6 +62,7 @@ public class NicknameCheckService {
         }
     }
 
+    // 닉네임 중복 여부 검증
     private boolean isNicknameAvailable(String nickname) {
         return !userRepository.existsByNickname(nickname);
     }
