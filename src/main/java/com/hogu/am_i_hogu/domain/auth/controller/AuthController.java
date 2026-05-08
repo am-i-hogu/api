@@ -92,6 +92,13 @@ public class AuthController {
                 .body(response);
     }
 
+    /**
+     * [ACCOUNT-002] 로그아웃
+     *
+     * @param refreshToken      유저의 refresh token
+     * @param authentication    유저 인증 정보
+     * @return 204 + refresh token 쿠키 삭제
+     */
     @PostMapping("/api/auth/logout")
     public ResponseEntity<Void> logout(
             @CookieValue(name = "refreshToken", required = false) String refreshToken,
