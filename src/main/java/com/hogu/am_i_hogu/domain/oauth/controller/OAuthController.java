@@ -92,6 +92,12 @@ public class OAuthController {
         return loginFailureUri + "&code=" + errorCode;
     }
 
+    /**
+     * [ACCOUNT-003] 회원 탈퇴
+     *
+     * @param authentication 사용자 인증 정보
+     * @return 204 No Content
+     */
     @DeleteMapping("/api/users/me")
     public ResponseEntity<Void> deleteUser(Authentication authentication) {
         Long userId = Long.valueOf(authentication.getName());
