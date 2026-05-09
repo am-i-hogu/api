@@ -371,6 +371,21 @@ public class UserControllerTest {
 
     /**
      * 닉네임 중복 검사 실패 테스트:
+     * 비어있는 요청으로 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) <필드 정보: nickname, 오류 코드: EMPTY_NICKNAME> 반환 확인
+     */
+    @Test
+    void nicknameCheckRejectsMissingNicknameParam() throws Exception {
+        mockMvc.perform(get("/api/users/check-nickname"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("nickname"))
+                .andExpect(jsonPath("$.errors[0].code").value("EMPTY_NICKNAME"));
+    }
+
+    /**
+     * 닉네임 중복 검사 실패 테스트:
      * 비어있는 nickname을 요청으로 보내고,
      * - (1) 응답 status가 400 Bad Request인지 확인
      * - (2) <필드 정보: nickname, 오류 코드: EMPTY_NICKNAME> 반환 확인

@@ -50,7 +50,7 @@ public class UserController {
      */
     @GetMapping("/check-nickname")
     public ResponseEntity<CheckNicknameResponse> checkNickname(
-            @RequestParam(name="nickname") String nickname
+            @RequestParam(name="nickname", required = false) String nickname
     ) {
         CheckNicknameResponse response = nicknameCheckService.checkNickname(nickname);
         return ResponseEntity.ok(response);
