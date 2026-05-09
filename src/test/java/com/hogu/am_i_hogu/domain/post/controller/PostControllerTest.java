@@ -68,6 +68,7 @@ class PostControllerTest {
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate.update("DELETE FROM post_bookmarks");
         jdbcTemplate.update("DELETE FROM post_votes");
         jdbcTemplate.update("DELETE FROM image_assets");
         jdbcTemplate.update("DELETE FROM posts");
@@ -932,6 +933,142 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.code").value("WRONG_POSTID_TYPE"));
     }
 
+    // 정상 케이스: 인증된 사용자가 게시물을 북마크하면 post_bookmarks에 저장하고 isBookmarked=true를 반환한다.
+    @Test
+    void createBookmarkPersistsBookmarkAndReturnsTrue() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "북마크할 글", "본문입니다", false, now);
+
+        mockMvc.perform(post("/api/posts/{postId}/bookmarks", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isBookmarked").value(true));
+
+        Integer bookmarkCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_bookmarks WHERE user_id = ? AND post_id = ?",
+                Integer.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(bookmarkCount).isEqualTo(1);
+    }
+
+    // 실패 케이스: 이미 북마크한 게시물을 다시 북마크하면 409 Conflict와 DUPLICATE_REQUEST를 반환한다.
+    @Test
+    void createBookmarkRejectsDuplicateBookmark() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "이미 북마크한 글", "본문입니다", false, now);
+        insertPostBookmark(TEST_USER_ID, postId, now);
+
+        mockMvc.perform(post("/api/posts/{postId}/bookmarks", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DUPLICATE_REQUEST"));
+    }
+
+    // 정상 케이스: 인증된 사용자가 북마크를 취소하면 post_bookmarks에서 삭제하고 isBookmarked=false를 반환한다.
+    @Test
+    void deleteBookmarkRemovesBookmarkAndReturnsFalse() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "북마크 취소할 글", "본문입니다", false, now);
+        insertPostBookmark(TEST_USER_ID, postId, now);
+
+        mockMvc.perform(delete("/api/posts/{postId}/bookmarks", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isBookmarked").value(false));
+
+        Integer bookmarkCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_bookmarks WHERE user_id = ? AND post_id = ?",
+                Integer.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(bookmarkCount).isZero();
+    }
+
+    // 정상 케이스: 삭제된 게시물이어도 기존 북마크는 취소할 수 있다.
+    @Test
+    void deleteBookmarkAllowsDeletedPostAndReturnsFalse() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "삭제된 북마크 글", "본문입니다", true, now);
+        insertPostBookmark(TEST_USER_ID, postId, now);
+
+        mockMvc.perform(delete("/api/posts/{postId}/bookmarks", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isBookmarked").value(false));
+
+        Integer bookmarkCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_bookmarks WHERE user_id = ? AND post_id = ?",
+                Integer.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(bookmarkCount).isZero();
+    }
+
+    // 정상 케이스: 북마크가 없는 게시물에 취소 요청이 와도 멱등하게 isBookmarked=false를 반환한다.
+    @Test
+    void deleteBookmarkWithoutExistingBookmarkReturnsFalse() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "북마크 없는 글", "본문입니다", false, now);
+
+        mockMvc.perform(delete("/api/posts/{postId}/bookmarks", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isBookmarked").value(false));
+
+        Integer bookmarkCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_bookmarks WHERE user_id = ? AND post_id = ?",
+                Integer.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(bookmarkCount).isZero();
+    }
+
+    // 실패 케이스: 존재하지 않는 게시물을 북마크하면 404 Not Found와 POST_NOT_FOUND를 반환한다.
+    @Test
+    void createBookmarkRejectsNotFoundPost() throws Exception {
+        stubAuthenticatedUser();
+
+        mockMvc.perform(post("/api/posts/{postId}/bookmarks", 9999L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+    }
+
+    // 실패 케이스: 삭제된 게시물을 북마크하면 404 Not Found와 POST_ALREADY_DELETED를 반환한다.
+    @Test
+    void createBookmarkRejectsDeletedPost() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "삭제된 글", "본문입니다", true, now);
+
+        mockMvc.perform(post("/api/posts/{postId}/bookmarks", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_ALREADY_DELETED"));
+    }
+
     private void insertUser(Long userId, String nickname, LocalDateTime now) {
         jdbcTemplate.update(
                 """
@@ -1018,6 +1155,20 @@ class PostControllerTest {
                 postId,
                 myVote,
                 now,
+                now
+        );
+    }
+
+    private void insertPostBookmark(Long userId, Long postId, LocalDateTime now) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO post_bookmarks
+                    (user_id, post_id, created_at)
+                VALUES
+                    (?, ?, ?)
+                """,
+                userId,
+                postId,
                 now
         );
     }

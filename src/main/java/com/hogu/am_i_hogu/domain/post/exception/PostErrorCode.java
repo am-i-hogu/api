@@ -10,7 +10,8 @@ public enum PostErrorCode implements ErrorCodeType {
     INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "INVALID_INPUT_VALUE"),
     WRONG_POSTID_TYPE(HttpStatus.BAD_REQUEST, "WRONG_POSTID_TYPE"),
     POST_NOT_FOUND(HttpStatus.NOT_FOUND, "POST_NOT_FOUND"),
-    POST_ALREADY_DELETED(HttpStatus.NOT_FOUND, "POST_ALREADY_DELETED");
+    POST_ALREADY_DELETED(HttpStatus.NOT_FOUND, "POST_ALREADY_DELETED"),
+    DUPLICATE_REQUEST(HttpStatus.CONFLICT, "DUPLICATE_REQUEST");
 
     private final HttpStatus status;
     private final String code;
