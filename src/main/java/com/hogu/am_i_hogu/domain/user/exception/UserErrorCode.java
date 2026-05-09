@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 @Getter
 public enum UserErrorCode implements ErrorCodeType {
     INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "INVALID_INPUT_VALUE"),
+    INVALID_PARAM_VALUE(HttpStatus.BAD_REQUEST, "INVALID_PARAM_VALUE"),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_NOT_FOUND"),
     EMPTY_REQUEST_BODY(HttpStatus.BAD_REQUEST, "EMPTY_REQUEST_BODY"),
     DUPLICATE_NICKNAME(HttpStatus.CONFLICT, "DUPLICATE_NICKNAME");
