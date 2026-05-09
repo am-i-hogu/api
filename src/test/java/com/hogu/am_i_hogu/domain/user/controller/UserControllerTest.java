@@ -380,7 +380,7 @@ public class UserControllerTest {
         mockMvc.perform(get("/api/users/check-nickname")
                     .param("nickname", " "))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
                 .andExpect(jsonPath("$.errors[0].field").value("nickname"))
                 .andExpect(jsonPath("$.errors[0].code").value("EMPTY_NICKNAME"));
     }
@@ -396,7 +396,7 @@ public class UserControllerTest {
         mockMvc.perform(get("/api/users/check-nickname")
                     .param("nickname", "special char nickname"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
                 .andExpect(jsonPath("$.errors[0].field").value("nickname"))
                 .andExpect(jsonPath("$.errors[0].code").value("SPECIAL_CHAR_NICKNAME"));
     }
@@ -413,7 +413,7 @@ public class UserControllerTest {
         mockMvc.perform(get("/api/users/check-nickname")
                     .param("nickname", nickname))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
                 .andExpect(jsonPath("$.errors[0].field").value("nickname"))
                 .andExpect(jsonPath("$.errors[0].code").value("NICKNAME_LENGTH_EXCEEDED"));
     }
@@ -423,7 +423,7 @@ public class UserControllerTest {
      * 특수문자를 포함하며 길이가 20을 초과하는 nickname을 요청으로 보내고,
      * - (1) 응답 status가 400 Bad Request인지 확인
      * - (2) <필드 정보: nickname, 오류 코드: SPECIAL_CHAR_NICKNAME>,
-     *      <필드 정보: nickname, 오류 코드: NICKNAME_LENGTH_EXCEEDED 반환 확인
+     *      <필드 정보: nickname, 오류 코드: NICKNAME_LENGTH_EXCEEDED> 반환 확인
      */
     @Test
     void nicknameCheckRejectsSpecialCharAndLongNickname() throws Exception {
@@ -431,7 +431,7 @@ public class UserControllerTest {
         mockMvc.perform(get("/api/users/check-nickname")
                 .param("nickname", nickname))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
                 .andExpect(jsonPath("$.errors[0].field").value("nickname"))
                 .andExpect(jsonPath("$.errors[0].code").value("SPECIAL_CHAR_NICKNAME"))
                 .andExpect(jsonPath("$.errors[1].field").value("nickname"))

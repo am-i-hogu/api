@@ -41,7 +41,7 @@ public class NicknameCheckService {
                     "nickname",
                     "EMPTY_NICKNAME"
             ));
-            throw new CustomException(UserErrorCode.INVALID_INPUT_VALUE, errors);
+            throw new CustomException(UserErrorCode.INVALID_PARAM_VALUE, errors);
         }
 
         if (!nickname.matches("^[가-힣a-zA-Z0-9]+$")) {        // 닉네임에 특수문자가 포함된 경우
@@ -58,7 +58,7 @@ public class NicknameCheckService {
         }
 
         if (!errors.isEmpty()) {
-            throw new CustomException(UserErrorCode.INVALID_INPUT_VALUE, errors);
+            throw new CustomException(UserErrorCode.INVALID_PARAM_VALUE, errors);
         }
     }
 
