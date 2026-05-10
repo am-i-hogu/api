@@ -426,8 +426,7 @@ public class AuthControllerTest {
 
         jdbcTemplate.update(
                 """
-                
-                        INSERT INTO refresh_tokens
+                INSERT INTO refresh_tokens
                     (id, user_id, token_hash, is_revoked, is_rotated, expires_at, revoked_at, created_at)
                 VALUES
                     (?, ?, ?, ?, ?, ?, ?, ?)
@@ -453,8 +452,7 @@ public class AuthControllerTest {
 
         jdbcTemplate.update(
                 """
-                
-                        INSERT INTO refresh_tokens
+                INSERT INTO refresh_tokens
                     (id, user_id, token_hash, is_revoked, is_rotated, expires_at, revoked_at, created_at)
                 VALUES
                     (?, ?, ?, ?, ?, ?, ?, ?)
