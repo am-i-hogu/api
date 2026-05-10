@@ -67,4 +67,11 @@ public class User {
             this.profileImageUrl = profileImageUrl;
             this.updatedAt = updatedAt;
     }
+
+    public void delete(LocalDateTime now) {
+        this.nickname = "d_" + this.id;
+        this.isDeleted = true;
+        this.deletedAt = now;
+        this.updatedAt = now;
+    }
 }
