@@ -37,7 +37,7 @@ public class AuthControllerTest {
 
     @Container
     static final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")
-            .withDatabaseName("am_i_hogu_post_test_db")
+            .withDatabaseName("am_i_hogu_auth_test_db")
             .withUsername("test_user")
             .withPassword("test_password");
     @Autowired
@@ -312,7 +312,7 @@ public class AuthControllerTest {
      * userId가 다르게 설정된 access token과 refresh token으로 요청을 보내고,
      * - (1) 응답 status가 204 No Content인지 확인
      * - (2) refreshToken 쿠키를 삭제하는지 확인
-     * - (3) DB의 refresh token이 is_revoked=false인지 확인
+     * - (3) DB의 refresh token이 is_revoked=true인지 확인
      */
     @Test
     void logoutReturns204WhenUserIdDoesNotMatch() throws Exception {
@@ -341,7 +341,7 @@ public class AuthControllerTest {
                 Boolean.class,
                 100L
         );
-        assertThat(isRevoked).isFalse();
+        assertThat(isRevoked).isTrue();
     }
 
     /**

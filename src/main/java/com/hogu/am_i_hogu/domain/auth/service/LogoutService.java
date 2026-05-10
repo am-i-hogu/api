@@ -5,7 +5,6 @@ import com.hogu.am_i_hogu.common.security.TokenHasher;
 import com.hogu.am_i_hogu.domain.auth.domain.RefreshToken;
 import com.hogu.am_i_hogu.domain.auth.repository.RefreshTokenRepository;
 import jakarta.transaction.Transactional;
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -23,11 +22,8 @@ public class LogoutService {
     }
 
     @Transactional
-    public void logout(
-            Authentication authentication,
-            String refreshToken
-    ) {
-        RefreshToken savedRefreshToken = loadAndValidateRefreshToken(authentication, refreshToken);
+    public void logout(String refreshToken) {
+        RefreshToken savedRefreshToken = loadAndValidateRefreshToken(refreshToken);
         if (savedRefreshToken == null) {
             return;
         }
@@ -38,23 +34,15 @@ public class LogoutService {
     /**
      * refresh token 검증
      * - 올바른 jwt refresh token인지 확인
-     * - authentication에 들어있는 유저 정보와 일치하는 유저 정보를 담고 있는지 확인
      * - refresh token 정보가 DB에 저장되어 있는지 확인
      * - DB에 저장된 정보를 찾아 hash 값이 일치하는지 확인
      * - revoke된 refresh token인지 확인
      *
-     * @param authentication    유저 인증 정보
      * @param refreshToken      요청으로 들어온 refresh token
      * @return 검증에 문제가 있는 경우 null, 문제가 없는 경우 DB에 저장되어 있었던 refresh token 정보
      */
-    private RefreshToken loadAndValidateRefreshToken(
-            Authentication authentication,
-            String refreshToken
-    ) {
+    private RefreshToken loadAndValidateRefreshToken(String refreshToken) {
         if (!isValidRefreshTokenRequest(refreshToken)) {
-            return null;
-        }
-        if (!matchesAuthenticatedUser(authentication, refreshToken)) {
             return null;
         }
 
@@ -82,18 +70,6 @@ public class LogoutService {
         }
 
         return jwtProvider.validateRefreshToken(refreshToken) == JwtProvider.TokenValidationResult.VALID;
-    }
-
-    // authentication에 들어있는 유저 정보와 일치하는 유저 정보를 담고 있는지 확인
-    private boolean matchesAuthenticatedUser(Authentication authentication, String refreshToken) {
-        if (authentication == null) {
-            return true;
-        }
-
-        Long authenticatedUserId = Long.valueOf(authentication.getName());
-        Long refreshTokenUserId = jwtProvider.getSubjectAsLong(refreshToken);
-
-        return authenticatedUserId.equals(refreshTokenUserId);
     }
 
     // DB에 저장된 정보와 hash 값이 일치하는지 확인
