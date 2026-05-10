@@ -69,7 +69,7 @@ public class OAuthClient {
 
         try {
             restClient.post()
-                    .uri(properties.getRevokeUri() + "token={token}", token)
+                    .uri(properties.getRevokeUri() + "?token={token}", token)
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .retrieve()
                     .toBodilessEntity();
@@ -123,6 +123,32 @@ public class OAuthClient {
             return objectMapper.readValue(responseBody, KakaoErrorResponse.class);
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    public TokenResponse reissueKakaoToken(String refreshToken) {
+        OAuthClientProperties properties = oauthProperties.getClientProperties(OAuthProvider.KAKAO);
+
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("grant_type", "refresh_token");
+        body.add("client_id", properties.getClientId());
+        body.add("refresh_token", refreshToken);
+        body.add("client_secret", properties.getClientSecret());
+
+        try {
+            return restClient.post()
+                    .uri(properties.getTokenUri())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(body)
+                    .retrieve()
+                    .body(TokenResponse.class);
+        } catch (RestClientResponseException e) {
+            if (e.getStatusCode().value() == 401) {
+                throw mapKakaoException(e);
+            }
+            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        } catch (Exception e) {
+            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
         }
     }
 }
