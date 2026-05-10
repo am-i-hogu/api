@@ -248,6 +248,316 @@ public class OAuthControllerTest {
         verify(oauthClient, never()).reissueKakaoToken(anyString());
     }
 
+    /**
+     * 구글 사용자 탈퇴 실패 테스트:
+     * 구글로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) revoke API 호출에 실패하면 응답 status가 502 Bad Gateway인지 확인
+     * - (2) users 테이블의 soft delete 정보가 변경되지 않았는지 확인
+     * - (3) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블의 데이터가 그대로 유지되는지 확인
+     * - (4) refresh token을 통해 revoke API가 호출되었는지 확인
+     */
+    @Test
+    void deleteUserDoesNotChangeDatabaseWhenGoogleUnlinkFails() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
+        insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "google-access-token", "google-refresh-token", now);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+
+        stubAuthenticatedUser();
+        stubGoogleUnlinkFailure();
+
+        mockMvc.perform(delete("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isBadGateway());
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String nickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isEqualTo(false);
+        assertThat(nickname).isEqualTo("nickname");
+        assertThat(socialAccountCount).isEqualTo(1);
+        assertThat(socialTokenCount).isEqualTo(1);
+        assertThat(refreshTokenCount).isEqualTo(1);
+        assertThat(registerSessionCount).isEqualTo(1);
+        assertThat(userHoguStatCount).isEqualTo(1);
+
+        verify(oauthClient).revokeGoogleToken("google-refresh-token");
+    }
+
+    /**
+     * 카카오 사용자 탈퇴 실패 테스트:
+     * 카카오로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) 외부 unlink API 호출에 실패하면 응답 status가 502 Bad Gateway인지 확인
+     * - (2) users 테이블의 soft delete 정보가 변경되지 않았는지 확인
+     * - (3) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블의 데이터가 그대로 유지되는지 확인
+     * - (4) access token으로 unlink API가 호출되었는지 확인
+     * - (5) access token 재발급 API가 호출되지 않았는지 확인
+     */
+    @Test
+    void deleteUserDoesNotChangeDatabaseWhenKakaoUnlinkFails() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
+        insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+
+        stubAuthenticatedUser();
+        doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
+                .when(oauthClient)
+                .unlinkKakao(anyString());
+
+        mockMvc.perform(delete("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isBadGateway());
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String nickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isEqualTo(false);
+        assertThat(nickname).isEqualTo("nickname");
+        assertThat(socialAccountCount).isEqualTo(1);
+        assertThat(socialTokenCount).isEqualTo(1);
+        assertThat(refreshTokenCount).isEqualTo(1);
+        assertThat(registerSessionCount).isEqualTo(1);
+        assertThat(userHoguStatCount).isEqualTo(1);
+
+        verify(oauthClient).unlinkKakao("kakao-access-token");
+        verify(oauthClient, never()).reissueKakaoToken(anyString());
+    }
+
+    /**
+     * 카카오 사용자 탈퇴 재시도 성공 테스트:
+     * 카카오로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) 첫 unlink API 호출이 실패하면 access token 재발급을 시도하는지 확인
+     * - (2) 재발급된 access token으로 unlink API를 다시 호출하는지 확인
+     * - (3) 응답 status가 204 No Content인지 확인
+     * - (4) refresh token cookie가 삭제되는지 확인
+     * - (5) 유저 soft delete 처리가 제대로 되었는지 확인 (is_deleted = true, nickname에 "d_" prefix 추가)
+     * - (6) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블에서 유저 정보가 모두 hard delete 되었는지 확인
+     */
+    @Test
+    void deleteUserRetriesKakaoUnlinkAfterTokenReissue() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
+        insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+
+        stubAuthenticatedUser();
+        stubKakaoUnlinkRequiresReissue();
+        stubKakaoTokenReissueSuccess("reissued-kakao-access-token");
+
+        mockMvc.perform(delete("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("refreshToken=")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Path=/")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Secure")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("HttpOnly")));
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String nickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isEqualTo(true);
+        assertThat(nickname).startsWith("d_");
+        assertThat(socialAccountCount).isZero();
+        assertThat(socialTokenCount).isZero();
+        assertThat(refreshTokenCount).isZero();
+        assertThat(registerSessionCount).isZero();
+        assertThat(userHoguStatCount).isZero();
+
+        verify(oauthClient, times(2)).unlinkKakao(anyString());
+        verify(oauthClient).reissueKakaoToken("kakao-refresh-token");
+    }
+
+    /**
+     * 카카오 사용자 탈퇴 재발급 실패 테스트:
+     * 카카오로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) 첫 unlink API 호출이 실패하면 access token 재발급을 시도하는지 확인
+     * - (2) access token 재발급에도 실패하면 응답 status가 502 Bad Gateway인지 확인
+     * - (3) users 테이블의 soft delete 정보가 변경되지 않았는지 확인
+     * - (4) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블의 데이터가 그대로 유지되는지 확인
+     * - (5) unlink API와 access token 재발급 API가 각각 호출되었는지 확인
+     */
+    @Test
+    void deleteUserDoesNotChangeDatabaseWhenKakaoTokenReissueFails() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
+        insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+
+        stubAuthenticatedUser();
+        doThrow(new CustomException(OAuthErrorCode.SOCIAL_REAUTH_REQUIRED))
+                .when(oauthClient)
+                .unlinkKakao(anyString());
+        stubKakaoTokenReissueFailure();
+
+        mockMvc.perform(delete("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isBadGateway());
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String nickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isEqualTo(false);
+        assertThat(nickname).isEqualTo("nickname");
+        assertThat(socialAccountCount).isEqualTo(1);
+        assertThat(socialTokenCount).isEqualTo(1);
+        assertThat(refreshTokenCount).isEqualTo(1);
+        assertThat(registerSessionCount).isEqualTo(1);
+        assertThat(userHoguStatCount).isEqualTo(1);
+
+        verify(oauthClient).unlinkKakao("kakao-access-token");
+        verify(oauthClient).reissueKakaoToken("kakao-refresh-token");
+    }
+
     private void insertUser(Long userId, String nickname, boolean isDeleted, LocalDateTime now) {
         jdbcTemplate.update(
                 """
