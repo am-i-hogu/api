@@ -5,7 +5,7 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor
-public class KakaoErrorResponse {
+public class KakaoUnlinkErrorResponse {
     private Integer code;
     private String msg;
 }
