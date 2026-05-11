@@ -68,8 +68,6 @@ public class OAuthClient {
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .retrieve()
                     .toBodilessEntity();
-        } catch (RestClientResponseException e) {
-            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
         } catch (Exception e) {
             throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
         }
