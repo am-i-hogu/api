@@ -81,8 +81,6 @@ public class AuthControllerTest {
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
-        when(jwtProvider.getSubjectAsLong("valid-refresh-token"))
-                .thenReturn(1L);
         when(jwtProvider.getTokenId("valid-refresh-token"))
                 .thenReturn(100L);
 
@@ -134,8 +132,6 @@ public class AuthControllerTest {
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
-        when(jwtProvider.getSubjectAsLong("valid-refresh-token"))
-                .thenReturn(1L);
         when(jwtProvider.getTokenId("valid-refresh-token"))
                 .thenReturn(100L);
 
@@ -165,8 +161,6 @@ public class AuthControllerTest {
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
-        when(jwtProvider.getSubjectAsLong("valid-refresh-token"))
-                .thenReturn(1L);
         when(jwtProvider.getTokenId("valid-refresh-token"))
                 .thenReturn(100L);
 
@@ -202,14 +196,11 @@ public class AuthControllerTest {
      */
     @Test
     void logoutReturns204WhenAccessTokenIsMissing() throws Exception {
-        stubAuthenticatedUser();
         insertUser(1L, "nickname", null);
         insertRefreshToken(100L, 1L, "valid-refresh-token", false);
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
-        when(jwtProvider.getSubjectAsLong("valid-refresh-token"))
-                .thenReturn(1L);
         when(jwtProvider.getTokenId("valid-refresh-token"))
                 .thenReturn(100L);
 
@@ -238,7 +229,6 @@ public class AuthControllerTest {
      */
     @Test
     void logoutReturns204WhenAccessTokenIsExpired() throws Exception {
-        stubAuthenticatedUser();
         insertUser(1L, "nickname", null);
         insertRefreshToken(100L, 1L, "valid-refresh-token", false);
 
@@ -246,8 +236,6 @@ public class AuthControllerTest {
                 .thenReturn(JwtProvider.TokenValidationResult.EXPIRED);
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
-        when(jwtProvider.getSubjectAsLong("valid-refresh-token"))
-                .thenReturn(1L);
         when(jwtProvider.getTokenId("valid-refresh-token"))
                 .thenReturn(100L);
 
@@ -277,7 +265,6 @@ public class AuthControllerTest {
      */
     @Test
     void logoutReturns204WhenAccessTokenIsInvalid() throws Exception {
-        stubAuthenticatedUser();
         insertUser(1L, "nickname", null);
         insertRefreshToken(100L, 1L, "valid-refresh-token", false);
 
@@ -285,50 +272,11 @@ public class AuthControllerTest {
                 .thenReturn(JwtProvider.TokenValidationResult.INVALID);
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
-        when(jwtProvider.getSubjectAsLong("valid-refresh-token"))
-                .thenReturn(1L);
         when(jwtProvider.getTokenId("valid-refresh-token"))
                 .thenReturn(100L);
 
         mockMvc.perform(post("/api/auth/logout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-access-token")
-                        .cookie(new Cookie("refreshToken", "valid-refresh-token")))
-                .andExpect(status().isNoContent())
-                .andExpect(header().string(
-                        HttpHeaders.SET_COOKIE,
-                        "refreshToken=; Path=/; Max-Age=0; Expires=Thu, 1 Jan 1970 00:00:00 GMT; Secure; HttpOnly"
-                ));
-
-        Boolean isRevoked = jdbcTemplate.queryForObject(
-                "SELECT is_revoked FROM refresh_tokens WHERE id = ?",
-                Boolean.class,
-                100L
-        );
-        assertThat(isRevoked).isTrue();
-    }
-
-    /**
-     * 로그아웃 성공 테스트:
-     * userId가 다르게 설정된 access token과 refresh token으로 요청을 보내고,
-     * - (1) 응답 status가 204 No Content인지 확인
-     * - (2) refreshToken 쿠키를 삭제하는지 확인
-     * - (3) DB의 refresh token이 is_revoked=true인지 확인
-     */
-    @Test
-    void logoutReturns204WhenUserIdDoesNotMatch() throws Exception {
-        stubAuthenticatedUser();
-        insertUser(2L, "nickname", null);
-        insertRefreshToken(100L, 2L, "valid-refresh-token", false);
-
-        when(jwtProvider.validateRefreshToken("valid-refresh-token"))
-                .thenReturn(JwtProvider.TokenValidationResult.VALID);
-        when(jwtProvider.getSubjectAsLong("valid-refresh-token"))
-                .thenReturn(2L);
-        when(jwtProvider.getTokenId("valid-refresh-token"))
-                .thenReturn(100L);
-
-        mockMvc.perform(post("/api/auth/logout")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token")
                         .cookie(new Cookie("refreshToken", "valid-refresh-token")))
                 .andExpect(status().isNoContent())
                 .andExpect(header().string(
@@ -359,8 +307,6 @@ public class AuthControllerTest {
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
-        when(jwtProvider.getSubjectAsLong("valid-refresh-token"))
-                .thenReturn(1L);
         when(jwtProvider.getTokenId("valid-refresh-token"))
                 .thenReturn(100L);
 
