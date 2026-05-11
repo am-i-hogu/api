@@ -15,6 +15,11 @@ public class PolicyController {
         this.privacyService = privacyService;
     }
 
+    /**
+     * [ACCOUNT-001] 개인정보 처리 방침 조회
+     *
+     * @return 현재 적용 중인 개인정보 처리 방침 전문 및 메타데이터
+     */
     @GetMapping("/api/policies/privacy")
     public ResponseEntity<PolicyResponse> getPrivacyPolicy() {
         return ResponseEntity.ok(privacyService.getPrivacyPolicy());
