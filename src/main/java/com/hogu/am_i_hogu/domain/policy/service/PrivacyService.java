@@ -6,6 +6,7 @@ import com.hogu.am_i_hogu.domain.policy.domain.PolicyRevisions;
 import com.hogu.am_i_hogu.domain.policy.dto.response.PolicyResponse;
 import com.hogu.am_i_hogu.domain.policy.repository.PolicyRevisionRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PrivacyService {
@@ -16,6 +17,7 @@ public class PrivacyService {
         this.policyRevisionRepository = policyRevisionRepository;
     }
 
+    @Transactional(readOnly = true)
     public PolicyResponse getPrivacyPolicy() {
         PolicyRevisions privacyPolicy = policyRevisionRepository
                 .findTopByPolicyTypeAndIsCurrentTrueOrderByUpdatedAtDesc("PRIVACY")
