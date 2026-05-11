@@ -1,6 +1,5 @@
 package com.hogu.am_i_hogu.domain.oauth;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
 import com.hogu.am_i_hogu.domain.oauth.config.OAuthProperties;
@@ -31,7 +30,6 @@ public class OAuthClientTest {
     private final RestClient restClient = mock(RestClient.class);
     private final RestClient.RequestBodyUriSpec requestBodyUriSpec = mock(RestClient.RequestBodyUriSpec.class);
     private final RestClient.ResponseSpec responseSpec = mock(RestClient.ResponseSpec.class);
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * google token endpoint 요청 성공 테스트:
@@ -69,7 +67,7 @@ public class OAuthClientTest {
                 .thenReturn(tokenResponse);
 
         OAuthClient oauthClient =
-                new OAuthClient(oauthProperties, restClientBuilder, objectMapper);
+                new OAuthClient(oauthProperties, restClientBuilder);
 
         TokenResponse response = oauthClient.requestToken("test-auth-code", OAuthProvider.GOOGLE);
 
@@ -130,7 +128,7 @@ public class OAuthClientTest {
                 ));
 
         OAuthClient oauthClient =
-                new OAuthClient(oauthProperties, restClientBuilder, objectMapper);
+                new OAuthClient(oauthProperties, restClientBuilder);
 
         assertThatThrownBy(() -> oauthClient.requestToken("invalid-auth-code", OAuthProvider.GOOGLE))
                 .isInstanceOfSatisfying(CustomException.class, exception ->
@@ -173,7 +171,7 @@ public class OAuthClientTest {
                 ));
 
         OAuthClient oauthClient =
-                new OAuthClient(oauthProperties, restClientBuilder, objectMapper);
+                new OAuthClient(oauthProperties, restClientBuilder);
 
         assertThatThrownBy(() -> oauthClient.requestToken("test-auth-code", OAuthProvider.GOOGLE))
                 .isInstanceOfSatisfying(CustomException.class, exception ->

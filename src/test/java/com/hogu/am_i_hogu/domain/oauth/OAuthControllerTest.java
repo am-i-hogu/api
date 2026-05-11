@@ -322,83 +322,6 @@ public class OAuthControllerTest {
     }
 
     /**
-     * 카카오 사용자 탈퇴 실패 테스트:
-     * 카카오로 가입한 유저의 탈퇴 요청을 보내고,
-     * - (1) 외부 unlink API 호출에 실패하면 응답 status가 502 Bad Gateway인지 확인
-     * - (2) users 테이블의 soft delete 정보가 변경되지 않았는지 확인
-     * - (3) social_accounts, social_oauth_tokens, refresh_tokens,
-     *       register_sessions, user_hogu_stats 테이블의 데이터가 그대로 유지되는지 확인
-     * - (4) access token으로 unlink API가 호출되었는지 확인
-     * - (5) access token 재발급 API가 호출되지 않았는지 확인
-     */
-    @Test
-    void deleteUserDoesNotChangeDatabaseWhenKakaoUnlinkFails() throws Exception {
-        LocalDateTime now = LocalDateTime.now();
-        insertUser(TEST_USER_ID, "nickname", false, now);
-        insertUserHoguStat(TEST_USER_ID, now);
-        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
-        insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
-        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
-        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
-
-        stubAuthenticatedUser();
-        doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
-                .when(oauthClient)
-                .unlinkKakao(anyString());
-
-        mockMvc.perform(delete("/api/users/me")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
-                .andExpect(status().isBadGateway());
-
-        Boolean isDeleted = jdbcTemplate.queryForObject(
-                "SELECT is_deleted FROM users WHERE id = ?",
-                Boolean.class,
-                TEST_USER_ID
-        );
-        String nickname = jdbcTemplate.queryForObject(
-                "SELECT nickname FROM users WHERE id = ?",
-                String.class,
-                TEST_USER_ID
-        );
-        Integer socialAccountCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
-                Integer.class,
-                TEST_SOCIAL_ACCOUNT_ID
-        );
-        Integer socialTokenCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
-                Integer.class,
-                TEST_SOCIAL_ACCOUNT_ID
-        );
-        Integer refreshTokenCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
-                Integer.class,
-                TEST_USER_ID
-        );
-        Integer registerSessionCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
-                Integer.class,
-                TEST_SOCIAL_ACCOUNT_ID
-        );
-        Integer userHoguStatCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
-                Integer.class,
-                TEST_USER_ID
-        );
-
-        assertThat(isDeleted).isEqualTo(false);
-        assertThat(nickname).isEqualTo("nickname");
-        assertThat(socialAccountCount).isEqualTo(1);
-        assertThat(socialTokenCount).isEqualTo(1);
-        assertThat(refreshTokenCount).isEqualTo(1);
-        assertThat(registerSessionCount).isEqualTo(1);
-        assertThat(userHoguStatCount).isEqualTo(1);
-
-        verify(oauthClient).unlinkKakao("kakao-access-token");
-        verify(oauthClient, never()).reissueKakaoToken(anyString());
-    }
-
-    /**
      * 카카오 사용자 탈퇴 재시도 성공 테스트:
      * 카카오로 가입한 유저의 탈퇴 요청을 보내고,
      * - (1) 첫 unlink API 호출이 실패하면 access token 재발급을 시도하는지 확인
@@ -501,7 +424,7 @@ public class OAuthControllerTest {
         insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
         stubAuthenticatedUser();
-        doThrow(new CustomException(OAuthErrorCode.SOCIAL_REAUTH_REQUIRED))
+        doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
                 .when(oauthClient)
                 .unlinkKakao(anyString());
         stubKakaoTokenReissueFailure();
@@ -702,7 +625,7 @@ public class OAuthControllerTest {
     }
 
     private void stubKakaoUnlinkRequiresReissue() {
-        doThrow(new CustomException(OAuthErrorCode.SOCIAL_REAUTH_REQUIRED))
+        doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
                 .doNothing()
                 .when(oauthClient)
                 .unlinkKakao(anyString());
@@ -716,6 +639,6 @@ public class OAuthControllerTest {
 
     private void stubKakaoTokenReissueFailure() {
         when(oauthClient.reissueKakaoToken(anyString()))
-                .thenThrow(new CustomException(OAuthErrorCode.SOCIAL_REAUTH_REQUIRED));
+                .thenThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR));
     }
 }

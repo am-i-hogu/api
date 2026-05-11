@@ -67,8 +67,17 @@ public class UserDeletionService {
         String refreshToken = tokenEncryptor.decrypt(socialOAuthToken.getRefreshTokenEncrypted());
 
         switch (socialAccount.getProvider()) {
-            case GOOGLE -> unlinkGoogle(accessToken, refreshToken);
-            case KAKAO -> unlinkKakao(accessToken, refreshToken);
+            case GOOGLE -> unlinkGoogle(
+                    accessToken,
+                    refreshToken,
+                    socialOAuthToken.getAccessTokenExpiresAt()
+            );
+            case KAKAO -> unlinkKakao(
+                    accessToken,
+                    refreshToken,
+                    socialOAuthToken.getAccessTokenExpiresAt(),
+                    socialOAuthToken.getRefreshTokenExpiresAt()
+            );
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -82,12 +91,18 @@ public class UserDeletionService {
         user.delete(now);
     }
 
-    private void unlinkGoogle(String accessToken, String refreshToken) {
+    private void unlinkGoogle(
+            String accessToken,
+            String refreshToken,
+            LocalDateTime accessTokenExpiresAt
+    ) {
         if (refreshToken != null && !refreshToken.isBlank()) {
             oauthClient.revokeGoogleToken(refreshToken);
             return;
         }
-        if (accessToken != null && !accessToken.isBlank()) {
+        if (accessToken != null
+                && !accessToken.isBlank()
+                && !isExpired(accessTokenExpiresAt)) {
             oauthClient.revokeGoogleToken(accessToken);
             return;
         }
@@ -95,16 +110,46 @@ public class UserDeletionService {
         throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
     }
 
-    private void unlinkKakao(String accessToken, String refreshToken) {
+    private void unlinkKakao(
+            String accessToken,
+            String refreshToken,
+            LocalDateTime accessTokenExpiresAt,
+            LocalDateTime refreshTokenExpiresAt
+    ) {
+        if (isExpired(accessTokenExpiresAt)) {
+            if (isExpired(refreshTokenExpiresAt)) {
+                throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+            }
+
+            reissueAndRevoke(refreshToken);
+            return;
+        }
+
         try {
             oauthClient.unlinkKakao(accessToken);
         } catch (CustomException e) {
-            if (e.getErrorCode() != OAuthErrorCode.SOCIAL_REAUTH_REQUIRED) {
-                throw e;
-            }
-
-            TokenResponse reissuedToken = oauthClient.reissueKakaoToken(refreshToken);
-            oauthClient.unlinkKakao(reissuedToken.getAccessToken());
+            reissueAndRevoke(refreshToken);
         }
+    }
+
+    private void reissueAndRevoke(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new CustomException(CommonErrorCode.SERVER_ERROR);
+        }
+
+        TokenResponse reissuedToken = oauthClient.reissueKakaoToken(refreshToken);
+
+        if (reissuedToken == null
+                || reissuedToken.getAccessToken() == null
+                || reissuedToken.getAccessToken().isBlank()) {
+            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        }
+
+        oauthClient.unlinkKakao(reissuedToken.getAccessToken());
+    }
+
+    private boolean isExpired(LocalDateTime expiresAt) {
+        LocalDateTime now = LocalDateTime.now();
+        return (expiresAt != null && !expiresAt.isAfter(now));
     }
 }

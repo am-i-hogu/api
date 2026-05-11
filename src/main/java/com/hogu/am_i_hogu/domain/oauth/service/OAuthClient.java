@@ -1,12 +1,9 @@
 package com.hogu.am_i_hogu.domain.oauth.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
 import com.hogu.am_i_hogu.domain.oauth.config.OAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
-import com.hogu.am_i_hogu.domain.oauth.dto.response.KakaoUnlinkErrorResponse;
-import com.hogu.am_i_hogu.domain.oauth.dto.response.KakaoTokenReissueErrorResponse;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import org.springframework.http.HttpHeaders;
@@ -21,16 +18,13 @@ import org.springframework.web.client.RestClientResponseException;
 public class OAuthClient {
     private final OAuthProperties oauthProperties;
     private final RestClient restClient;
-    private final ObjectMapper objectMapper;
 
     public OAuthClient(
             OAuthProperties oauthProperties,
-            RestClient.Builder restClientBuilder,
-            ObjectMapper objectMapper
+            RestClient.Builder restClientBuilder
     ) {
         this.oauthProperties = oauthProperties;
         this.restClient = restClientBuilder.build();
-        this.objectMapper = objectMapper;
     }
 
     /**
@@ -75,9 +69,6 @@ public class OAuthClient {
                     .retrieve()
                     .toBodilessEntity();
         } catch (RestClientResponseException e) {
-            if (e.getStatusCode().value() == 400) {
-                throw new CustomException(OAuthErrorCode.SOCIAL_REAUTH_REQUIRED);
-            }
             throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
         } catch (Exception e) {
             throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
@@ -94,10 +85,7 @@ public class OAuthClient {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                     .retrieve()
                     .toBodilessEntity();
-        } catch (RestClientResponseException e) {
-            if (e.getStatusCode().value() == 401) {
-                throw mapKakaoUnlinkException(e);
-            }
+        } catch (Exception e) {
             throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
         }
     }
@@ -118,61 +106,8 @@ public class OAuthClient {
                     .body(body)
                     .retrieve()
                     .body(TokenResponse.class);
-        } catch (RestClientResponseException e) {
-            if (e.getStatusCode().value() == 401) {
-                throw mapKakaoTokenReissueException(e);
-            }
-            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
         } catch (Exception e) {
             throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
-        }
-    }
-
-    private CustomException mapKakaoUnlinkException(RestClientResponseException e) {
-        KakaoUnlinkErrorResponse errorResponse = parseKakaoUnlinkErrorResponse(e.getResponseBodyAsString());
-
-        if (errorResponse != null && errorResponse.getCode() != null) {
-            if (errorResponse.getCode() == -401) {
-                return new CustomException(OAuthErrorCode.SOCIAL_REAUTH_REQUIRED);
-            }
-            return new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
-        }
-
-        return new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
-    }
-
-    private CustomException mapKakaoTokenReissueException(RestClientResponseException e) {
-        KakaoTokenReissueErrorResponse errorResponse = parseKakaoTokenReissueErrorResponse(e.getResponseBodyAsString());
-
-        if (errorResponse != null
-                && "invalid_grant".equals(errorResponse.getError())
-                && "KOE322".equals(errorResponse.getErrorCode())) {
-            return new CustomException(OAuthErrorCode.SOCIAL_REAUTH_REQUIRED);
-        }
-        return new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
-    }
-
-    private KakaoUnlinkErrorResponse parseKakaoUnlinkErrorResponse(String responseBody) {
-        if (responseBody == null || responseBody.isBlank()) {
-            return null;
-        }
-
-        try {
-            return objectMapper.readValue(responseBody, KakaoUnlinkErrorResponse.class);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private KakaoTokenReissueErrorResponse parseKakaoTokenReissueErrorResponse(String responseBody) {
-        if (responseBody == null || responseBody.isBlank()) {
-            return null;
-        }
-
-        try {
-            return objectMapper.readValue(responseBody, KakaoTokenReissueErrorResponse.class);
-        } catch (Exception e) {
-            return null;
         }
     }
 }
