@@ -119,7 +119,7 @@ public class PolicyControllerTest {
                 updatedAt
         );
 
-        mockMvc.perform(get("/api/policies/"))
+        mockMvc.perform(get("/api/policies/privacy"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -155,7 +155,7 @@ public class PolicyControllerTest {
 
     /**
      * 테스트에서 사용할 가짜 로그인 사용자를 설정
-     * Authorization 헤더에 "Bearer valid-token"이 들어오면 userId = 1L 사용자로 인증된 상태가 됨
+     * Authorization 헤더에 "Bearer valid-access-token"이 들어오면 userId = 1L 사용자로 인증된 상태가 됨
      */
     private void stubAuthenticatedUser() {
         when(jwtProvider.validateAccessToken("valid-access-token"))
