@@ -18,8 +18,8 @@ public class PolicyRevisions {
     @Id
     private Long id;
 
-    @Column(nullable = false, length = 20)
-    private String policy_type;
+    @Column(name = "policy_type", nullable = false, length = 20)
+    private String policyType;
 
     @Column(nullable = false, length = 20)
     private String version;
