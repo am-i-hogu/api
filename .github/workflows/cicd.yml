@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev
+      - 'infra/ec2-docker-deploy' # 임시로 테스트하기위해 설정
   pull_request:
     branches:
       - main
