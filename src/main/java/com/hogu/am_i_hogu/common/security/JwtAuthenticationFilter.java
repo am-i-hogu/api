@@ -37,7 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String requestURI = request.getRequestURI();
 
-        return Stream.of("/api/users", "/api/auth/refresh")
+        return Stream.of("/api/health", "/api/users", "/api/auth/refresh")
                 .anyMatch(request.getRequestURI()::equals);
     }
 
