@@ -80,6 +80,10 @@ public class OAuthClient {
         }
     }
 
+    /**
+     * kakao unlink API 호출
+     * @param accessToken kakao 측에서 발급한 access token
+     */
     public void unlinkKakao(String accessToken) {
         OAuthClientProperties properties = oauthProperties.getClientProperties(OAuthProvider.KAKAO);
 
@@ -90,11 +94,18 @@ public class OAuthClient {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                     .retrieve()
                     .toBodilessEntity();
-        } catch (Exception e) {
+        } catch (RestClientResponseException e) {
             throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        } catch (Exception e) {
+            throw new CustomException(CommonErrorCode.SERVER_ERROR);
         }
     }
 
+    /**
+     * kakao 토큰 재발급 API 호출
+     * @param refreshToken kakao 측에서 발급한 refresh token
+     * @return kakao 측에서 새롭게 발급한 access token, refresh token
+     */
     public TokenResponse reissueKakaoToken(String refreshToken) {
         OAuthClientProperties properties = oauthProperties.getClientProperties(OAuthProvider.KAKAO);
 
@@ -111,8 +122,10 @@ public class OAuthClient {
                     .body(body)
                     .retrieve()
                     .body(TokenResponse.class);
-        } catch (Exception e) {
+        } catch (RestClientResponseException e) {
             throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        } catch (Exception e) {
+            throw new CustomException(CommonErrorCode.SERVER_ERROR);
         }
     }
 }

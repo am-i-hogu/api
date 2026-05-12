@@ -95,7 +95,7 @@ public class UserDeletionService {
      * google 토큰 revoke 요청
      * - google은 access token 또는 refresh token으로 revoke 요청 가능
      * - refresh token으로 먼저 시도하고, 실패 시 access token으로 시도
-     * - access token 시도까지 실패하면 오류 반환 (재로그인 필요)
+     * - access token 시도까지 실패하면 오류 반환
      *
      * @param accessToken           google 측에서 발급한 access token
      * @param refreshToken          google 측에서 발급한 refresh token
@@ -121,6 +121,18 @@ public class UserDeletionService {
         throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
     }
 
+    /**
+     * kakao unlink 요청
+     * - access token이 만료되지 않았다면 access token으로 unlink 시도
+     * - access token이 만료되었고, refresh token은 만료되지 않았다면 재발급 API 호출 후
+     *   새로운 access token으로 unlink 재시도
+     * - access token, refresh token 모두 만료되었다면 오류 반환
+     *
+     * @param accessToken           kakao 측에서 발급한 access token
+     * @param refreshToken          kakao 측에서 발급한 refresh token
+     * @param accessTokenExpiresAt  access token의 만료 일시
+     * @param refreshTokenExpiresAt refresh token의 만료 일시
+     */
     private void unlinkKakao(
             String accessToken,
             String refreshToken,
@@ -132,18 +144,28 @@ public class UserDeletionService {
                 throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
             }
 
-            reissueAndRevoke(refreshToken);
+            reissueKakaoTokenAndUnlink(refreshToken);
             return;
         }
 
         try {
             oauthClient.unlinkKakao(accessToken);
         } catch (CustomException e) {
-            reissueAndRevoke(refreshToken);
+            // unlink 호출 중 토큰이 만료된 케이스가 아니라면 reissue 시도하지 않고 오류 반환
+            if (e.getErrorCode() != OAuthErrorCode.SOCIAL_SERVER_ERROR) {
+                throw e;
+            }
+
+            reissueKakaoTokenAndUnlink(refreshToken);
         }
     }
 
-    private void reissueAndRevoke(String refreshToken) {
+    /**
+     * kakao access token 재발급 및 unlink 시도
+     *
+     * @param refreshToken  kakao 측에서 발급한 refresh token
+     */
+    private void reissueKakaoTokenAndUnlink(String refreshToken) {
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new CustomException(CommonErrorCode.SERVER_ERROR);
         }
@@ -159,6 +181,14 @@ public class UserDeletionService {
         oauthClient.unlinkKakao(reissuedToken.getAccessToken());
     }
 
+    /**
+     * google revoke 시도
+     * refresh token으로 먼저 시도 후 실패 시 access token으로 시도
+     *
+     * @param refreshToken          google 측에서 발급한 refresh token
+     * @param accessToken           google 측에서 발급한 access token
+     * @param accessTokenExpiresAt  access token의 만료 일시
+     */
     private void revokeGoogleTokenWithFallback(
             String refreshToken,
             String accessToken,
