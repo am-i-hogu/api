@@ -91,15 +91,26 @@ public class UserDeletionService {
         user.delete(now);
     }
 
+    /**
+     * google 토큰 revoke 요청
+     * - google은 access token 또는 refresh token으로 revoke 요청 가능
+     * - refresh token으로 먼저 시도하고, 실패 시 access token으로 시도
+     * - access token 시도까지 실패하면 오류 반환 (재로그인 필요)
+     *
+     * @param accessToken           google 측에서 발급한 access token
+     * @param refreshToken          google 측에서 발급한 refresh token
+     * @param accessTokenExpiresAt  access token의 만료 일시
+     */
     private void unlinkGoogle(
             String accessToken,
             String refreshToken,
             LocalDateTime accessTokenExpiresAt
     ) {
         if (refreshToken != null && !refreshToken.isBlank()) {
-            oauthClient.revokeGoogleToken(refreshToken);
+            revokeGoogleTokenWithFallback(refreshToken, accessToken, accessTokenExpiresAt);
             return;
         }
+
         if (accessToken != null
                 && !accessToken.isBlank()
                 && !isExpired(accessTokenExpiresAt)) {
@@ -146,6 +157,24 @@ public class UserDeletionService {
         }
 
         oauthClient.unlinkKakao(reissuedToken.getAccessToken());
+    }
+
+    private void revokeGoogleTokenWithFallback(
+            String refreshToken,
+            String accessToken,
+            LocalDateTime accessTokenExpiresAt
+    ) {
+        try {
+            oauthClient.revokeGoogleToken(refreshToken);
+        } catch (CustomException e) {
+            if (accessToken == null
+                    || accessToken.isBlank()
+                    || isExpired(accessTokenExpiresAt)) {
+                throw e;
+            }
+
+            oauthClient.revokeGoogleToken(accessToken);
+        }
     }
 
     private boolean isExpired(LocalDateTime expiresAt) {

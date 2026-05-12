@@ -1,5 +1,6 @@
 package com.hogu.am_i_hogu.domain.oauth.service;
 
+import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
 import com.hogu.am_i_hogu.domain.oauth.config.OAuthProperties;
@@ -59,6 +60,10 @@ public class OAuthClient {
         }
     }
 
+    /**
+     * google revoke API 호출
+     * @param token google 측에서 발급한 access token 또는 refresh token
+     */
     public void revokeGoogleToken(String token) {
         OAuthClientProperties properties = oauthProperties.getClientProperties(OAuthProvider.GOOGLE);
 
@@ -68,8 +73,10 @@ public class OAuthClient {
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .retrieve()
                     .toBodilessEntity();
-        } catch (Exception e) {
+        } catch (RestClientResponseException e) {
             throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        } catch (Exception e) {
+            throw new CustomException(CommonErrorCode.SERVER_ERROR);
         }
     }
 
