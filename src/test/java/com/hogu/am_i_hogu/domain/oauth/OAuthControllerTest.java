@@ -1,14 +1,21 @@
 package com.hogu.am_i_hogu.domain.oauth;
 
+import com.hogu.am_i_hogu.common.security.*;
+import com.hogu.am_i_hogu.common.util.TsidGenerator;
+import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
+import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
+import com.hogu.am_i_hogu.domain.oauth.dto.OAuthUserInfo;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthAuthenticationResult;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
+import com.hogu.am_i_hogu.domain.oauth.service.OAuthCallbackHandler;
+import org.hamcrest.Matchers;
+import org.junit.jupiter.api.BeforeEach;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.TokenEncryptor;
 import com.hogu.am_i_hogu.common.security.TokenHasher;
-import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthClient;
-import org.hamcrest.Matchers;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -21,16 +28,21 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -42,10 +54,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class OAuthControllerTest {
 
     private static final long TEST_USER_ID = 1L;
-    private static final long TEST_SOCIAL_ACCOUNT_ID = 100L;
-    private static final long TEST_SOCIAL_OAUTH_TOKEN_ID = 101L;
-    private static final long TEST_REFRESH_TOKEN_ID = 102L;
-    private static final long TEST_REGISTER_SESSIONS_ID = 103L;
+    private static final long TEST_SOCIAL_ACCOUNT_ID = 10L;
+    private static final long TEST_REFRESH_TOKEN_ID = 50L;
+    private static final long TEST_REGISTER_SESSION_ID = 100L;
+    private static final long TEST_OAUTH_LOGIN_STATE_ID = 150L;
+    private static final long TEST_SOCIAL_OAUTH_TOKEN_ID = 2000L;
+    private static final String TEST_PROVIDER_USER_ID = "test-provider-user-id";
 
     @Container
     static final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")
@@ -79,6 +93,12 @@ public class OAuthControllerTest {
     @MockitoBean
     private OAuthClient oauthClient;
 
+    @MockitoBean
+    private TsidGenerator tsidGenerator;
+
+    @MockitoBean
+    private OAuthCallbackHandler oauthCallbackHandler;
+
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("DELETE FROM register_sessions");
@@ -87,6 +107,321 @@ public class OAuthControllerTest {
         jdbcTemplate.update("DELETE FROM social_accounts");
         jdbcTemplate.update("DELETE FROM user_hogu_stats");
         jdbcTemplate.update("DELETE FROM users");
+    }
+
+    /**
+     * 로그인 요청 redirect 성공 테스트:
+     * Google 로그인 요청을 보내고,
+     * - (1) 응답 status가 302 Found인지 확인
+     * - (2) Location 헤더가 Google 로그인 페이지 Url로 설정되었는지 확인
+     * - (3) redirect query param이 적절하게 설정되었는지 확인
+     * - (4) oauth login state 테이블 데이터가 적절하게 생성되었는지 확인
+     */
+    @Test
+    void redirectToProviderLoginReturns302WhenProviderIsValid() throws Exception {
+        when(tsidGenerator.nextId())
+                .thenReturn(TEST_OAUTH_LOGIN_STATE_ID);
+
+        String location = mockMvc.perform(get("/api/auth/login/GOOGLE"))
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        HttpHeaders.LOCATION,
+                        Matchers.startsWith("https://accounts.google.com/o/oauth2/v2/auth")
+                ))
+                .andReturn()
+                .getResponse()
+                .getHeader(HttpHeaders.LOCATION);
+
+        Map<String, List<String>> params = UriComponentsBuilder.fromUriString(location)
+                        .build()
+                        .getQueryParams();
+        OAuthLoginState oauthLoginState = jdbcTemplate.queryForObject(
+                "SELECT * FROM oauth_login_states WHERE id = ?",
+                (result, rowNum) -> new OAuthLoginState(
+                        result.getLong("id"),
+                        OAuthProvider.valueOf(result.getString("provider")),
+                        result.getString("state"),
+                        result.getString("nonce"),
+                        result.getTimestamp("created_at").toLocalDateTime()
+                ),
+                TEST_OAUTH_LOGIN_STATE_ID
+        );
+
+        assertThat(params.get("client_id").get(0)).isEqualTo("test-client-id");
+        assertThat(params.get("redirect_uri").get(0)).isEqualTo("http://localhost:8080/api/auth/callback/GOOGLE");
+        assertThat(params.get("state").get(0)).isEqualTo(oauthLoginState.getState());
+        assertThat(params.get("nonce").get(0)).isEqualTo(oauthLoginState.getNonce());
+
+        assertThat(oauthLoginState.getId()).isEqualTo(TEST_OAUTH_LOGIN_STATE_ID);
+        assertThat(oauthLoginState.getProvider()).isEqualTo(OAuthProvider.GOOGLE);
+        assertThat(oauthLoginState.getExpiresAt()).isNotNull();
+        assertThat(oauthLoginState.getConsumedAt()).isNull();
+        assertThat(oauthLoginState.getCreatedAt()).isNotNull();
+    }
+
+    /**
+     * 로그인 요청 redirect 실패 테스트:
+     * 지원하지 않는 provider로 로그인 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) 응답 본문이 UNSUPPORTED_PROVIDER 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void redirectToProviderLoginReturns400WhenProviderIsInvalid() throws Exception {
+        mockMvc.perform(get("/api/auth/login/INVALID_PROVIDER"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_PROVIDER"));
+    }
+
+    /**
+     * 기존 유저 callback 처리 성공 테스트:
+     * Google에 callback 요청을 보내고,
+     * - (1) 응답 status가 302 Found인지 확인
+     * - (2) Location 헤더가 로그인 성공 시 이동할 url로 설정되었는지 확인
+     * - (3) Set-Cookie 헤더가 refresh token 정보를 포함하는지 확인
+     * - (4) oauth login state row가 사용 처리되었는지 확인
+     * - (5) social account table에 변화가 없는지 확인
+     * - (6) register session row가 생성되지 않았는지 확인
+     * - (7) social oauth token과 refresh token이 생성되었는지 확인
+     */
+    @Test
+    void handleCallbackReturns302WhenProviderIsValidForExistingUser() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertOAuthLoginState(
+                TEST_OAUTH_LOGIN_STATE_ID,
+                OAuthProvider.GOOGLE,
+                "test-state",
+                "test-nonce",
+                now.plusMinutes(5),
+                null
+        );
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertSocialAccount(
+                TEST_SOCIAL_ACCOUNT_ID,
+                TEST_USER_ID,
+                OAuthProvider.GOOGLE,
+                TEST_PROVIDER_USER_ID,
+                null,
+                now
+        );
+
+        TokenResponse tokenResponse = createTokenResponse(
+                "google-access-token",
+                3600,
+                "google-refresh-token",
+                7200
+        );
+
+        when(oauthCallbackHandler.handle(eq("test-code"), any(), eq(OAuthProvider.GOOGLE)))
+                .thenReturn(createAuthResult(TEST_PROVIDER_USER_ID, tokenResponse));
+        when(tokenEncryptor.encrypt("google-access-token"))
+                .thenReturn("encrypted-google-access-token");
+        when(tokenEncryptor.encrypt("google-refresh-token"))
+                .thenReturn("encrypted-google-refresh-token");
+        when(tsidGenerator.nextId())
+                .thenReturn(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_REFRESH_TOKEN_ID);
+        when(jwtProvider.createRefreshToken(TEST_USER_ID, TEST_REFRESH_TOKEN_ID))
+                .thenReturn("valid-refresh-token");
+        when(tokenHasher.hash("valid-refresh-token"))
+                .thenReturn("hashed-valid-refresh-token");
+
+        mockMvc.perform(get("/api/auth/callback/GOOGLE")
+                        .param("code", "test-code")
+                        .param("state", "test-state"))
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        HttpHeaders.LOCATION,
+                        "http://localhost:8080/oauth/callback?status=LOGIN_SUCCESS"
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.SET_COOKIE,
+                        "refreshToken=valid-refresh-token; Path=/; Secure; HttpOnly"
+                ));
+
+        LocalDateTime consumedAt = jdbcTemplate.queryForObject(
+                "SELECT consumed_at FROM oauth_login_states WHERE id = ?",
+                LocalDateTime.class,
+                TEST_OAUTH_LOGIN_STATE_ID
+        );
+        Long socialAccountUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM social_accounts WHERE id = ?",
+                Long.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        String socialAccountProvider = jdbcTemplate.queryForObject(
+                "SELECT provider FROM social_accounts WHERE id = ?",
+                String.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        String socialAccountProviderUserId = jdbcTemplate.queryForObject(
+                "SELECT provider_user_id FROM social_accounts WHERE id = ? AND user_id = ?",
+                String.class,
+                TEST_SOCIAL_ACCOUNT_ID,
+                TEST_USER_ID
+        );
+        Integer socialOAuthTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(consumedAt).isNotNull();
+        assertThat(socialAccountUserId).isEqualTo(TEST_USER_ID);
+        assertThat(socialAccountProvider).isEqualTo("GOOGLE");
+        assertThat(socialAccountProviderUserId).isEqualTo(TEST_PROVIDER_USER_ID);
+        assertThat(socialOAuthTokenCount).isEqualTo(1);
+        assertThat(registerSessionCount).isEqualTo(0);
+        assertThat(refreshTokenCount).isEqualTo(1);
+    }
+
+    /**
+     * 신규 유저 callback 처리 성공 테스트:
+     * Google에 callback 요청을 보내고,
+     * - (1) 응답 status가 302 Found인지 확인
+     * - (2) Location 헤더가 온보딩 url로 설정되었는지 확인
+     * - (3) Set-Cookie 헤더가 register token 정보를 포함하는지 확인
+     * - (4) oauth login state row가 사용 처리되었는지 확인
+     * - (5) social account table row가 생성되었는지 확인
+     * - (6) register session row가 생성되었는지 확인
+     * - (7) social oauth token row가 생성되었는지 확인
+     * - (8) refresh token row가 생성되지 않았는지 확인
+     */
+    @Test
+    void handleCallbackReturns302WhenProviderIsValidForNewUser() throws Exception {
+        insertOAuthLoginState(
+                TEST_OAUTH_LOGIN_STATE_ID,
+                OAuthProvider.GOOGLE,
+                "test-state",
+                "test-nonce",
+                LocalDateTime.now().plusMinutes(5),
+                null
+        );
+
+        TokenResponse tokenResponse = createTokenResponse(
+                "google-access-token",
+                3600,
+                "google-refresh-token",
+                7200
+        );
+
+        when(oauthCallbackHandler.handle(eq("test-code"), any(), eq(OAuthProvider.GOOGLE)))
+                .thenReturn(createAuthResult(TEST_PROVIDER_USER_ID, tokenResponse));
+        when(tokenEncryptor.encrypt("google-access-token"))
+                .thenReturn("encrypted-google-access-token");
+        when(tokenEncryptor.encrypt("google-refresh-token"))
+                .thenReturn("encrypted-google-refresh-token");
+        when(tsidGenerator.nextId())
+                .thenReturn(
+                        TEST_SOCIAL_ACCOUNT_ID,
+                        TEST_SOCIAL_OAUTH_TOKEN_ID,
+                        TEST_REGISTER_SESSION_ID
+                );
+        when(jwtProvider.createRegisterToken(TEST_SOCIAL_ACCOUNT_ID))
+                .thenReturn("valid-register-token");
+        when(tokenHasher.hash("valid-register-token"))
+                .thenReturn("hashed-valid-register-token");
+
+        mockMvc.perform(get("/api/auth/callback/GOOGLE")
+                        .param("code", "test-code")
+                        .param("state", "test-state"))
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        HttpHeaders.LOCATION,
+                        "http://localhost:8080/onboarding"
+                ))
+                .andExpect(header().string(
+                        HttpHeaders.SET_COOKIE,
+                        "registerToken=valid-register-token; Path=/; Secure; HttpOnly"
+                ));
+
+        LocalDateTime consumedAt = jdbcTemplate.queryForObject(
+                "SELECT consumed_at FROM oauth_login_states WHERE id = ?",
+                LocalDateTime.class,
+                TEST_OAUTH_LOGIN_STATE_ID
+        );
+        Long socialAccountUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM social_accounts WHERE id = ?",
+                Long.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        String socialAccountProvider = jdbcTemplate.queryForObject(
+                "SELECT provider FROM social_accounts WHERE id = ?",
+                String.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        String socialAccountProviderUserId = jdbcTemplate.queryForObject(
+                "SELECT provider_user_id FROM social_accounts WHERE id = ?",
+                String.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Long registerSessionSocialAccountId = jdbcTemplate.queryForObject(
+                "SELECT social_account_id FROM register_sessions WHERE id = ?",
+                Long.class,
+                TEST_REGISTER_SESSION_ID
+        );
+        Integer socialOAuthTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(consumedAt).isNotNull();
+        assertThat(socialAccountUserId).isNull();
+        assertThat(socialAccountProvider).isEqualTo("GOOGLE");
+        assertThat(socialAccountProviderUserId).isEqualTo(TEST_PROVIDER_USER_ID);
+        assertThat(registerSessionSocialAccountId).isEqualTo(TEST_SOCIAL_ACCOUNT_ID);
+        assertThat(socialOAuthTokenCount).isEqualTo(1);
+        assertThat(refreshTokenCount).isEqualTo(0);
+    }
+
+    /**
+     * callback 처리 실패 테스트:
+     * DB에 저장되지 않은 state로 callback 요청을 보내고,
+     * - (1) 응답 status가 302 Found인지 확인
+     * - (2) Location 헤더가 프론트 실패 redirect URI와 같은지 확인
+     */
+    @Test
+    void handleCallbackReturns302WhenStateIsInvalid() throws Exception {
+        mockMvc.perform(get("/api/auth/callback/GOOGLE")
+                        .param("code", "test-code")
+                        .param("state", "test-state"))
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        HttpHeaders.LOCATION,
+                        "http://localhost:3000/oauth/callback?status=LOGIN_FAILED&code=INVALID_STATE"
+                ));
+    }
+
+    /**
+     * callback 처리 실패 테스트:
+     * 지원하지 않는 provider로 callback 요청을 보내고,
+     * - (1) 응답 status가 302 Found인지 확인
+     * - (2) Location 헤더가 프론트 실패 redirect URI와 같은지 확인
+     */
+    @Test
+    void handleCallbackReturns302WhenProviderIsInvalid() throws Exception {
+        mockMvc.perform(get("/api/auth/callback/INVALID_PROVIDER")
+                        .param("code", "test-code")
+                        .param("state", "test-state"))
+                .andExpect(status().isFound())
+                .andExpect(header().string(
+                        HttpHeaders.LOCATION,
+                        "http://localhost:3000/oauth/callback?status=LOGIN_FAILED&code=UNSUPPORTED_PROVIDER"
+                ));
     }
 
     /**
@@ -107,12 +442,12 @@ public class OAuthControllerTest {
         insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "google-access-token", "google-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
-        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
         stubAuthenticatedUser();
 
         mockMvc.perform(delete("/api/users/me")
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
                 .andExpect(status().isNoContent())
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("refreshToken=")))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")))
@@ -186,10 +521,9 @@ public class OAuthControllerTest {
         insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
-        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
         stubAuthenticatedUser();
-
         mockMvc.perform(delete("/api/users/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
                 .andExpect(status().isNoContent())
@@ -198,7 +532,6 @@ public class OAuthControllerTest {
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Path=/")))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Secure")))
                 .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("HttpOnly")));
-
         Boolean isDeleted = jdbcTemplate.queryForObject(
                 "SELECT is_deleted FROM users WHERE id = ?",
                 Boolean.class,
@@ -264,13 +597,13 @@ public class OAuthControllerTest {
         insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "google-access-token", "google-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
-        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
         stubAuthenticatedUser();
         stubGoogleUnlinkFailure();
 
         mockMvc.perform(delete("/api/users/me")
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
                 .andExpect(status().isBadGateway());
 
         Boolean isDeleted = jdbcTemplate.queryForObject(
@@ -339,7 +672,7 @@ public class OAuthControllerTest {
         insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "google-access-token", "google-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
-        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
         stubAuthenticatedUser();
         doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
@@ -426,7 +759,7 @@ public class OAuthControllerTest {
                 now
         );
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
-        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
         stubAuthenticatedUser();
         doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
@@ -505,7 +838,7 @@ public class OAuthControllerTest {
         insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
-        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
         stubAuthenticatedUser();
         stubKakaoUnlinkRequiresReissue();
@@ -594,7 +927,7 @@ public class OAuthControllerTest {
                 now
         );
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
-        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
         stubAuthenticatedUser();
         stubKakaoTokenReissueSuccess("reissued-kakao-access-token");
@@ -670,7 +1003,7 @@ public class OAuthControllerTest {
         insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
-        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
         stubAuthenticatedUser();
         doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
@@ -873,6 +1206,84 @@ public class OAuthControllerTest {
                 now.plusMinutes(10),
                 null,
                 now
+        );
+    }
+
+    private void insertOAuthLoginState(
+            Long id,
+            OAuthProvider provider,
+            String state,
+            String nonce,
+            LocalDateTime expiresAt,
+            LocalDateTime consumedAt
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO oauth_login_states
+                    (id, provider, state, nonce, expires_at, consumed_at, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?)
+                """,
+                id,
+                provider.name(),
+                state,
+                nonce,
+                expiresAt,
+                consumedAt,
+                LocalDateTime.now()
+        );
+    }
+
+    private void insertSocialAccount(
+            Long socialAccountId,
+            Long userId,
+            OAuthProvider provider,
+            String providerUserId,
+            LocalDateTime linkedAt,
+            LocalDateTime createdAt
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO social_accounts
+                    (id, user_id, provider, provider_user_id, linked_at, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?)
+                """,
+                socialAccountId,
+                userId,
+                provider.name(),
+                providerUserId,
+                linkedAt,
+                createdAt
+        );
+    }
+
+    private TokenResponse createTokenResponse(
+            String accessToken,
+            Integer expiresIn,
+            String refreshToken,
+            Integer refreshTokenExpiresIn
+    ) {
+        TokenResponse tokenResponse = mock(TokenResponse.class);
+        when(tokenResponse.getAccessToken())
+                .thenReturn(accessToken);
+        when(tokenResponse.getExpiresIn())
+                .thenReturn(expiresIn);
+        when(tokenResponse.getRefreshToken())
+                .thenReturn(refreshToken);
+        when(tokenResponse.getRefreshTokenExpiresIn())
+                .thenReturn(refreshTokenExpiresIn);
+
+        return tokenResponse;
+    }
+
+    private OAuthAuthenticationResult createAuthResult(
+            String providerUserId,
+            TokenResponse tokenResponse
+    ) {
+        return new OAuthAuthenticationResult(
+                new OAuthUserInfo(OAuthProvider.GOOGLE, providerUserId),
+                tokenResponse
         );
     }
 

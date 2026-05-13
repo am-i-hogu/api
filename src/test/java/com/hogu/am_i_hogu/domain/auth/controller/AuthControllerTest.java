@@ -40,9 +40,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class AuthControllerTest {
 
     private static final long TEST_USER_ID = 1L;
-    private static final long TEST_SOCIAL_ACCOUNT_ID = 100L;
-    private static final long TEST_REFRESH_TOKEN_ID = 101L;
-    private static final long TEST_REGISTER_SESSION_ID = 103L;
+    private static final long TEST_SOCIAL_ACCOUNT_ID = 10L;
+    private static final long TEST_REFRESH_TOKEN_ID = 50L;
+    private static final long TEST_REGISTER_SESSION_ID = 100L;
 
     @Container
     static final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")
@@ -481,7 +481,7 @@ public class AuthControllerTest {
     }
 
     /**
-     * consumed register session
+     * 온보딩 실패 테스트:
      * 이미 사용된 register token으로 요청을 보내고,
      * 응답이 401 Unauthorized + INVALID_REGISTER_TOKEN인지 확인
      */
