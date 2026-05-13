@@ -41,7 +41,7 @@ public class OAuthClientTest {
      * - (5) 응답 본문이 TokenResponse로 정상 반환되는지 확인
      */
     @Test
-    void requestTokenTest() {
+    void requestTokenReturnsTokenResponseWhenRequestSucceeds() {
         oauthClientProperties.setClientId("test-client-id");
         oauthClientProperties.setClientSecret("test-client-secret");
         oauthClientProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
@@ -98,7 +98,7 @@ public class OAuthClientTest {
      * INVALID_AUTH_CODE 예외가 발생하는지 테스트
      */
     @Test
-    void invalidAuthCodeTest() {
+    void requestTokenThrowsInvalidAuthCodeWhenAuthCodeIsInvalid() {
         oauthClientProperties.setClientId("test-client-id");
         oauthClientProperties.setClientSecret("test-client-secret");
         oauthClientProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
@@ -141,7 +141,7 @@ public class OAuthClientTest {
      * SOCIAL_SERVER_ERROR 예외가 발생하는지 테스트
      */
     @Test
-    void socialServerErrorTest() {
+    void requestTokenThrowsSocialServerErrorWhenServerErrorOccurs() {
         oauthClientProperties.setClientId("test-client-id");
         oauthClientProperties.setClientSecret("test-client-secret");
         oauthClientProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");

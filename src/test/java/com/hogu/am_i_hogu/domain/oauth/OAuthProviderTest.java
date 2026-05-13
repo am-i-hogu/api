@@ -16,7 +16,7 @@ public class OAuthProviderTest {
      * 올바른 OAuthProvider Enum 상수로 변환되는지 테스트
      */
     @Test
-    void fromSupportedProviderTest() {
+    void fromReturnsProviderWhenProviderNameIsSupported() {
         OAuthProvider provider = OAuthProvider.from("GOOGLE");
 
         assertThat(provider).isEqualTo(OAuthProvider.GOOGLE);
@@ -28,7 +28,7 @@ public class OAuthProviderTest {
      * UNSUPPORTED_PROVIDER 예외가 발생하는지 테스트
      */
     @Test
-    void fromUnsupportedProviderTest() {
+    void fromThrowsUnsupportedProviderWhenProviderNameIsUnsupported() {
         assertThatThrownBy(()->OAuthProvider.from("INVALID_PROVIDER"))
                 .isInstanceOfSatisfying(CustomException.class, exception -> {
                     assertThat(exception.getErrorCode())

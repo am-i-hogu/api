@@ -2,7 +2,6 @@ package com.hogu.am_i_hogu.domain.oauth;
 
 import com.hogu.am_i_hogu.common.security.*;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
-import com.hogu.am_i_hogu.domain.oauth.domain.OAuthLoginState;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.oauth.dto.OAuthUserInfo;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthAuthenticationResult;
@@ -136,28 +135,47 @@ public class OAuthControllerTest {
         Map<String, List<String>> params = UriComponentsBuilder.fromUriString(location)
                         .build()
                         .getQueryParams();
-        OAuthLoginState oauthLoginState = jdbcTemplate.queryForObject(
-                "SELECT * FROM oauth_login_states WHERE id = ?",
-                (result, rowNum) -> new OAuthLoginState(
-                        result.getLong("id"),
-                        OAuthProvider.valueOf(result.getString("provider")),
-                        result.getString("state"),
-                        result.getString("nonce"),
-                        result.getTimestamp("created_at").toLocalDateTime()
-                ),
+        String savedState = jdbcTemplate.queryForObject(
+                "SELECT state FROM oauth_login_states WHERE id = ?",
+                String.class,
+                TEST_OAUTH_LOGIN_STATE_ID
+        );
+        String savedNonce = jdbcTemplate.queryForObject(
+                "SELECT nonce FROM oauth_login_states WHERE id = ?",
+                String.class,
+                TEST_OAUTH_LOGIN_STATE_ID
+        );
+        String provider = jdbcTemplate.queryForObject(
+                "SELECT provider FROM oauth_login_states WHERE id = ?",
+                String.class,
+                TEST_OAUTH_LOGIN_STATE_ID
+        );
+        LocalDateTime createdAt = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM oauth_login_states WHERE id = ?",
+                LocalDateTime.class,
+                TEST_OAUTH_LOGIN_STATE_ID
+        );
+        LocalDateTime expiresAt = jdbcTemplate.queryForObject(
+                "SELECT expires_at FROM oauth_login_states WHERE id = ?",
+                LocalDateTime.class,
+                TEST_OAUTH_LOGIN_STATE_ID
+        );
+        LocalDateTime consumedAt = jdbcTemplate.queryForObject(
+                "SELECT consumed_at FROM oauth_login_states WHERE id = ?",
+                LocalDateTime.class,
                 TEST_OAUTH_LOGIN_STATE_ID
         );
 
+
         assertThat(params.get("client_id").get(0)).isEqualTo("test-client-id");
         assertThat(params.get("redirect_uri").get(0)).isEqualTo("http://localhost:8080/api/auth/callback/GOOGLE");
-        assertThat(params.get("state").get(0)).isEqualTo(oauthLoginState.getState());
-        assertThat(params.get("nonce").get(0)).isEqualTo(oauthLoginState.getNonce());
+        assertThat(params.get("state").get(0)).isEqualTo(savedState);
+        assertThat(params.get("nonce").get(0)).isEqualTo(savedNonce);
 
-        assertThat(oauthLoginState.getId()).isEqualTo(TEST_OAUTH_LOGIN_STATE_ID);
-        assertThat(oauthLoginState.getProvider()).isEqualTo(OAuthProvider.GOOGLE);
-        assertThat(oauthLoginState.getExpiresAt()).isNotNull();
-        assertThat(oauthLoginState.getConsumedAt()).isNull();
-        assertThat(oauthLoginState.getCreatedAt()).isNotNull();
+        assertThat(provider).isEqualTo("GOOGLE");
+        assertThat(createdAt).isNotNull();
+        assertThat(consumedAt).isNull();
+        assertThat(expiresAt).isEqualTo(createdAt.plusMinutes(5));
     }
 
     /**
@@ -213,7 +231,7 @@ public class OAuthControllerTest {
         );
 
         when(oauthCallbackHandler.handle(eq("test-code"), any(), eq(OAuthProvider.GOOGLE)))
-                .thenReturn(createAuthResult(TEST_PROVIDER_USER_ID, tokenResponse));
+                .thenReturn(createAuthResult(OAuthProvider.GOOGLE, TEST_PROVIDER_USER_ID, tokenResponse));
         when(tokenEncryptor.encrypt("google-access-token"))
                 .thenReturn("encrypted-google-access-token");
         when(tokenEncryptor.encrypt("google-refresh-token"))
@@ -313,7 +331,7 @@ public class OAuthControllerTest {
         );
 
         when(oauthCallbackHandler.handle(eq("test-code"), any(), eq(OAuthProvider.GOOGLE)))
-                .thenReturn(createAuthResult(TEST_PROVIDER_USER_ID, tokenResponse));
+                .thenReturn(createAuthResult(OAuthProvider.GOOGLE, TEST_PROVIDER_USER_ID, tokenResponse));
         when(tokenEncryptor.encrypt("google-access-token"))
                 .thenReturn("encrypted-google-access-token");
         when(tokenEncryptor.encrypt("google-refresh-token"))
@@ -595,7 +613,7 @@ public class OAuthControllerTest {
         );
 
         when(oauthCallbackHandler.handle(eq("test-code"), any(), eq(OAuthProvider.GOOGLE)))
-                .thenReturn(createAuthResult(TEST_PROVIDER_USER_ID, tokenResponse));
+                .thenReturn(createAuthResult(OAuthProvider.GOOGLE, TEST_PROVIDER_USER_ID, tokenResponse));
         when(tokenEncryptor.encrypt("google-access-token"))
                 .thenReturn("new-encrypted-access-token");
         when(tsidGenerator.nextId())
@@ -687,7 +705,7 @@ public class OAuthControllerTest {
         );
 
         when(oauthCallbackHandler.handle(eq("test-code"), any(), eq(OAuthProvider.GOOGLE)))
-                .thenReturn(createAuthResult(TEST_PROVIDER_USER_ID, tokenResponse));
+                .thenReturn(createAuthResult(OAuthProvider.GOOGLE, TEST_PROVIDER_USER_ID, tokenResponse));
         when(tokenEncryptor.encrypt("google-access-token"))
                 .thenReturn("encrypted-google-access-token");
         when(tokenEncryptor.encrypt("google-refresh-token"))
@@ -1603,11 +1621,12 @@ public class OAuthControllerTest {
     }
 
     private OAuthAuthenticationResult createAuthResult(
+            OAuthProvider provider,
             String providerUserId,
             TokenResponse tokenResponse
     ) {
         return new OAuthAuthenticationResult(
-                new OAuthUserInfo(OAuthProvider.GOOGLE, providerUserId),
+                new OAuthUserInfo(provider, providerUserId),
                 tokenResponse
         );
     }

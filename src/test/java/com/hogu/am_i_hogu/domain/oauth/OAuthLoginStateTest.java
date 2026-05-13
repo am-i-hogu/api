@@ -18,7 +18,7 @@ public class OAuthLoginStateTest {
      * - (3) consumedAt이 null로 초기화되는지 확인
      */
     @Test
-    void createOAuthLoginStateTest() {
+    void createOAuthLoginStateReturnsInitializedStateWhenArgumentsAreValid() {
         String state = "this-is-state-value";
         String nonce = "this-is-nonce-value";
         LocalDateTime createdAt = LocalDateTime.now();
@@ -44,7 +44,7 @@ public class OAuthLoginStateTest {
      * isExpired()가 true를 리턴하는지 확인
      */
     @Test
-    void isExpiredTest() {
+    void isExpiredReturnsTrueWhenStateIsExpired() {
         String state = "this-is-state-value";
         String nonce = "this-is-nonce-value";
         LocalDateTime createdAt = LocalDateTime.now().minusHours(1);
@@ -65,7 +65,7 @@ public class OAuthLoginStateTest {
      * - (2) 사용 직후 isConsumed()가 true를 반환하는지 확인
      */
     @Test
-    void isConsumedTest() {
+    void isConsumedReturnsTrueWhenStateIsConsumed() {
         String state = "this-is-state-value";
         String nonce = "this-is-nonce-value";
         LocalDateTime createdAt = LocalDateTime.now();
@@ -90,7 +90,7 @@ public class OAuthLoginStateTest {
      * markConsumed() 호출 이후 consumedAt 필드 값이 사용 시간과 일치하는지 확인
      */
     @Test
-    void markConsumedTest() {
+    void markConsumedUpdatesConsumedAtWhenStateIsConsumed() {
         String state = "this-is-state-value";
         String nonce = "this-is-nonce-value";
         LocalDateTime createdAt = LocalDateTime.now();
