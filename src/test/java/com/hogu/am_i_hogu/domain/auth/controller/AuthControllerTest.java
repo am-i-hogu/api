@@ -1,4 +1,4 @@
-package com.hogu.am_i_hogu.domain.auth;
+package com.hogu.am_i_hogu.domain.auth.controller;
 
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.TokenHasher;

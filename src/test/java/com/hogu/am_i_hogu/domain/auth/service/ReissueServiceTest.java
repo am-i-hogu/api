@@ -1,12 +1,10 @@
-package com.hogu.am_i_hogu.domain.auth;
+package com.hogu.am_i_hogu.domain.auth.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.TokenHasher;
 import com.hogu.am_i_hogu.domain.auth.exception.AuthErrorCode;
 import com.hogu.am_i_hogu.domain.auth.repository.RefreshTokenRepository;
-import com.hogu.am_i_hogu.domain.auth.service.ReissueService;
-import com.hogu.am_i_hogu.domain.auth.service.TokenIssueService;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;

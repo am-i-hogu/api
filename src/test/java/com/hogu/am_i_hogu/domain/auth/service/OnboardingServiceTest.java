@@ -1,28 +1,17 @@
-package com.hogu.am_i_hogu.domain.auth;
+package com.hogu.am_i_hogu.domain.auth.service;
 
-import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.exception.ErrorResponse;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.TokenHasher;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
-import com.hogu.am_i_hogu.domain.auth.service.TokenIssueService;
-import com.hogu.am_i_hogu.domain.user.domain.UserHoguStat;
 import com.hogu.am_i_hogu.domain.user.repository.UserHoguStatRepository;
 import com.hogu.am_i_hogu.domain.auth.domain.RegisterSession;
-import com.hogu.am_i_hogu.domain.oauth.domain.SocialAccount;
-import com.hogu.am_i_hogu.domain.user.domain.User;
-import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
-import com.hogu.am_i_hogu.domain.auth.dto.response.TokenPair;
 import com.hogu.am_i_hogu.domain.auth.exception.AuthErrorCode;
-import com.hogu.am_i_hogu.domain.auth.repository.RefreshTokenRepository;
 import com.hogu.am_i_hogu.domain.auth.repository.RegisterSessionRepository;
 import com.hogu.am_i_hogu.domain.oauth.repository.SocialAccountRepository;
 import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
-import com.hogu.am_i_hogu.domain.auth.service.OnboardingService;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDateTime;
 import java.util.List;
