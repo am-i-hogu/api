@@ -44,7 +44,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         String accessToken = getAccessToken(request);
-
+        boolean isLogoutRequest = "/api/auth/logout".equals(request.getRequestURI());
 
         /**
          * access token 검증
@@ -58,9 +58,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);                                            // commence 호출 없이 다음 filter로 이동
             return;
         } else if (validationResult == JwtProvider.TokenValidationResult.EXPIRED) {             // access token이 만료된 경우
+            if (isLogoutRequest) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             handleAccessTokenError(request, response, CommonErrorCode.ACCESS_TOKEN_EXPIRED);
             return;
         } else if (validationResult == JwtProvider.TokenValidationResult.INVALID) {             // access token이 잘못된 값인 경우
+            if (isLogoutRequest) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             handleAccessTokenError(request, response, CommonErrorCode.INVALID_ACCESS_TOKEN);
             return;
         }
