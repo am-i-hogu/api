@@ -358,7 +358,7 @@ public class AuthControllerTest {
      * - (5) 소셜 계정-유저 연결과 등록 세션 사용 처리가 되는지 확인
      */
     @Test
-    void createUserSuccess() throws Exception {
+    void createUserReturns200AndCreatesUserWhenRegisterTokenAndNicknameAreValid() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, null, "GOOGLE", "google-provider-id", null, now);
         insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "valid-register-token", now, null);
@@ -434,7 +434,7 @@ public class AuthControllerTest {
      * 응답이 401 Unauthorized + INVALID_REGISTER_TOKEN인지 확인
      */
     @Test
-    void registerSessionNotFound() throws Exception {
+    void createUserReturns401WhenRegisterSessionDoesNotExist() throws Exception {
         when(jwtProvider.validateRegisterToken("valid-register-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getSubjectAsLong("valid-register-token"))
@@ -458,7 +458,7 @@ public class AuthControllerTest {
      * 응답이 401 Unauthorized + INVALID_REGISTER_TOKEN인지 확인
      */
     @Test
-    void registerTokenHashMismatch() throws Exception {
+    void createUserReturns401WhenRegisterTokenHashDoesNotMatch() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, null, "GOOGLE", "google-provider-id", null, now);
         insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "different-register-token", now, null);
@@ -486,7 +486,7 @@ public class AuthControllerTest {
      * 응답이 401 Unauthorized + INVALID_REGISTER_TOKEN인지 확인
      */
     @Test
-    void consumedRegisterSession() throws Exception {
+    void createUserReturns401WhenRegisterSessionIsConsumed() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, null, "GOOGLE", "google-provider-id", null, now);
         insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "valid-register-token", now, now.plusMinutes(1));
@@ -514,7 +514,7 @@ public class AuthControllerTest {
      * 응답이 409 Conflict + DUPLICATE_NICKNAME인지 확인
      */
     @Test
-    void duplicateNickname() throws Exception {
+    void createUserReturns409WhenNicknameIsDuplicated() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         insertUser(TEST_USER_ID, "nickname", null);
         insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, null, "GOOGLE", "google-provider-id", null, now);

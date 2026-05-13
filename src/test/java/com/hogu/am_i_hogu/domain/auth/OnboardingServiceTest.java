@@ -59,7 +59,7 @@ public class OnboardingServiceTest {
      * EMPTY_REGISTER_TOKEN 예외가 발생하는지 확인
      */
     @Test
-    void emptyRegisterTokenTest() {
+    void createUserThrowsEmptyRegisterTokenWhenRegisterTokenIsMissing() {
         when(jwtProvider.validateRegisterToken(null))
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
@@ -74,7 +74,7 @@ public class OnboardingServiceTest {
      * REGISTER_TOKEN_EXPIRED 예외가 발생하는지 확인
      */
     @Test
-    void expiredRegisterTokenTest() {
+    void createUserThrowsRegisterTokenExpiredWhenRegisterTokenIsExpired() {
         when(jwtProvider.validateRegisterToken("expired-register-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.EXPIRED);
 
@@ -89,7 +89,7 @@ public class OnboardingServiceTest {
      * INVALID_REGISTER_TOKEN 예외가 발생하는지 확인
      */
     @Test
-    void invalidRegisterTokenTest() {
+    void createUserThrowsInvalidRegisterTokenWhenRegisterTokenIsInvalid() {
         when(jwtProvider.validateRegisterToken("invalid-register-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.INVALID);
 
@@ -104,7 +104,7 @@ public class OnboardingServiceTest {
      * INVALID_INPUT_VALUE 예외와 EMPTY_NICKNAME 상세 오류가 발생하는지 확인
      */
     @Test
-    void emptyNicknameTest() {
+    void createUserThrowsInvalidInputValueWhenNicknameIsEmpty() {
         RegisterSession registerSession = new RegisterSession(
                 1L,
                 100L,
@@ -136,7 +136,7 @@ public class OnboardingServiceTest {
      * INVALID_INPUT_VALUE 예외와 SPECIAL_CHAR_NICKNAME 상세 오류가 발생하는지 확인
      */
     @Test
-    void specialCharacterNicknameTest() {
+    void createUserThrowsInvalidInputValueWhenNicknameContainsSpecialCharacter() {
         RegisterSession registerSession = new RegisterSession(
                 1L,
                 100L,
@@ -168,7 +168,7 @@ public class OnboardingServiceTest {
      * INVALID_INPUT_VALUE 예외와 NICKNAME_LENGTH_EXCEEDED 상세 오류가 발생하는지 확인
      */
     @Test
-    void nicknameLengthExceededTest() {
+    void createUserThrowsInvalidInputValueWhenNicknameLengthIsInvalid() {
         RegisterSession registerSession = new RegisterSession(
                 1L,
                 100L,
