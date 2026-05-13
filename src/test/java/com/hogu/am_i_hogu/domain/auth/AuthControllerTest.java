@@ -2,12 +2,14 @@ package com.hogu.am_i_hogu.domain.auth;
 
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.TokenHasher;
+import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -25,6 +27,8 @@ import java.util.Collections;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -34,6 +38,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @Testcontainers
 public class AuthControllerTest {
+
+    private static final long TEST_USER_ID = 1L;
+    private static final long TEST_SOCIAL_ACCOUNT_ID = 100L;
+    private static final long TEST_REFRESH_TOKEN_ID = 101L;
+    private static final long TEST_REGISTER_SESSION_ID = 103L;
 
     @Container
     static final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")
@@ -61,8 +70,14 @@ public class AuthControllerTest {
     @MockitoBean
     private JwtProvider jwtProvider;
 
+    @MockitoBean
+    private TsidGenerator tsidGenerator;
+
     @BeforeEach
     void setUp() {
+        jdbcTemplate.update("DELETE FROM register_sessions");
+        jdbcTemplate.update("DELETE FROM social_accounts");
+        jdbcTemplate.update("DELETE FROM user_hogu_stats");
         jdbcTemplate.update("DELETE FROM refresh_tokens");
         jdbcTemplate.update("DELETE FROM users");
     }
@@ -77,13 +92,13 @@ public class AuthControllerTest {
     @Test
     void logoutRevokesRefreshTokenWhenAccessTokenAndRefreshTokenAreValid() throws Exception {
         stubAuthenticatedUser();
-        insertUser(1L, "nickname", null);
-        insertRefreshToken(100L, 1L, "valid-refresh-token", false);
+        insertUser(TEST_USER_ID, "nickname", null);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false);
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getTokenId("valid-refresh-token"))
-                .thenReturn(100L);
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
 
         mockMvc.perform(post("/api/auth/logout")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token")
@@ -97,7 +112,7 @@ public class AuthControllerTest {
         Boolean isRevoked = jdbcTemplate.queryForObject(
                 "SELECT is_revoked FROM refresh_tokens WHERE id = ?",
                 Boolean.class,
-                100L
+                TEST_REFRESH_TOKEN_ID
         );
         assertThat(isRevoked).isTrue();
     }
@@ -136,7 +151,7 @@ public class AuthControllerTest {
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getTokenId("valid-refresh-token"))
-                .thenReturn(100L);
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
 
         mockMvc.perform(post("/api/auth/logout")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token")
@@ -159,13 +174,13 @@ public class AuthControllerTest {
     @Test
     void logoutReturns204WhenRefreshTokenIsRevoked() throws Exception {
         stubAuthenticatedUser();
-        insertUser(1L, "nickname", null);
-        insertRefreshToken(100L, 1L, "valid-refresh-token", true);
+        insertUser(TEST_USER_ID, "nickname", null);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", true);
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getTokenId("valid-refresh-token"))
-                .thenReturn(100L);
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
 
         mockMvc.perform(post("/api/auth/logout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token")
@@ -179,7 +194,7 @@ public class AuthControllerTest {
         Boolean isRevoked = jdbcTemplate.queryForObject(
                 "SELECT is_revoked FROM refresh_tokens WHERE id = ?",
                 Boolean.class,
-                100L
+                TEST_REFRESH_TOKEN_ID
         );
         assertThat(isRevoked).isTrue();
 
@@ -199,15 +214,16 @@ public class AuthControllerTest {
      */
     @Test
     void logoutReturns204WhenAccessTokenIsMissing() throws Exception {
-        insertUser(1L, "nickname", null);
-        insertRefreshToken(100L, 1L, "valid-refresh-token", false);
+        insertUser(TEST_USER_ID, "nickname", null);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false);
         when(jwtProvider.validateAccessToken(null))
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getTokenId("valid-refresh-token"))
-                .thenReturn(100L);
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
 
         mockMvc.perform(post("/api/auth/logout")
                         .cookie(new Cookie("refreshToken", "valid-refresh-token")))
@@ -220,7 +236,7 @@ public class AuthControllerTest {
         Boolean isRevoked = jdbcTemplate.queryForObject(
                 "SELECT is_revoked FROM refresh_tokens WHERE id = ?",
                 Boolean.class,
-                100L
+                TEST_REFRESH_TOKEN_ID
         );
         assertThat(isRevoked).isTrue();
     }
@@ -234,15 +250,15 @@ public class AuthControllerTest {
      */
     @Test
     void logoutReturns204WhenAccessTokenIsExpired() throws Exception {
-        insertUser(1L, "nickname", null);
-        insertRefreshToken(100L, 1L, "valid-refresh-token", false);
+        insertUser(TEST_USER_ID, "nickname", null);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false);
 
         when(jwtProvider.validateAccessToken("expired-access-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.EXPIRED);
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getTokenId("valid-refresh-token"))
-                .thenReturn(100L);
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
 
         mockMvc.perform(post("/api/auth/logout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer expired-access-token")
@@ -256,7 +272,7 @@ public class AuthControllerTest {
         Boolean isRevoked = jdbcTemplate.queryForObject(
                 "SELECT is_revoked FROM refresh_tokens WHERE id = ?",
                 Boolean.class,
-                100L
+                TEST_REFRESH_TOKEN_ID
         );
         assertThat(isRevoked).isTrue();
     }
@@ -270,15 +286,15 @@ public class AuthControllerTest {
      */
     @Test
     void logoutReturns204WhenAccessTokenIsInvalid() throws Exception {
-        insertUser(1L, "nickname", null);
-        insertRefreshToken(100L, 1L, "valid-refresh-token", false);
+        insertUser(TEST_USER_ID, "nickname", null);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false);
 
         when(jwtProvider.validateAccessToken("invalid-access-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.INVALID);
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getTokenId("valid-refresh-token"))
-                .thenReturn(100L);
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
 
         mockMvc.perform(post("/api/auth/logout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-access-token")
@@ -292,7 +308,7 @@ public class AuthControllerTest {
         Boolean isRevoked = jdbcTemplate.queryForObject(
                 "SELECT is_revoked FROM refresh_tokens WHERE id = ?",
                 Boolean.class,
-                100L
+                TEST_REFRESH_TOKEN_ID
         );
         assertThat(isRevoked).isTrue();
     }
@@ -307,13 +323,13 @@ public class AuthControllerTest {
     @Test
     void logoutReturns204WhenRefreshTokenHashDoesNotMatch() throws Exception {
         stubAuthenticatedUser();
-        insertUser(1L, "nickname", null);
-        insertRefreshTokenWithHash(100L, 1L, "strange-hash-value", false);
+        insertUser(TEST_USER_ID, "nickname", null);
+        insertRefreshTokenWithHash(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "strange-hash-value", false);
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getTokenId("valid-refresh-token"))
-                .thenReturn(100L);
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
 
         mockMvc.perform(post("/api/auth/logout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token")
@@ -327,9 +343,200 @@ public class AuthControllerTest {
         Boolean isRevoked = jdbcTemplate.queryForObject(
                 "SELECT is_revoked FROM refresh_tokens WHERE id = ?",
                 Boolean.class,
-                100L
+                TEST_REFRESH_TOKEN_ID
         );
         assertThat(isRevoked).isFalse();
+    }
+
+    /**
+     * 온보딩 성공 테스트:
+     * 유효한 register token과 닉네임으로 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) registerToken 쿠키를 삭제하고, 새로운 refresh token 쿠키를 반환하는지 확인
+     * - (3) 새로운 access token을 반환하는지 확인
+     * - (4) 닉네임, hogu stat, refresh token 테이블이 적절히 초기화되는지 확인
+     * - (5) 소셜 계정-유저 연결과 등록 세션 사용 처리가 되는지 확인
+     */
+    @Test
+    void createUserSuccess() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, null, "GOOGLE", "google-provider-id", null, now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "valid-register-token", now, null);
+
+        when(jwtProvider.validateRegisterToken("valid-register-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-register-token"))
+                .thenReturn(TEST_SOCIAL_ACCOUNT_ID);
+        when(tsidGenerator.nextId())
+                .thenReturn(TEST_USER_ID)
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
+        when(jwtProvider.createRefreshToken(TEST_USER_ID, TEST_REFRESH_TOKEN_ID))
+                .thenReturn("new-refresh-token");
+        when(jwtProvider.createAccessToken(TEST_USER_ID))
+                .thenReturn("new-access-token");
+
+        mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .cookie(new Cookie("registerToken", "valid-register-token"))
+                        .content("""
+                                {
+                                  "nickname": "nickname"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(header().stringValues(
+                        HttpHeaders.SET_COOKIE,
+                        "refreshToken=new-refresh-token; Path=/; Secure; HttpOnly",
+                        "registerToken=; Path=/; Max-Age=0; Expires=Thu, 1 Jan 1970 00:00:00 GMT; Secure; HttpOnly"
+                ))
+                .andExpect(content().json("""
+                        {
+                          "accessToken": "new-access-token"
+                        }
+                        """));
+
+        String savedNickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Long linkedUserId = jdbcTemplate.queryForObject(
+                "SELECT user_id FROM social_accounts WHERE id = ?",
+                Long.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        LocalDateTime consumedAt = jdbcTemplate.queryForObject(
+                "SELECT consumed_at FROM register_sessions WHERE id = ?",
+                LocalDateTime.class,
+                TEST_REGISTER_SESSION_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(savedNickname).isEqualTo("nickname");
+        assertThat(userHoguStatCount).isEqualTo(1);
+        assertThat(linkedUserId).isEqualTo(TEST_USER_ID);
+        assertThat(consumedAt).isNotNull();
+        assertThat(refreshTokenCount).isEqualTo(1);
+    }
+
+    /**
+     * 온보딩 실패 테스트:
+     * DB에 해당 social account의 register session이 없는 상태에서 요청을 보내고,
+     * 응답이 401 Unauthorized + INVALID_REGISTER_TOKEN인지 확인
+     */
+    @Test
+    void registerSessionNotFound() throws Exception {
+        when(jwtProvider.validateRegisterToken("valid-register-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-register-token"))
+                .thenReturn(TEST_SOCIAL_ACCOUNT_ID);
+
+        mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .cookie(new Cookie("registerToken", "valid-register-token"))
+                        .content("""
+                                {
+                                  "nickname": "nickname"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REGISTER_TOKEN"));
+    }
+
+    /**
+     * 온보딩 실패 테스트:
+     * DB에 저장되어 있는 것과 hash 값이 다른 register token으로 요청을 보내고,
+     * 응답이 401 Unauthorized + INVALID_REGISTER_TOKEN인지 확인
+     */
+    @Test
+    void registerTokenHashMismatch() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, null, "GOOGLE", "google-provider-id", null, now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "different-register-token", now, null);
+
+        when(jwtProvider.validateRegisterToken("valid-register-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-register-token"))
+                .thenReturn(TEST_SOCIAL_ACCOUNT_ID);
+
+        mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .cookie(new Cookie("registerToken", "valid-register-token"))
+                        .content("""
+                                {
+                                  "nickname": "nickname"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REGISTER_TOKEN"));
+    }
+
+    /**
+     * consumed register session
+     * 이미 사용된 register token으로 요청을 보내고,
+     * 응답이 401 Unauthorized + INVALID_REGISTER_TOKEN인지 확인
+     */
+    @Test
+    void consumedRegisterSession() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, null, "GOOGLE", "google-provider-id", null, now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "valid-register-token", now, now.plusMinutes(1));
+
+        when(jwtProvider.validateRegisterToken("valid-register-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-register-token"))
+                .thenReturn(TEST_SOCIAL_ACCOUNT_ID);
+
+        mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .cookie(new Cookie("registerToken", "valid-register-token"))
+                        .content("""
+                                {
+                                  "nickname": "nickname"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REGISTER_TOKEN"));
+    }
+
+    /**
+     * 온보딩 실패 테스트:
+     * 사용 중인 닉네임으로 요청을 보내고,
+     * 응답이 409 Conflict + DUPLICATE_NICKNAME인지 확인
+     */
+    @Test
+    void duplicateNickname() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", null);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, null, "GOOGLE", "google-provider-id", null, now);
+        insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "valid-register-token", now, null);
+
+        when(jwtProvider.validateRegisterToken("valid-register-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-register-token"))
+                .thenReturn(TEST_SOCIAL_ACCOUNT_ID);
+        when(tsidGenerator.nextId())
+                .thenReturn(2L);
+
+        mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .cookie(new Cookie("registerToken", "valid-register-token"))
+                        .content("""
+                                {
+                                  "nickname": "nickname"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DUPLICATE_NICKNAME"));
     }
 
     /**
@@ -418,6 +625,53 @@ public class AuthControllerTest {
                 now.plusDays(7),
                 isRevoked ? now : null,
                 now
+        );
+    }
+
+    private void insertSocialAccount(
+            Long socialAccountId,
+            Long userId,
+            String provider,
+            String providerUserId,
+            LocalDateTime linkedAt,
+            LocalDateTime createdAt
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO social_accounts
+                    (id, user_id, provider, provider_user_id, linked_at, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?)
+                """,
+                socialAccountId,
+                userId,
+                provider,
+                providerUserId,
+                linkedAt,
+                createdAt
+        );
+    }
+
+    private void insertRegisterSession(
+            Long registerSessionId,
+            Long socialAccountId,
+            String registerToken,
+            LocalDateTime createdAt,
+            LocalDateTime consumedAt
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO register_sessions
+                    (id, social_account_id, register_token_hash, expires_at, consumed_at, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?)
+                """,
+                registerSessionId,
+                socialAccountId,
+                tokenHasher.hash(registerToken),
+                createdAt.plusMinutes(10),
+                consumedAt,
+                createdAt
         );
     }
 }
