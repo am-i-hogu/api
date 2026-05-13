@@ -93,7 +93,7 @@ public class AuthControllerTest {
     void logoutRevokesRefreshTokenWhenAccessTokenAndRefreshTokenAreValid() throws Exception {
         stubAuthenticatedUser();
         insertUser(TEST_USER_ID, "nickname", null);
-        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false, false);
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
@@ -175,7 +175,7 @@ public class AuthControllerTest {
     void logoutReturns204WhenRefreshTokenIsRevoked() throws Exception {
         stubAuthenticatedUser();
         insertUser(TEST_USER_ID, "nickname", null);
-        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", true);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", true, false);
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
@@ -215,7 +215,7 @@ public class AuthControllerTest {
     @Test
     void logoutReturns204WhenAccessTokenIsMissing() throws Exception {
         insertUser(TEST_USER_ID, "nickname", null);
-        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false, false);
         when(jwtProvider.validateAccessToken(null))
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
@@ -251,7 +251,7 @@ public class AuthControllerTest {
     @Test
     void logoutReturns204WhenAccessTokenIsExpired() throws Exception {
         insertUser(TEST_USER_ID, "nickname", null);
-        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false, false);
 
         when(jwtProvider.validateAccessToken("expired-access-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.EXPIRED);
@@ -287,7 +287,7 @@ public class AuthControllerTest {
     @Test
     void logoutReturns204WhenAccessTokenIsInvalid() throws Exception {
         insertUser(TEST_USER_ID, "nickname", null);
-        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false, false);
 
         when(jwtProvider.validateAccessToken("invalid-access-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.INVALID);
@@ -324,7 +324,7 @@ public class AuthControllerTest {
     void logoutReturns204WhenRefreshTokenHashDoesNotMatch() throws Exception {
         stubAuthenticatedUser();
         insertUser(TEST_USER_ID, "nickname", null);
-        insertRefreshTokenWithHash(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "strange-hash-value", false);
+        insertRefreshTokenWithHash(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "strange-hash-value", false, false);
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
@@ -380,7 +380,7 @@ public class AuthControllerTest {
                         .cookie(new Cookie("registerToken", "valid-register-token"))
                         .content("""
                                 {
-                                  "nickname": "nickname"
+                                  "nickname" : "nickname"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -391,7 +391,7 @@ public class AuthControllerTest {
                 ))
                 .andExpect(content().json("""
                         {
-                          "accessToken": "new-access-token"
+                          "accessToken" : "new-access-token"
                         }
                         """));
 
@@ -445,7 +445,7 @@ public class AuthControllerTest {
                         .cookie(new Cookie("registerToken", "valid-register-token"))
                         .content("""
                                 {
-                                  "nickname": "nickname"
+                                  "nickname" : "nickname"
                                 }
                                 """))
                 .andExpect(status().isUnauthorized())
@@ -473,7 +473,7 @@ public class AuthControllerTest {
                         .cookie(new Cookie("registerToken", "valid-register-token"))
                         .content("""
                                 {
-                                  "nickname": "nickname"
+                                  "nickname" : "nickname"
                                 }
                                 """))
                 .andExpect(status().isUnauthorized())
@@ -501,7 +501,7 @@ public class AuthControllerTest {
                         .cookie(new Cookie("registerToken", "valid-register-token"))
                         .content("""
                                 {
-                                  "nickname": "nickname"
+                                  "nickname" : "nickname"
                                 }
                                 """))
                 .andExpect(status().isUnauthorized())
@@ -532,11 +532,195 @@ public class AuthControllerTest {
                         .cookie(new Cookie("registerToken", "valid-register-token"))
                         .content("""
                                 {
-                                  "nickname": "nickname"
+                                  "nickname" : "nickname"
                                 }
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("DUPLICATE_NICKNAME"));
+    }
+
+    /**
+     * 토큰 재발급 성공 테스트:
+     * 유효한 refresh token으로 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) refreshToken 쿠키가 새로운 refresh token으로 설정되는지 확인
+     * - (3) 새로운 access token을 반환하는지 확인
+     * - (4) refresh token 테이블에 기존 refresh token row가 rotated 처리되는지 확인
+     * - (5) refresh token 테이블에 새로운 refresh token 정보가 저장되었는지 확인
+     */
+    @Test
+    void reissueTokenReturns200WhenRefreshTokenIsValid() throws Exception {
+        insertUser(TEST_USER_ID, "nickname", null);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false, false);
+
+        when(jwtProvider.validateRefreshToken("valid-refresh-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getTokenId("valid-refresh-token"))
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
+        when(tsidGenerator.nextId())
+                .thenReturn(TEST_REFRESH_TOKEN_ID + 1);
+        when(jwtProvider.createRefreshToken(TEST_USER_ID, TEST_REFRESH_TOKEN_ID + 1))
+                .thenReturn("new-refresh-token");
+        when(jwtProvider.createAccessToken(TEST_USER_ID))
+                .thenReturn("new-access-token");
+
+        mockMvc.perform(post("/api/auth/refresh")
+                    .cookie(new Cookie("refreshToken", "valid-refresh-token")))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.SET_COOKIE,
+                        "refreshToken=new-refresh-token; Path=/; Secure; HttpOnly"
+                ))
+                .andExpect(content().json(
+                        """
+                        {
+                          "accessToken" : "new-access-token"
+                        }
+                        """
+                ));
+
+        Boolean isRevoked = jdbcTemplate.queryForObject(
+                "SELECT is_revoked FROM refresh_tokens WHERE id = ?",
+                Boolean.class,
+                TEST_REFRESH_TOKEN_ID
+        );
+        Boolean isRotated = jdbcTemplate.queryForObject(
+                "SELECT is_rotated FROM refresh_tokens WHERE id = ?",
+                Boolean.class,
+                TEST_REFRESH_TOKEN_ID
+        );
+        LocalDateTime revokedAt = jdbcTemplate.queryForObject(
+                "SELECT revoked_at FROM refresh_tokens WHERE id = ?",
+                LocalDateTime.class,
+                TEST_REFRESH_TOKEN_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Boolean newRefreshTokenExists = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) = 1 FROM refresh_tokens WHERE id = ? AND user_id = ?",
+                Boolean.class,
+                TEST_REFRESH_TOKEN_ID + 1,
+                TEST_USER_ID
+        );
+
+        assertThat(isRevoked).isTrue();
+        assertThat(isRotated).isTrue();
+        assertThat(revokedAt).isNotNull();
+        assertThat(refreshTokenCount).isEqualTo(2);
+        assertThat(newRefreshTokenExists).isTrue();
+    }
+
+    /**
+     * 토큰 재발급 실패 테스트:
+     * DB에 저장되어 있지 않은 refresh token으로 요청을 보내고,
+     * - (1) 응답이 401 Unauthorized + INVALID_REFRESH_TOKEN인지 확인
+     * - (2) 새로운 refresh token 정보가 생성되지 않았는지 확인
+     */
+    @Test
+    void reissueTokenReturns401WhenRefreshTokenDoesNotExist() throws Exception {
+        when(jwtProvider.validateRefreshToken("valid-refresh-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getTokenId("valid-refresh-token"))
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("refreshToken", "valid-refresh-token")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        assertThat(refreshTokenCount).isEqualTo(0);
+    }
+
+
+    /**
+     * 토큰 재발급 실패 테스트:
+     * 이미 사용되어 폐기처리된 refresh token으로 요청을 보내고,
+     * - (1) 응답이 401 Unauthorized + REFRESH_TOKEN_REUSED인지 확인
+     * - (2) 새로운 refresh token 정보가 생성되지 않았는지 확인
+     */
+    @Test
+    void reissueTokenReturns401WhenRefreshTokenIsRotated() throws Exception {
+        insertUser(TEST_USER_ID, "nickname", null);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", true, true);
+
+        when(jwtProvider.validateRefreshToken("valid-refresh-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getTokenId("valid-refresh-token"))
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("refreshToken", "valid-refresh-token")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("REFRESH_TOKEN_REUSED"));
+
+        Boolean isRevoked = jdbcTemplate.queryForObject(
+                "SELECT is_revoked FROM refresh_tokens WHERE id = ?",
+                Boolean.class,
+                TEST_REFRESH_TOKEN_ID
+        );
+        Boolean isRotated = jdbcTemplate.queryForObject(
+                "SELECT is_rotated FROM refresh_tokens WHERE id = ?",
+                Boolean.class,
+                TEST_REFRESH_TOKEN_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        assertThat(isRevoked).isTrue();
+        assertThat(isRotated).isTrue();
+        assertThat(refreshTokenCount).isEqualTo(1);
+    }
+
+    /**
+     * 토큰 재발급 실패 테스트:
+     * DB에 저장된 refresh token과 hash가 일치하지 않는 refresh token으로 요청을 보내고,
+     * - (1) 응답이 401 Unauthorized + INVALID_REFRESH_TOKEN인지 확인
+     * - (2) 새로운 refresh token 정보가 생성되지 않았는지 확인
+     */
+    @Test
+    void reissueTokenReturns401WhenRefreshTokenHashDoesNotMatch() throws Exception {
+        insertUser(TEST_USER_ID, "nickname", null);
+        insertRefreshTokenWithHash(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "different-hash", false, false);
+
+        when(jwtProvider.validateRefreshToken("valid-refresh-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getTokenId("valid-refresh-token"))
+                .thenReturn(TEST_REFRESH_TOKEN_ID);
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .cookie(new Cookie("refreshToken", "valid-refresh-token")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+
+        Boolean isRevoked = jdbcTemplate.queryForObject(
+                "SELECT is_revoked FROM refresh_tokens WHERE id = ?",
+                Boolean.class,
+                TEST_REFRESH_TOKEN_ID
+        );
+        Boolean isRotated = jdbcTemplate.queryForObject(
+                "SELECT is_rotated FROM refresh_tokens WHERE id = ?",
+                Boolean.class,
+                TEST_REFRESH_TOKEN_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isRevoked).isFalse();
+        assertThat(isRotated).isFalse();
+        assertThat(refreshTokenCount).isEqualTo(1);
     }
 
     /**
@@ -579,7 +763,8 @@ public class AuthControllerTest {
             Long refreshTokenId,
             Long userId,
             String rawRefreshToken,
-            boolean isRevoked
+            boolean isRevoked,
+            boolean isRotated
     ) {
         LocalDateTime now = LocalDateTime.now();
         String tokenHash = tokenHasher.hash(rawRefreshToken);
@@ -595,7 +780,7 @@ public class AuthControllerTest {
                 userId,
                 tokenHash,
                 isRevoked,
-                false,
+                isRotated,
                 now.plusDays(7),
                 isRevoked ? now : null,
                 now
@@ -606,7 +791,8 @@ public class AuthControllerTest {
             Long refreshTokenId,
             Long userId,
             String tokenHash,
-            boolean isRevoked
+            boolean isRevoked,
+            boolean isRotated
     ) {
         LocalDateTime now = LocalDateTime.now();
 
@@ -621,7 +807,7 @@ public class AuthControllerTest {
                 userId,
                 tokenHash,
                 isRevoked,
-                false,
+                isRotated,
                 now.plusDays(7),
                 isRevoked ? now : null,
                 now
