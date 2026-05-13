@@ -90,7 +90,7 @@ public class AuthControllerTest {
      * - (3) DB에 is_revoked=true로 설정되는지 확인
      */
     @Test
-    void logoutRevokesRefreshTokenWhenAccessTokenAndRefreshTokenAreValid() throws Exception {
+    void logoutReturns204WhenAccessTokenAndRefreshTokenAreValid() throws Exception {
         stubAuthenticatedUser();
         insertUser(TEST_USER_ID, "nickname", null);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "valid-refresh-token", false, false);
@@ -144,7 +144,7 @@ public class AuthControllerTest {
      * - (2) refreshToken 쿠키를 삭제하는지 확인
      */
     @Test
-    void logoutReturns204WhenRefreshTokenDoesNotExistInDatabase() throws Exception {
+    void logoutReturns204WhenRefreshTokenDoesNotExist() throws Exception {
         stubAuthenticatedUser();
         insertUser(1L, "nickname", null);
 
@@ -358,7 +358,7 @@ public class AuthControllerTest {
      * - (5) 소셜 계정-유저 연결과 등록 세션 사용 처리가 되는지 확인
      */
     @Test
-    void createUserReturns200AndCreatesUserWhenRegisterTokenAndNicknameAreValid() throws Exception {
+    void createUserReturns200WhenRegisterTokenAndNicknameAreValid() throws Exception {
         LocalDateTime now = LocalDateTime.now();
         insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, null, "GOOGLE", "google-provider-id", null, now);
         insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "valid-register-token", now, null);
@@ -525,7 +525,7 @@ public class AuthControllerTest {
         when(jwtProvider.getSubjectAsLong("valid-register-token"))
                 .thenReturn(TEST_SOCIAL_ACCOUNT_ID);
         when(tsidGenerator.nextId())
-                .thenReturn(2L);
+                .thenReturn(TEST_USER_ID + 1);
 
         mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)
