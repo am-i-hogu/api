@@ -32,7 +32,7 @@ jobs:
 
       - name: Build with Gradle
         run: |
-          printf '%s' "${{ secrets.APPLICATION_SECRETS }}" | base64 --decode > ./src/main/resources/application-secret.yml
+          printf '%s' "${{ secrets.APPLICATION_SECRET }}" | base64 --decode > ./src/main/resources/application-secret.yml
           chmod +x ./gradlew
           ./gradlew clean build --no-daemon
 
