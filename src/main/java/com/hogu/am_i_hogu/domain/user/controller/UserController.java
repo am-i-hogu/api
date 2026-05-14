@@ -128,7 +128,7 @@ public class UserController {
      * @param cursorRequest     cursor 정보(투표 생성 일시, post id 포함)
      * @return 조회된 투표 리스트
      */
-    @GetMapping("/me/bookmarks")
+    @GetMapping("/me/votes")
     public ResponseEntity<MyVoteListResponse> getMyVotes(
             Authentication authentication,
             @ModelAttribute CursorRequest cursorRequest
