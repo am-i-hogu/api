@@ -1,5 +1,7 @@
 package com.hogu.am_i_hogu.domain.user.service;
 
+import com.hogu.am_i_hogu.common.exception.CustomException;
+import com.hogu.am_i_hogu.common.exception.ErrorResponse;
 import com.hogu.am_i_hogu.common.pagination.CursorCodec;
 import com.hogu.am_i_hogu.common.pagination.CursorRequest;
 import com.hogu.am_i_hogu.domain.comment.dto.PostCommentCount;
@@ -10,6 +12,7 @@ import com.hogu.am_i_hogu.domain.user.dto.MyPostCursor;
 import com.hogu.am_i_hogu.domain.user.dto.MyPostSummary;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyPostItemResponse;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyPostListResponse;
+import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
@@ -51,10 +54,21 @@ public class MyPostQueryService {
 
         LocalDateTime cursorCreatedAt = null;
         Long cursorPostId = null;
+
         if (cursorRequest.cursor() != null && !cursorRequest.cursor().isBlank()) {
-            MyPostCursor decodedCursor = cursorCodec.decode(cursorRequest.cursor(), MyPostCursor.class);
-            cursorCreatedAt = decodedCursor.createdAt();
-            cursorPostId = decodedCursor.postId();
+            try {
+                MyPostCursor decodedCursor = cursorCodec.decode(cursorRequest.cursor(), MyPostCursor.class);
+                cursorCreatedAt = decodedCursor.createdAt();
+                cursorPostId = decodedCursor.postId();
+            } catch (IllegalStateException e) {
+                throw new CustomException(
+                        UserErrorCode.INVALID_PARAM_VALUE,
+                        List.of(new ErrorResponse.ErrorDetail(
+                                "cursor",
+                                "INVALID_CURSOR"
+                        ))
+                );
+            }
         }
 
         List<MyPostSummary> queriedPosts = postRepository.findMyPosts(
