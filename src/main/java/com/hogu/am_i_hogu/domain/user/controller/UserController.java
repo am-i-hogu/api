@@ -3,8 +3,10 @@ package com.hogu.am_i_hogu.domain.user.controller;
 import com.hogu.am_i_hogu.common.pagination.CursorRequest;
 import com.hogu.am_i_hogu.domain.user.dto.request.UpdateProfileRequest;
 import com.hogu.am_i_hogu.domain.user.dto.response.CheckNicknameResponse;
+import com.hogu.am_i_hogu.domain.user.dto.response.MyCommentListResponse;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyPostListResponse;
 import com.hogu.am_i_hogu.domain.user.dto.response.UpdateProfileResponse;
+import com.hogu.am_i_hogu.domain.user.service.MyCommentQueryService;
 import com.hogu.am_i_hogu.domain.user.service.MyPostQueryService;
 import com.hogu.am_i_hogu.domain.user.service.NicknameCheckService;
 import com.hogu.am_i_hogu.domain.user.service.ProfileUpdateService;
@@ -19,14 +21,18 @@ public class UserController {
     private final NicknameCheckService nicknameCheckService;
     private final ProfileUpdateService profileUpdateService;
     private final MyPostQueryService myPostQueryService;
+    private final MyCommentQueryService myCommentQueryService;
 
     public UserController(
             NicknameCheckService nicknameCheckService,
             ProfileUpdateService profileUpdateService,
-            MyPostQueryService myPostQueryService) {
+            MyPostQueryService myPostQueryService,
+            MyCommentQueryService myCommentQueryService
+    ) {
         this.nicknameCheckService = nicknameCheckService;
         this.profileUpdateService = profileUpdateService;
         this.myPostQueryService = myPostQueryService;
+        this.myCommentQueryService = myCommentQueryService;
     }
 
     /**
@@ -75,6 +81,24 @@ public class UserController {
     ) {
         Long userId = Long.valueOf(authentication.getName());
         MyPostListResponse response = myPostQueryService.getMyPosts(userId, cursorRequest);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * [HISTORY-002] 작성한 댓글 리스트 조회
+     *
+     * @param authentication    유저 인증 정보
+     * @param cursorRequest     cursor 정보(comment 생성 일시, comment id 포함)
+     * @return 조회된 댓글 리스트
+     */
+    @GetMapping("/me/comments")
+    public ResponseEntity<MyCommentListResponse> getMyComments(
+            Authentication authentication,
+            @ModelAttribute CursorRequest cursorRequest
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        MyCommentListResponse response = myCommentQueryService.getMyComments(userId, cursorRequest);
 
         return ResponseEntity.ok(response);
     }
