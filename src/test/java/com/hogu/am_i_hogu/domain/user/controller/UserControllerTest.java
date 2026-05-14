@@ -628,23 +628,152 @@ public class UserControllerTest {
     }
 
     /**
-     * 작성한 게시물 리스트 조회 실패 테스트:
-     * 유요하지 않은 cursor로 요청을 보내고,
-     * - (1) 응답 status가 400 Bad Request인지 확인
-     * - (2) INVALID_PARAM_VALUE 오류 코드를 반환하는지 확인
-     * - (3) <필드 정보: cursor, 오류 코드: INVALID_CURSOR> 반환 확인
+     * 작성한 댓글 리스트 조회 성공 테스트:
+     * 인증된 사용자가 자신이 작성한 댓글 리스트 조회를 요청하고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 최신순으로 댓글이 반환되는지 확인
+     * - (3) 삭제된 게시물의 댓글도 포함되는지 확인
+     * - (4) 관련 게시물 정보(postId, title, isDeleted)가 올바르게 반환되는지 확인
+     * - (5) hasNext가 false이고 nextCursor가 null인지 확인
      */
     @Test
-    void getMyPostsReturns400WhenCursorIsInvalid() throws Exception {
+    void getMyCommentsReturns200WhenFirstPageRequestIsValid() throws Exception {
         stubAuthenticatedUser();
 
-        mockMvc.perform(get("/api/users/me/posts")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
-                .param("cursor", "invalid-cursor"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
-                .andExpect(jsonPath("$.errors[0].field").value("cursor"))
-                .andExpect(jsonPath("$.errors[0].code").value("INVALID_CURSOR"));
+        insertUser(1L, "nickname1", null);
+        insertUser(2L, "nickname2", null);
+
+        LocalDateTime olderCreatedAt = LocalDateTime.of(2026, 5, 1, 9, 0, 0);
+        LocalDateTime newerCreatedAt = LocalDateTime.of(2026, 5, 1, 12, 0, 0);
+
+        insertPost(100L, 1L, "USED_TRADE", "title 1", "content 1", false, olderCreatedAt);
+        insertPost(101L, 2L, "USED_TRADE", "deleted title", "deleted content", true, newerCreatedAt);
+        insertPost(102L, 2L, "USED_TRADE", "title 2", "content 2", false, newerCreatedAt);
+
+        insertComment(1000L, 100L, 1L, null, 0, "comment 1", olderCreatedAt, false);
+        insertComment(1001L, 101L, 1L, null, 0, "comment 2", newerCreatedAt, false);
+        insertComment(1002L, 102L, 2L, null, 0, "comment 3", newerCreatedAt, false);
+
+        mockMvc.perform(get("/api/users/me/comments")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(2))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1001L))
+                .andExpect(jsonPath("$.comments[0].content").value("comment 2"))
+                .andExpect(jsonPath("$.comments[0].post.postId").value(101L))
+                .andExpect(jsonPath("$.comments[0].post.title").value("deleted title"))
+                .andExpect(jsonPath("$.comments[0].post.isDeleted").value(true))
+                .andExpect(jsonPath("$.comments[1].commentId").value(1000L))
+                .andExpect(jsonPath("$.comments[1].content").value("comment 1"))
+                .andExpect(jsonPath("$.comments[1].post.postId").value(100L))
+                .andExpect(jsonPath("$.comments[1].post.title").value("title 1"))
+                .andExpect(jsonPath("$.comments[1].post.isDeleted").value(false))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(Matchers.nullValue()));
+    }
+
+    /**
+     * 작성한 댓글 리스트 조회 성공 테스트:
+     * 인증된 사용자가 pageSize보다 많은 댓글을 작성한 상태에서 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) pageSize만큼 댓글이 반환되는지 확인
+     * - (3) hasNext가 true인지 확인
+     * - (4) nextCursor가 null이 아닌지 확인
+     */
+    @Test
+    void getMyCommentsReturns200WhenUserHasMoreCommentsThanPageSize() throws Exception {
+        stubAuthenticatedUser();
+
+        insertUser(1L, "nickname", null);
+        insertPost(100L, 1L, "USED_TRADE", "title 100", "content 100", false, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+
+        insertComment(1000L, 100L, 1L, null, 0, "comment 1", LocalDateTime.of(2026, 5, 1, 9, 0, 0), false);
+        insertComment(1001L, 100L, 1L, null, 0, "comment 2", LocalDateTime.of(2026, 5, 1, 10, 0, 0), false);
+        insertComment(1002L, 100L, 1L, null, 0, "comment 3", LocalDateTime.of(2026, 5, 1, 11, 0, 0), false);
+        insertComment(1003L, 100L, 1L, null, 0, "comment 4", LocalDateTime.of(2026, 5, 1, 12, 0, 0), false);
+        insertComment(1004L, 100L, 1L, null, 0, "comment 5", LocalDateTime.of(2026, 5, 1, 13, 0, 0), false);
+        insertComment(1005L, 100L, 1L, null, 0, "comment 6", LocalDateTime.of(2026, 5, 1, 14, 0, 0), false);
+
+        mockMvc.perform(get("/api/users/me/comments")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(5))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.nextCursor").isNotEmpty());
+    }
+
+    /**
+     * 작성한 댓글 리스트 조회 성공 테스트:
+     * 인증된 사용자가 작성한 댓글이 없을 때 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) comments가 빈 배열인지 확인
+     * - (3) hasNext가 false인지 확인
+     * - (4) nextCursor가 null인지 확인
+     */
+    @Test
+    void getMyCommentsReturns200WhenUserHasNoComments() throws Exception {
+        stubAuthenticatedUser();
+
+        insertUser(1L, "nickname", null);
+
+        mockMvc.perform(get("/api/users/me/comments")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(0))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(Matchers.nullValue()));
+    }
+
+    /**
+     * 작성한 댓글 리스트 조회 성공 테스트:
+     * 인증된 사용자가 첫 페이지에서 받은 nextCursor로 다음 페이지를 요청하고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 다음 페이지의 댓글만 반환되는지 확인
+     * - (3) hasNext가 false인지 확인
+     * - (4) nextCursor가 null인지 확인
+     */
+    @Test
+    void getMyCommentsReturns200WhenCursorIsValidForNextPageRequest() throws Exception {
+        stubAuthenticatedUser();
+
+        insertUser(1L, "nickname", null);
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+
+        insertComment(1000L, 100L, 1L, null, 0, "comment 1", LocalDateTime.of(2026, 5, 1, 9, 0, 0), false);
+        insertComment(1001L, 100L, 1L, null, 0, "comment 2", LocalDateTime.of(2026, 5, 1, 10, 0, 0), false);
+        insertComment(1002L, 100L, 1L, null, 0, "comment 3", LocalDateTime.of(2026, 5, 1, 11, 0, 0), false);
+        insertComment(1003L, 100L, 1L, null, 0, "comment 4", LocalDateTime.of(2026, 5, 1, 12, 0, 0), false);
+        insertComment(1004L, 100L, 1L, null, 0, "comment 5", LocalDateTime.of(2026, 5, 1, 13, 0, 0), false);
+        insertComment(1005L, 100L, 1L, null, 0, "comment 6", LocalDateTime.of(2026, 5, 1, 14, 0, 0), false);
+
+        String responseBody = mockMvc.perform(get("/api/users/me/comments")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String nextCursor = JsonPath.read(responseBody, "$.nextCursor");
+
+        mockMvc.perform(get("/api/users/me/comments")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .param("cursor", nextCursor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(1))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1000L))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(Matchers.nullValue()));
+    }
+
+    /**
+     * 작성한 댓글 리스트 조회 실패 테스트:
+     * access token 없이 요청을 보내고,
+     * - (1) 응답 status가 401 Unauthorized인지 확인
+     */
+    @Test
+    void getMyCommentsReturns401WhenAccessTokenIsMissing() throws Exception {
+        mockMvc.perform(get("/api/users/me/comments"))
+                .andExpect(status().isUnauthorized());
     }
 
     /**
