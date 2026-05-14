@@ -1,12 +1,14 @@
 package com.hogu.am_i_hogu.domain.user.dto.response;
 
+import com.hogu.am_i_hogu.domain.user.domain.VoteSummary;
+
 import java.time.LocalDateTime;
 
 public record MyPostItemResponse(
         Long postId,
         String title,
         LocalDateTime createdAt,
-        String voteSummary,
+        VoteSummary voteSummary,
         long commentCount
 ) {
 }

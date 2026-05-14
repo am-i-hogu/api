@@ -50,12 +50,12 @@ public interface PostRepository extends JpaRepository<Post, Long> {
                     OR p.createdAt < :cursorCreatedAt
                     OR (p.createdAt = :cursorCreatedAt AND p.id < :cursorPostId)
                 )
-            GROUP BY p.id, p.title, p.createdAt
+            GROUP BY p.id
             ORDER BY p.createdAt DESC, p.id DESC
             """)
     List<MyPostSummary> findMyPosts(
             @Param("userId") Long userId,
-            @Param("cursorCreatedAt")LocalDateTime cursorCreatedAt,
+            @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
             @Param("cursorPostId") Long cursorPostId,
             Pageable pageable
     );
