@@ -7,18 +7,15 @@ import com.hogu.am_i_hogu.common.pagination.CursorRequest;
 import com.hogu.am_i_hogu.domain.comment.repository.CommentRepository;
 import com.hogu.am_i_hogu.domain.user.dto.MyCommentCursor;
 import com.hogu.am_i_hogu.domain.user.dto.MyCommentSummary;
-import com.hogu.am_i_hogu.domain.user.dto.MyPostCursor;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyCommentItemResponse;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyCommentListResponse;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyCommentPostResponse;
-import com.hogu.am_i_hogu.domain.user.dto.response.MyPostItemResponse;
 import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class MyCommentQueryService {
@@ -53,9 +50,9 @@ public class MyCommentQueryService {
 
         if (cursorRequest.cursor() != null && !cursorRequest.cursor().isBlank()) {
             try {
-                MyPostCursor decodedCursor = cursorCodec.decode(cursorRequest.cursor(), MyPostCursor.class);
+                MyCommentCursor decodedCursor = cursorCodec.decode(cursorRequest.cursor(), MyCommentCursor.class);
                 cursorCreatedAt = decodedCursor.createdAt();
-                cursorCommentId = decodedCursor.postId();
+                cursorCommentId = decodedCursor.commentId();
             } catch (IllegalStateException e) {
                 throw new CustomException(
                         UserErrorCode.INVALID_PARAM_VALUE,
