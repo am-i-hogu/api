@@ -79,7 +79,9 @@ public class MyPostQueryService {
         );
 
         boolean hasNext = queriedPosts.size() > pageSize;
-        List<MyPostSummary> postSummaries = hasNext ? queriedPosts.subList(0, pageSize) : queriedPosts;
+        List<MyPostSummary> postSummaries = hasNext
+                ? queriedPosts.subList(0, pageSize)
+                : queriedPosts;
 
         Map<Long, Long> commentCounts = getCommentCounts(postSummaries);
 
@@ -95,8 +97,10 @@ public class MyPostQueryService {
 
         String nextCursor = null;
         if (hasNext && !postSummaries.isEmpty()) {
-            MyPostSummary last = postSummaries.get(postSummaries.size()-1);
-            nextCursor = cursorCodec.encode(new MyPostCursor(last.createdAt(), last.postId()));
+            MyPostSummary last = postSummaries.get(postSummaries.size() - 1);
+            nextCursor = cursorCodec.encode(
+                    new MyPostCursor(last.createdAt(), last.postId())
+            );
         }
 
         return new MyPostListResponse(posts, hasNext, nextCursor);

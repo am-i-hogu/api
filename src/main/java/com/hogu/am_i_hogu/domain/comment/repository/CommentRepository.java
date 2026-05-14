@@ -48,7 +48,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     List<MyCommentSummary> findMyComments(
             @Param("userId") Long userId,
             @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
-            @Param("cursorCommentId") LocalDateTime cursorCommentId,
+            @Param("cursorCommentId") Long cursorCommentId,
             Pageable pageable
     );
 }
