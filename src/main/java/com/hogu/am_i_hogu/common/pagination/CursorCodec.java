@@ -1,8 +1,6 @@
 package com.hogu.am_i_hogu.common.pagination;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
-import com.hogu.am_i_hogu.common.exception.CustomException;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
