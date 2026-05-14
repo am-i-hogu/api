@@ -1,8 +1,11 @@
 package com.hogu.am_i_hogu.domain.user.controller;
 
+import com.hogu.am_i_hogu.common.pagination.CursorRequest;
 import com.hogu.am_i_hogu.domain.user.dto.request.UpdateProfileRequest;
 import com.hogu.am_i_hogu.domain.user.dto.response.CheckNicknameResponse;
+import com.hogu.am_i_hogu.domain.user.dto.response.MyPostListResponse;
 import com.hogu.am_i_hogu.domain.user.dto.response.UpdateProfileResponse;
+import com.hogu.am_i_hogu.domain.user.service.MyPostQueryService;
 import com.hogu.am_i_hogu.domain.user.service.NicknameCheckService;
 import com.hogu.am_i_hogu.domain.user.service.ProfileUpdateService;
 import org.springframework.http.ResponseEntity;
@@ -15,13 +18,15 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
     private final NicknameCheckService nicknameCheckService;
     private final ProfileUpdateService profileUpdateService;
+    private final MyPostQueryService myPostQueryService;
 
     public UserController(
             NicknameCheckService nicknameCheckService,
-            ProfileUpdateService profileUpdateService
-    ) {
+            ProfileUpdateService profileUpdateService,
+            MyPostQueryService myPostQueryService) {
         this.nicknameCheckService = nicknameCheckService;
         this.profileUpdateService = profileUpdateService;
+        this.myPostQueryService = myPostQueryService;
     }
 
     /**
@@ -53,6 +58,24 @@ public class UserController {
             @RequestParam(name="nickname", required = false) String nickname
     ) {
         CheckNicknameResponse response = nicknameCheckService.checkNickname(nickname);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * [HISTORY-001] 작성한 게시물 리스트 조회
+     *
+     * @param authentication    유저 인증 정보
+     * @param cursorRequest     cursor 정보(post 생성 일시, post id 포함)
+     * @return 작성한 게시물 리스트
+     */
+    @GetMapping("/me/posts")
+    public ResponseEntity<MyPostListResponse> getMyPosts(
+            Authentication authentication,
+            @ModelAttribute CursorRequest cursorRequest
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        MyPostListResponse response = myPostQueryService.getMyPosts(userId, cursorRequest);
+
         return ResponseEntity.ok(response);
     }
 }
