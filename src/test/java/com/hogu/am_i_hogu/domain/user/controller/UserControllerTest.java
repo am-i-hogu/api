@@ -81,7 +81,7 @@ public class UserControllerTest {
      * - (4) users 테이블에 profileImageUrl이 변경되지 않았는지 확인
      */
     @Test
-    void nicknameUpdateReturnsUserInfoAndUpdateNickname() throws Exception {
+    void updateProfileReturns200WhenNicknameIsUpdated() throws Exception {
         stubAuthenticatedUser();
         insertUser(1L, "oldNickname", null);
 
@@ -123,7 +123,7 @@ public class UserControllerTest {
      * - (4) users 테이블에 nickname이 변경되지 않았는지 확인
      */
     @Test
-    void profileImageUpdateReturnUserInfoAndUpdateProfileImage() throws Exception {
+    void updateProfileReturns200WhenProfileImageIsUpdated() throws Exception {
         stubAuthenticatedUser();
         insertUser(1L, "nickname", null);
 
@@ -164,7 +164,7 @@ public class UserControllerTest {
      * - (3) users 테이블에 nickname, profileImageUrl 정보가 업데이트 되었는지 확인
      */
     @Test
-    void profileUpdateReturnUserInfoAndUpdateProfile() throws Exception {
+    void updateProfileReturns200WhenNicknameAndProfileImageAreUpdated() throws Exception {
         stubAuthenticatedUser();
         insertUser(1L, "oldNickname", null);
 
@@ -207,7 +207,7 @@ public class UserControllerTest {
      * - (3) users 테이블에 nickname, profileImageUrl 정보가 업데이트 되었는지 확인
      */
     @Test
-    void deleteProfileImageReturnsUserInfoAndDeleteProfileImage() throws Exception {
+    void updateProfileReturns200WhenProfileImageIsDeleted() throws Exception {
         stubAuthenticatedUser();
         insertUser(1L, "nickname", "http://localhost:8080/temporary/images/1/profile-image.jpg");
 
@@ -248,7 +248,7 @@ public class UserControllerTest {
      * - (2) EMPTY_REQUEST_BODY 오류 코드를 반환하는지 확인
      */
     @Test
-    void profileUpdateRejectsEmptyRequestBody() throws Exception {
+    void updateProfileReturns400WhenRequestBodyIsEmpty() throws Exception {
         stubAuthenticatedUser();
         insertUser(1L, "nickname", null);
 
@@ -266,7 +266,7 @@ public class UserControllerTest {
      * - (2) EMPTY_REQUEST_BODY 오류 코드를 반환하는지 확인
      */
     @Test
-    void profileUpdateRejectsEmptyJsonObject() throws Exception {
+    void updateProfileReturns400WhenRequestBodyIsEmptyJsonObject() throws Exception {
         stubAuthenticatedUser();
         insertUser(1L, "nickname", null);
 
@@ -288,7 +288,7 @@ public class UserControllerTest {
      * - (2) DUPLICATE_NICKNAME 오류 코드를 반환하는지 확인
      */
     @Test
-    void profileUpdateRejectsDuplicateNickname() throws Exception {
+    void updateProfileReturns409WhenNicknameIsDuplicated() throws Exception {
         stubAuthenticatedUser();
         insertUser(1L, "oldNickname", null);
         insertUser(2L, "duplicatedNickname", null);
@@ -314,7 +314,7 @@ public class UserControllerTest {
      * - (2) INVALID_ACCESS_TOKEN 오류 코드를 반환하는지 확인
      */
     @Test
-    void profileUpdateRejectsWhenUserNotFound() throws Exception {
+    void updateProfileReturns404WhenUserIsNotFound() throws Exception {
         stubAuthenticatedUser();
 
         String requestBody = """
@@ -338,7 +338,7 @@ public class UserControllerTest {
      * - (2) 사용 가능 여부가 true로 반환되는지 확인
      */
     @Test
-    void nicknameCheckReturnsTrue() throws Exception {
+    void checkNicknameReturns200WhenNicknameIsAvailable() throws Exception {
         when(jwtProvider.validateAccessToken(null))
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
@@ -355,7 +355,7 @@ public class UserControllerTest {
      * - (2) 사용 가능 여부가 false로 반환되는지 확인
      */
     @Test
-    void nicknameCheckReturnsFalse() throws Exception {
+    void checkNicknameReturns200WhenNicknameIsDuplicated() throws Exception {
         when(jwtProvider.validateAccessToken(null))
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
@@ -389,7 +389,7 @@ public class UserControllerTest {
      * - (2) <필드 정보: nickname, 오류 코드: EMPTY_NICKNAME> 반환 확인
      */
     @Test
-    void nicknameCheckRejectsMissingNicknameParam() throws Exception {
+    void checkNicknameReturns400WhenNicknameParamIsMissing() throws Exception {
         when(jwtProvider.validateAccessToken(null))
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
@@ -407,7 +407,7 @@ public class UserControllerTest {
      * - (2) <필드 정보: nickname, 오류 코드: EMPTY_NICKNAME> 반환 확인
      */
     @Test
-    void nicknameCheckRejectsEmptyNickname() throws Exception {
+    void checkNicknameReturns400WhenNicknameIsEmpty() throws Exception {
         when(jwtProvider.validateAccessToken(null))
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
@@ -426,7 +426,7 @@ public class UserControllerTest {
      * - (2) <필드 정보: nickname, 오류 코드: SPECIAL_CHAR_NICKNAME> 반환 확인
      */
     @Test
-    void nicknameCheckRejectsSpecialChar() throws Exception {
+    void checkNicknameReturns400WhenNicknameContainsSpecialCharacter() throws Exception {
         when(jwtProvider.validateAccessToken(null))
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
@@ -445,7 +445,7 @@ public class UserControllerTest {
      * - (2) <필드 정보: nickname, 오류 코드: NICKNAME_LENGTH_EXCEEDED> 반환 확인
      */
     @Test
-    void nicknameCheckRejectsLongNickname() throws Exception {
+    void checkNicknameReturns400WhenNicknameLengthExceedsLimit() throws Exception {
         when(jwtProvider.validateAccessToken(null))
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
@@ -466,7 +466,7 @@ public class UserControllerTest {
      *      <필드 정보: nickname, 오류 코드: NICKNAME_LENGTH_EXCEEDED> 반환 확인
      */
     @Test
-    void nicknameCheckRejectsSpecialCharAndLongNickname() throws Exception {
+    void checkNicknameReturns400WhenNicknameContainsSpecialCharacterAndLengthExceedsLimit() throws Exception {
         when(jwtProvider.validateAccessToken(null))
                 .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
