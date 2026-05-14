@@ -32,6 +32,13 @@ public class MyVoteQueryService {
         this.postVoteRepository = postVoteRepository;
     }
 
+    /**
+     * 본인이 참여한 투표 리스트 조회
+     *
+     * @param userId        조회 요청한 사용자 id
+     * @param cursorRequest cursor 정보(투표 생성 일시, post id 포함)
+     * @return 조회된 투표 리스트
+     */
     public MyVoteListResponse getMyVotes(Long userId, CursorRequest cursorRequest) {
         int pageSize = normalizePageSize(cursorRequest.pageSize());
 
