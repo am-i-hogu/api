@@ -11,7 +11,6 @@ import com.hogu.am_i_hogu.domain.user.dto.MyBookmarkCursor;
 import com.hogu.am_i_hogu.domain.user.dto.MyBookmarkSummary;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyBookmarkListResponse;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyPostItemResponse;
-import com.hogu.am_i_hogu.domain.user.dto.response.VoteSummary;
 import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -26,6 +25,11 @@ public class MyBookmarkQueryService {
 
     private static final int DEFAULT_PAGE_SIZE = 5;
     private static final int MAX_PAGE_SIZE = 15;
+
+    private static final String HOGU_VOTE = "HOGU";
+    private static final String NOT_HOGU_VOTE = "NOT_HOGU";
+    private static final String NONE_VOTE = "NONE";
+    private static final String TIE_VOTE = "TIE";
 
     private final CursorCodec cursorCodec;
     private final PostBookmarkRepository postBookmarkRepository;
@@ -132,16 +136,16 @@ public class MyBookmarkQueryService {
     }
 
     // 'HOGU'와 'NOT_HOGU' 수를 비교하여 투표 결과 생성
-    private VoteSummary toVoteSummary(long hoguCount, long notHoguCount) {
+    private String toVoteSummary(long hoguCount, long notHoguCount) {
         if (hoguCount == 0 && notHoguCount == 0) {
-            return VoteSummary.NONE;
+            return NONE_VOTE;
         }
         if (hoguCount > notHoguCount) {
-            return VoteSummary.HOGU;
+            return HOGU_VOTE;
         }
         if (hoguCount < notHoguCount) {
-            return VoteSummary.NOT_HOGU;
+            return NOT_HOGU_VOTE;
         }
-        return VoteSummary.TIE;
+        return TIE_VOTE;
     }
 }

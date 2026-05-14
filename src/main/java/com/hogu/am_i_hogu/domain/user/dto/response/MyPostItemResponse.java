@@ -6,7 +6,7 @@ public record MyPostItemResponse(
         Long postId,
         String title,
         LocalDateTime createdAt,
-        VoteSummary voteSummary,
+        String voteSummary,
         long commentCount
 ) {
 }
