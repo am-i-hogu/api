@@ -7,7 +7,9 @@ import com.hogu.am_i_hogu.common.pagination.CursorRequest;
 import com.hogu.am_i_hogu.domain.post.repository.PostVoteRepository;
 import com.hogu.am_i_hogu.domain.user.dto.MyVoteCursor;
 import com.hogu.am_i_hogu.domain.user.dto.MyVoteSummary;
-import com.hogu.am_i_hogu.domain.user.dto.response.*;
+import com.hogu.am_i_hogu.domain.user.dto.response.MyVoteItemResponse;
+import com.hogu.am_i_hogu.domain.user.dto.response.MyVoteListResponse;
+import com.hogu.am_i_hogu.domain.user.dto.response.MyVotePostResponse;
 import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -41,57 +43,16 @@ public class MyVoteQueryService {
      */
     public MyVoteListResponse getMyVotes(Long userId, CursorRequest cursorRequest) {
         int pageSize = normalizePageSize(cursorRequest.pageSize());
-
-        LocalDateTime cursorCreatedAt = null;
-        Long cursorPostId = null;
-
-        if (cursorRequest.cursor() != null && !cursorRequest.cursor().isBlank()) {
-            try {
-                MyVoteCursor decodedCursor = cursorCodec.decode(cursorRequest.cursor(), MyVoteCursor.class);
-                cursorCreatedAt = decodedCursor.createdAt();
-                cursorPostId = decodedCursor.postId();
-            } catch (IllegalStateException e) {
-                throw new CustomException(
-                        UserErrorCode.INVALID_PARAM_VALUE,
-                        List.of(new ErrorResponse.ErrorDetail(
-                                "cursor",
-                                "INVALID_CURSOR"
-                        ))
-                );
-            }
-        }
-
-        List<MyVoteSummary> queriedVotes = postVoteRepository.findMyVotes(
-                userId,
-                cursorCreatedAt,
-                cursorPostId,
-                PageRequest.of(0, pageSize + 1)
-        );
+        MyVoteCursor cursor = decodeCursor(cursorRequest.cursor());
+        List<MyVoteSummary> queriedVotes = findVotes(userId, cursor, pageSize);
 
         boolean hasNext = queriedVotes.size() > pageSize;
         List<MyVoteSummary> voteSummaries = hasNext
                 ? queriedVotes.subList(0, pageSize)
                 : queriedVotes;
 
-        List<MyVoteItemResponse> votes = voteSummaries.stream()
-                .map(summary -> new MyVoteItemResponse(
-                        summary.myVote(),
-                        summary.createdAt(),
-                        new MyVotePostResponse(
-                                summary.postId(),
-                                summary.postTitle(),
-                                summary.postIsDeleted()
-                        )
-                ))
-                .toList();
-
-        String nextCursor = null;
-        if (hasNext && !voteSummaries.isEmpty()) {
-            MyVoteSummary last = voteSummaries.get(voteSummaries.size() - 1);
-            nextCursor = cursorCodec.encode(
-                    new MyVoteCursor(last.createdAt(), last.postId())
-            );
-        }
+        List<MyVoteItemResponse> votes = mapToResponses(voteSummaries);
+        String nextCursor = createNextCursor(hasNext, voteSummaries);
 
         return new MyVoteListResponse(votes, hasNext, nextCursor);
     }
@@ -106,5 +67,62 @@ public class MyVoteQueryService {
         }
 
         return pageSize < MAX_PAGE_SIZE ? pageSize : MAX_PAGE_SIZE;
+    }
+
+    // cursor 문자열을 디코딩하고, 유효하지 않은 경우 INVALID_PARAM_VALUE 예외로 변환
+    private MyVoteCursor decodeCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+
+        try {
+            return cursorCodec.decode(cursor, MyVoteCursor.class);
+        } catch (IllegalStateException e) {
+            throw new CustomException(
+                    UserErrorCode.INVALID_PARAM_VALUE,
+                    List.of(new ErrorResponse.ErrorDetail(
+                            "cursor",
+                            "INVALID_CURSOR"
+                    ))
+            );
+        }
+    }
+
+    // cursor 정보와 pageSize를 이용해 참여한 투표 목록을 조회
+    private List<MyVoteSummary> findVotes(Long userId, MyVoteCursor cursor, int pageSize) {
+        LocalDateTime cursorCreatedAt = cursor == null ? null : cursor.createdAt();
+        Long cursorPostId = cursor == null ? null : cursor.postId();
+
+        return postVoteRepository.findMyVotes(
+                userId,
+                cursorCreatedAt,
+                cursorPostId,
+                PageRequest.of(0, pageSize + 1)
+        );
+    }
+
+    // 조회한 투표 요약 정보를 최종 응답 DTO 리스트로 변환
+    private List<MyVoteItemResponse> mapToResponses(List<MyVoteSummary> voteSummaries) {
+        return voteSummaries.stream()
+                .map(summary -> new MyVoteItemResponse(
+                        summary.myVote(),
+                        summary.createdAt(),
+                        new MyVotePostResponse(
+                                summary.postId(),
+                                summary.postTitle(),
+                                summary.postIsDeleted()
+                        )
+                ))
+                .toList();
+    }
+
+    // 마지막 투표 정보를 기준으로 다음 페이지 요청에 사용할 nextCursor 생성
+    private String createNextCursor(boolean hasNext, List<MyVoteSummary> voteSummaries) {
+        if (!hasNext || voteSummaries.isEmpty()) {
+            return null;
+        }
+
+        MyVoteSummary last = voteSummaries.get(voteSummaries.size() - 1);
+        return cursorCodec.encode(new MyVoteCursor(last.createdAt(), last.postId()));
     }
 }

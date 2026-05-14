@@ -55,32 +55,8 @@ public class MyPostQueryService {
      */
     public MyPostListResponse getMyPosts(Long userId, CursorRequest cursorRequest) {
         int pageSize = normalizePageSize(cursorRequest.pageSize());
-
-        LocalDateTime cursorCreatedAt = null;
-        Long cursorPostId = null;
-
-        if (cursorRequest.cursor() != null && !cursorRequest.cursor().isBlank()) {
-            try {
-                MyPostCursor decodedCursor = cursorCodec.decode(cursorRequest.cursor(), MyPostCursor.class);
-                cursorCreatedAt = decodedCursor.createdAt();
-                cursorPostId = decodedCursor.postId();
-            } catch (IllegalStateException e) {
-                throw new CustomException(
-                        UserErrorCode.INVALID_PARAM_VALUE,
-                        List.of(new ErrorResponse.ErrorDetail(
-                                "cursor",
-                                "INVALID_CURSOR"
-                        ))
-                );
-            }
-        }
-
-        List<MyPostSummary> queriedPosts = postRepository.findMyPosts(
-                userId,
-                cursorCreatedAt,
-                cursorPostId,
-                PageRequest.of(0, pageSize + 1)
-        );
+        MyPostCursor cursor = decodeCursor(cursorRequest.cursor());
+        List<MyPostSummary> queriedPosts = findPosts(userId, cursor, pageSize);
 
         boolean hasNext = queriedPosts.size() > pageSize;
         List<MyPostSummary> postSummaries = hasNext
@@ -88,24 +64,8 @@ public class MyPostQueryService {
                 : queriedPosts;
 
         Map<Long, Long> commentCounts = getCommentCounts(postSummaries);
-
-        List<MyPostItemResponse> posts = postSummaries.stream()
-                .map(summary -> new MyPostItemResponse(
-                        summary.postId(),
-                        summary.title(),
-                        summary.createdAt(),
-                        toVoteSummary(summary.hoguCount(), summary.notHoguCount()),
-                        commentCounts.getOrDefault(summary.postId(), 0L)
-                ))
-                .toList();
-
-        String nextCursor = null;
-        if (hasNext && !postSummaries.isEmpty()) {
-            MyPostSummary last = postSummaries.get(postSummaries.size() - 1);
-            nextCursor = cursorCodec.encode(
-                    new MyPostCursor(last.createdAt(), last.postId())
-            );
-        }
+        List<MyPostItemResponse> posts = mapToResponses(postSummaries, commentCounts);
+        String nextCursor = createNextCursor(hasNext, postSummaries);
 
         return new MyPostListResponse(posts, hasNext, nextCursor);
     }
@@ -120,6 +80,38 @@ public class MyPostQueryService {
         }
 
         return pageSize < MAX_PAGE_SIZE ? pageSize : MAX_PAGE_SIZE;
+    }
+
+    // cursor 문자열을 디코딩하고, 유효하지 않은 경우 INVALID_PARAM_VALUE 예외로 변환
+    private MyPostCursor decodeCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+
+        try {
+            return cursorCodec.decode(cursor, MyPostCursor.class);
+        } catch (IllegalStateException e) {
+            throw new CustomException(
+                    UserErrorCode.INVALID_PARAM_VALUE,
+                    List.of(new ErrorResponse.ErrorDetail(
+                            "cursor",
+                            "INVALID_CURSOR"
+                    ))
+            );
+        }
+    }
+
+    // cursor 정보와 pageSize를 이용해 작성한 게시물 목록을 조회
+    private List<MyPostSummary> findPosts(Long userId, MyPostCursor cursor, int pageSize) {
+        LocalDateTime cursorCreatedAt = cursor == null ? null : cursor.createdAt();
+        Long cursorPostId = cursor == null ? null : cursor.postId();
+
+        return postRepository.findMyPosts(
+                userId,
+                cursorCreatedAt,
+                cursorPostId,
+                PageRequest.of(0, pageSize + 1)
+        );
     }
 
     // 각 게시글 댓글 수를 조회 후 Map(게시글ID : 댓글 수) 형태로 변환
@@ -137,6 +129,32 @@ public class MyPostQueryService {
                         PostCommentCount::postId,
                         PostCommentCount::commentCount
                 ));
+    }
+
+    // 조회한 게시물 요약 정보와 댓글 수를 최종 응답 DTO 리스트로 변환
+    private List<MyPostItemResponse> mapToResponses(
+            List<MyPostSummary> postSummaries,
+            Map<Long, Long> commentCounts
+    ) {
+        return postSummaries.stream()
+                .map(summary -> new MyPostItemResponse(
+                        summary.postId(),
+                        summary.title(),
+                        summary.createdAt(),
+                        toVoteSummary(summary.hoguCount(), summary.notHoguCount()),
+                        commentCounts.getOrDefault(summary.postId(), 0L)
+                ))
+                .toList();
+    }
+
+    // 마지막 게시물 정보를 기준으로 다음 페이지 요청에 사용할 nextCursor 생성
+    private String createNextCursor(boolean hasNext, List<MyPostSummary> postSummaries) {
+        if (!hasNext || postSummaries.isEmpty()) {
+            return null;
+        }
+
+        MyPostSummary last = postSummaries.get(postSummaries.size() - 1);
+        return cursorCodec.encode(new MyPostCursor(last.createdAt(), last.postId()));
     }
 
     // 'HOGU'와 'NOT_HOGU' 수를 비교하여 투표 결과 생성

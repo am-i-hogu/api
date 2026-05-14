@@ -44,58 +44,16 @@ public class MyCommentQueryService {
      */
     public MyCommentListResponse getMyComments(Long userId, CursorRequest cursorRequest) {
         int pageSize = normalizePageSize(cursorRequest.pageSize());
-
-        LocalDateTime cursorCreatedAt = null;
-        Long cursorCommentId = null;
-
-        if (cursorRequest.cursor() != null && !cursorRequest.cursor().isBlank()) {
-            try {
-                MyCommentCursor decodedCursor = cursorCodec.decode(cursorRequest.cursor(), MyCommentCursor.class);
-                cursorCreatedAt = decodedCursor.createdAt();
-                cursorCommentId = decodedCursor.commentId();
-            } catch (IllegalStateException e) {
-                throw new CustomException(
-                        UserErrorCode.INVALID_PARAM_VALUE,
-                        List.of(new ErrorResponse.ErrorDetail(
-                                "cursor",
-                                "INVALID_CURSOR"
-                        ))
-                );
-            }
-        }
-
-        List<MyCommentSummary> queriedComments = commentRepository.findMyComments(
-                userId,
-                cursorCreatedAt,
-                cursorCommentId,
-                PageRequest.of(0, pageSize + 1)
-        );
+        MyCommentCursor cursor = decodeCursor(cursorRequest.cursor());
+        List<MyCommentSummary> queriedComments = findComments(userId, cursor, pageSize);
 
         boolean hasNext = queriedComments.size() > pageSize;
         List<MyCommentSummary> commentSummaries = hasNext
                 ? queriedComments.subList(0, pageSize)
                 : queriedComments;
 
-        List<MyCommentItemResponse> comments = commentSummaries.stream()
-                .map(summary -> new MyCommentItemResponse(
-                        summary.commentId(),
-                        summary.content(),
-                        summary.createdAt(),
-                        new MyCommentPostResponse(
-                                summary.postId(),
-                                summary.postTitle(),
-                                summary.postIsDeleted()
-                        )
-                ))
-                .toList();
-
-        String nextCursor = null;
-        if (hasNext && !commentSummaries.isEmpty()) {
-            MyCommentSummary last = commentSummaries.get(commentSummaries.size() - 1);
-            nextCursor = cursorCodec.encode(
-                    new MyCommentCursor(last.createdAt(), last.commentId())
-            );
-        }
+        List<MyCommentItemResponse> comments = mapToResponses(commentSummaries);
+        String nextCursor = createNextCursor(hasNext, commentSummaries);
 
         return new MyCommentListResponse(comments, hasNext, nextCursor);
     }
@@ -110,5 +68,63 @@ public class MyCommentQueryService {
         }
 
         return pageSize < MAX_PAGE_SIZE ? pageSize : MAX_PAGE_SIZE;
+    }
+
+    // cursor 문자열을 디코딩하고, 유효하지 않은 경우 INVALID_PARAM_VALUE 예외로 변환
+    private MyCommentCursor decodeCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+
+        try {
+            return cursorCodec.decode(cursor, MyCommentCursor.class);
+        } catch (IllegalStateException e) {
+            throw new CustomException(
+                    UserErrorCode.INVALID_PARAM_VALUE,
+                    List.of(new ErrorResponse.ErrorDetail(
+                            "cursor",
+                            "INVALID_CURSOR"
+                    ))
+            );
+        }
+    }
+
+    // cursor 정보와 pageSize를 이용해 작성한 댓글 목록을 조회
+    private List<MyCommentSummary> findComments(Long userId, MyCommentCursor cursor, int pageSize) {
+        LocalDateTime cursorCreatedAt = cursor == null ? null : cursor.createdAt();
+        Long cursorCommentId = cursor == null ? null : cursor.commentId();
+
+        return commentRepository.findMyComments(
+                userId,
+                cursorCreatedAt,
+                cursorCommentId,
+                PageRequest.of(0, pageSize + 1)
+        );
+    }
+
+    // 조회한 댓글 요약 정보를 최종 응답 DTO 리스트로 변환
+    private List<MyCommentItemResponse> mapToResponses(List<MyCommentSummary> commentSummaries) {
+        return commentSummaries.stream()
+                .map(summary -> new MyCommentItemResponse(
+                        summary.commentId(),
+                        summary.content(),
+                        summary.createdAt(),
+                        new MyCommentPostResponse(
+                                summary.postId(),
+                                summary.postTitle(),
+                                summary.postIsDeleted()
+                        )
+                ))
+                .toList();
+    }
+
+    // 마지막 댓글 정보를 기준으로 다음 페이지 요청에 사용할 nextCursor 생성
+    private String createNextCursor(boolean hasNext, List<MyCommentSummary> commentSummaries) {
+        if (!hasNext || commentSummaries.isEmpty()) {
+            return null;
+        }
+
+        MyCommentSummary last = commentSummaries.get(commentSummaries.size() - 1);
+        return cursorCodec.encode(new MyCommentCursor(last.createdAt(), last.commentId()));
     }
 }

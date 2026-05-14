@@ -51,32 +51,8 @@ public class MyBookmarkQueryService {
      */
     public MyBookmarkListResponse getMyBookmarks(Long userId, CursorRequest cursorRequest) {
         int pageSize = normalizePageSize(cursorRequest.pageSize());
-
-        LocalDateTime cursorCreatedAt = null;
-        Long cursorPostId = null;
-
-        if (cursorRequest.cursor() != null && !cursorRequest.cursor().isBlank()) {
-            try {
-                MyBookmarkCursor decodedCursor = cursorCodec.decode(cursorRequest.cursor(), MyBookmarkCursor.class);
-                cursorCreatedAt = decodedCursor.createdAt();
-                cursorPostId = decodedCursor.postId();
-            } catch (IllegalStateException e) {
-                throw new CustomException(
-                        UserErrorCode.INVALID_PARAM_VALUE,
-                        List.of(new ErrorResponse.ErrorDetail(
-                                "cursor",
-                                "INVALID_CURSOR"
-                        ))
-                );
-            }
-        }
-
-        List<MyBookmarkSummary> queriedBookmarks = postBookmarkRepository.findMyBookmarks(
-                userId,
-                cursorCreatedAt,
-                cursorPostId,
-                PageRequest.of(0, pageSize + 1)
-        );
+        MyBookmarkCursor cursor = decodeCursor(cursorRequest.cursor());
+        List<MyBookmarkSummary> queriedBookmarks = findBookmarks(userId, cursor, pageSize);
 
         boolean hasNext = queriedBookmarks.size() > pageSize;
         List<MyBookmarkSummary> bookmarkSummaries = hasNext
@@ -84,24 +60,8 @@ public class MyBookmarkQueryService {
                 : queriedBookmarks;
 
         Map<Long, Long> commentCounts = getCommentCounts(bookmarkSummaries);
-
-        List<MyPostItemResponse> posts = bookmarkSummaries.stream()
-                .map(summary -> new MyPostItemResponse(
-                        summary.postId(),
-                        summary.title(),
-                        summary.postCreatedAt(),
-                        toVoteSummary(summary.hoguCount(), summary.notHoguCount()),
-                        commentCounts.getOrDefault(summary.postId(), 0L)
-                ))
-                .toList();
-
-        String nextCursor = null;
-        if (hasNext && !bookmarkSummaries.isEmpty()) {
-            MyBookmarkSummary last = bookmarkSummaries.get(bookmarkSummaries.size() - 1);
-            nextCursor = cursorCodec.encode(
-                    new MyBookmarkCursor(last.bookmarkCreatedAt(), last.postId())
-            );
-        }
+        List<MyPostItemResponse> posts = mapToResponses(bookmarkSummaries, commentCounts);
+        String nextCursor = createNextCursor(hasNext, bookmarkSummaries);
 
         return new MyBookmarkListResponse(posts, hasNext, nextCursor);
     }
@@ -116,6 +76,38 @@ public class MyBookmarkQueryService {
         }
 
         return pageSize < MAX_PAGE_SIZE ? pageSize : MAX_PAGE_SIZE;
+    }
+
+    // cursor 문자열을 디코딩하고, 유효하지 않은 경우 INVALID_PARAM_VALUE 예외로 변환
+    private MyBookmarkCursor decodeCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+
+        try {
+            return cursorCodec.decode(cursor, MyBookmarkCursor.class);
+        } catch (IllegalStateException e) {
+            throw new CustomException(
+                    UserErrorCode.INVALID_PARAM_VALUE,
+                    List.of(new ErrorResponse.ErrorDetail(
+                            "cursor",
+                            "INVALID_CURSOR"
+                    ))
+            );
+        }
+    }
+
+    // cursor 정보와 pageSize를 이용해 북마크한 게시물 목록을 조회
+    private List<MyBookmarkSummary> findBookmarks(Long userId, MyBookmarkCursor cursor, int pageSize) {
+        LocalDateTime cursorCreatedAt = cursor == null ? null : cursor.createdAt();
+        Long cursorPostId = cursor == null ? null : cursor.postId();
+
+        return postBookmarkRepository.findMyBookmarks(
+                userId,
+                cursorCreatedAt,
+                cursorPostId,
+                PageRequest.of(0, pageSize + 1)
+        );
     }
 
     // 각 게시글 댓글 수를 조회 후 Map(게시글ID : 댓글 수) 형태로 변환
@@ -133,6 +125,32 @@ public class MyBookmarkQueryService {
                         PostCommentCount::postId,
                         PostCommentCount::commentCount
                 ));
+    }
+
+    // 조회한 북마크 게시물 요약 정보와 댓글 수를 최종 응답 DTO 리스트로 변환
+    private List<MyPostItemResponse> mapToResponses(
+            List<MyBookmarkSummary> bookmarkSummaries,
+            Map<Long, Long> commentCounts
+    ) {
+        return bookmarkSummaries.stream()
+                .map(summary -> new MyPostItemResponse(
+                        summary.postId(),
+                        summary.title(),
+                        summary.postCreatedAt(),
+                        toVoteSummary(summary.hoguCount(), summary.notHoguCount()),
+                        commentCounts.getOrDefault(summary.postId(), 0L)
+                ))
+                .toList();
+    }
+
+    // 마지막 북마크 정보를 기준으로 다음 페이지 요청에 사용할 nextCursor 생성
+    private String createNextCursor(boolean hasNext, List<MyBookmarkSummary> bookmarkSummaries) {
+        if (!hasNext || bookmarkSummaries.isEmpty()) {
+            return null;
+        }
+
+        MyBookmarkSummary last = bookmarkSummaries.get(bookmarkSummaries.size() - 1);
+        return cursorCodec.encode(new MyBookmarkCursor(last.bookmarkCreatedAt(), last.postId()));
     }
 
     // 'HOGU'와 'NOT_HOGU' 수를 비교하여 투표 결과 생성
