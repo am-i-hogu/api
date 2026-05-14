@@ -37,6 +37,14 @@ public class MyCommentQueryService {
         this.commentRepository = commentRepository;
     }
 
+    /**
+     * 본인이 작성한 댓글 리스트 조회
+     * 각 댓글마다 [댓글 id, 내용, 생성 일시, 관련 게시물 정보(게시물 id, 제목, 삭제 여부) 포함
+     *
+     * @param userId        조회 요청한 사용자 id
+     * @param cursorRequest cursor 정보(comment 생성 일시, comment id 포함)
+     * @return 조회된 댓글 리스트
+     */
     public MyCommentListResponse getMyComments(Long userId, CursorRequest cursorRequest) {
         int pageSize = normalizePageSize(cursorRequest.pageSize());
 
