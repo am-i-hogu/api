@@ -64,6 +64,7 @@ public class UserControllerTest {
     void setUp() {
         jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
         jdbcTemplate.update("DELETE FROM user_hogu_stats");
+        jdbcTemplate.update("DELETE FROM post_bookmarks");
         jdbcTemplate.update("DELETE FROM post_votes");
         jdbcTemplate.update("DELETE FROM comments");
         jdbcTemplate.update("DELETE FROM posts");
@@ -777,6 +778,197 @@ public class UserControllerTest {
     }
 
     /**
+     * 북마크한 게시물 리스트 조회 성공 테스트:
+     * 인증된 사용자가 자신이 북마크한 게시물 리스트 조회를 요청하고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 북마크 생성일 최신순으로 게시물이 반환되는지 확인
+     * - (3) 삭제된 게시물도 포함되는지 확인
+     * - (4) voteSummary와 commentCount가 올바르게 반환되는지 확인
+     * - (5) hasNext가 false이고 nextCursor가 null인지 확인
+     */
+    @Test
+    void getMyBookmarksReturns200WhenFirstPageRequestIsValid() throws Exception {
+        stubAuthenticatedUser();
+
+        insertUser(1L, "nickname1", null);
+        insertUser(2L, "nickname2", null);
+
+        LocalDateTime olderCreatedAt = LocalDateTime.of(2026, 5, 1, 9, 0, 0);
+        LocalDateTime newerCreatedAt = LocalDateTime.of(2026, 5, 1, 12, 0, 0);
+        LocalDateTime olderBookmarkCreatedAt = LocalDateTime.of(2026, 5, 2, 9, 0, 0);
+        LocalDateTime newerBookmarkCreatedAt = LocalDateTime.of(2026, 5, 2, 12, 0, 0);
+
+        insertPost(100L, 2L, "USED_TRADE", "title 1", "content 1", false, olderCreatedAt);
+        insertPost(101L, 2L, "USED_TRADE", "deleted title", "deleted content", true, newerCreatedAt);
+        insertPost(102L, 2L, "USED_TRADE", "title 2", "content 2", false, newerCreatedAt);
+
+        insertPostBookmark(1L, 100L, olderBookmarkCreatedAt);
+        insertPostBookmark(1L, 101L, newerBookmarkCreatedAt);
+        insertPostBookmark(2L, 102L, newerBookmarkCreatedAt);
+
+        insertPostVote(1L, 100L, "NOT_HOGU", olderCreatedAt);
+        insertPostVote(2L, 100L, "HOGU", olderCreatedAt.plusMinutes(1));
+
+        insertComment(1000L, 100L, 1L, null, 0, "comment 1", olderCreatedAt, false);
+        insertComment(1001L, 100L, 2L, 1000L, 1, "comment 1-1", olderCreatedAt.plusMinutes(1), false);
+
+        mockMvc.perform(get("/api/users/me/bookmarks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts.length()").value(2))
+                .andExpect(jsonPath("$.posts[0].postId").value(101L))
+                .andExpect(jsonPath("$.posts[0].title").value("deleted title"))
+                .andExpect(jsonPath("$.posts[0].voteSummary").value("NONE"))
+                .andExpect(jsonPath("$.posts[0].commentCount").value(0))
+                .andExpect(jsonPath("$.posts[1].postId").value(100L))
+                .andExpect(jsonPath("$.posts[1].title").value("title 1"))
+                .andExpect(jsonPath("$.posts[1].voteSummary").value("TIE"))
+                .andExpect(jsonPath("$.posts[1].commentCount").value(2))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(Matchers.nullValue()));
+    }
+
+    /**
+     * 북마크한 게시물 리스트 조회 성공 테스트:
+     * 인증된 사용자가 pageSize보다 많은 게시물을 북마크한 상태에서 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) pageSize만큼 게시물이 반환되는지 확인
+     * - (3) hasNext가 true인지 확인
+     * - (4) nextCursor가 null이 아닌지 확인
+     */
+    @Test
+    void getMyBookmarksReturns200WhenUserHasMoreBookmarksThanPageSize() throws Exception {
+        stubAuthenticatedUser();
+
+        insertUser(1L, "nickname", null);
+
+        insertPost(100L, 1L, "USED_TRADE", "title 1", "content 1", false, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+        insertPost(101L, 1L, "USED_TRADE", "title 2", "content 2", false, LocalDateTime.of(2026, 5, 1, 10, 0, 0));
+        insertPost(102L, 1L, "USED_TRADE", "title 3", "content 3", false, LocalDateTime.of(2026, 5, 1, 11, 0, 0));
+        insertPost(103L, 1L, "USED_TRADE", "title 4", "content 4", false, LocalDateTime.of(2026, 5, 1, 12, 0, 0));
+        insertPost(104L, 1L, "USED_TRADE", "title 5", "content 5", false, LocalDateTime.of(2026, 5, 1, 13, 0, 0));
+        insertPost(105L, 1L, "USED_TRADE", "title 6", "content 6", false, LocalDateTime.of(2026, 5, 1, 14, 0, 0));
+
+        insertPostBookmark(1L, 100L, LocalDateTime.of(2026, 5, 2, 9, 0, 0));
+        insertPostBookmark(1L, 101L, LocalDateTime.of(2026, 5, 2, 10, 0, 0));
+        insertPostBookmark(1L, 102L, LocalDateTime.of(2026, 5, 2, 11, 0, 0));
+        insertPostBookmark(1L, 103L, LocalDateTime.of(2026, 5, 2, 12, 0, 0));
+        insertPostBookmark(1L, 104L, LocalDateTime.of(2026, 5, 2, 13, 0, 0));
+        insertPostBookmark(1L, 105L, LocalDateTime.of(2026, 5, 2, 14, 0, 0));
+
+        mockMvc.perform(get("/api/users/me/bookmarks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts.length()").value(5))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.nextCursor").isNotEmpty());
+    }
+
+    /**
+     * 북마크한 게시물 리스트 조회 성공 테스트:
+     * 인증된 사용자가 북마크한 게시물이 없을 때 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) posts가 빈 배열인지 확인
+     * - (3) hasNext가 false인지 확인
+     * - (4) nextCursor가 null인지 확인
+     */
+    @Test
+    void getMyBookmarksReturns200WhenUserHasNoBookmarks() throws Exception {
+        stubAuthenticatedUser();
+
+        insertUser(1L, "nickname", null);
+
+        mockMvc.perform(get("/api/users/me/bookmarks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts.length()").value(0))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(Matchers.nullValue()));
+    }
+
+    /**
+     * 북마크한 게시물 리스트 조회 성공 테스트:
+     * 인증된 사용자가 삭제된 게시물을 북마크한 상태에서 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 삭제된 게시물도 포함되는지 확인
+     */
+    @Test
+    void getMyBookmarksReturns200WhenBookmarkedPostsAreDeleted() throws Exception {
+        stubAuthenticatedUser();
+
+        insertUser(1L, "nickname", null);
+
+        LocalDateTime createdAt = LocalDateTime.of(2026, 5, 1, 9, 0, 0);
+        insertPost(100L, 1L, "USED_TRADE", "deleted title", "deleted content", true, createdAt);
+        insertPostBookmark(1L, 100L, LocalDateTime.of(2026, 5, 2, 9, 0, 0));
+
+        mockMvc.perform(get("/api/users/me/bookmarks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts.length()").value(1))
+                .andExpect(jsonPath("$.posts[0].postId").value(100L))
+                .andExpect(jsonPath("$.posts[0].title").value("deleted title"));
+    }
+
+    /**
+     * 북마크한 게시물 리스트 조회 성공 테스트:
+     * 인증된 사용자가 첫 페이지에서 받은 nextCursor로 다음 페이지를 요청하고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 다음 페이지의 게시물만 반환되는지 확인
+     * - (3) hasNext가 false인지 확인
+     * - (4) nextCursor가 null인지 확인
+     */
+    @Test
+    void getMyBookmarksReturns200WhenCursorIsValidForNextPageRequest() throws Exception {
+        stubAuthenticatedUser();
+
+        insertUser(1L, "nickname", null);
+
+        insertPost(100L, 1L, "USED_TRADE", "title 1", "content 1", false, LocalDateTime.of(2026, 5, 1, 9, 0, 0));
+        insertPost(101L, 1L, "USED_TRADE", "title 2", "content 2", false, LocalDateTime.of(2026, 5, 1, 10, 0, 0));
+        insertPost(102L, 1L, "USED_TRADE", "title 3", "content 3", false, LocalDateTime.of(2026, 5, 1, 11, 0, 0));
+        insertPost(103L, 1L, "USED_TRADE", "title 4", "content 4", false, LocalDateTime.of(2026, 5, 1, 12, 0, 0));
+        insertPost(104L, 1L, "USED_TRADE", "title 5", "content 5", false, LocalDateTime.of(2026, 5, 1, 13, 0, 0));
+        insertPost(105L, 1L, "USED_TRADE", "title 6", "content 6", false, LocalDateTime.of(2026, 5, 1, 14, 0, 0));
+
+        insertPostBookmark(1L, 100L, LocalDateTime.of(2026, 5, 2, 9, 0, 0));
+        insertPostBookmark(1L, 101L, LocalDateTime.of(2026, 5, 2, 10, 0, 0));
+        insertPostBookmark(1L, 102L, LocalDateTime.of(2026, 5, 2, 11, 0, 0));
+        insertPostBookmark(1L, 103L, LocalDateTime.of(2026, 5, 2, 12, 0, 0));
+        insertPostBookmark(1L, 104L, LocalDateTime.of(2026, 5, 2, 13, 0, 0));
+        insertPostBookmark(1L, 105L, LocalDateTime.of(2026, 5, 2, 14, 0, 0));
+
+        String responseBody = mockMvc.perform(get("/api/users/me/bookmarks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String nextCursor = JsonPath.read(responseBody, "$.nextCursor");
+
+        mockMvc.perform(get("/api/users/me/bookmarks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .param("cursor", nextCursor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts.length()").value(1))
+                .andExpect(jsonPath("$.posts[0].postId").value(100L))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(Matchers.nullValue()));
+    }
+
+    /**
+     * 북마크한 게시물 리스트 조회 실패 테스트:
+     * access token 없이 요청을 보내고,
+     * - (1) 응답 status가 401 Unauthorized인지 확인
+     */
+    @Test
+    void getMyBookmarksReturns401WhenAccessTokenIsMissing() throws Exception {
+        mockMvc.perform(get("/api/users/me/bookmarks"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
      * 테스트에서 사용할 가짜 로그인 사용자를 설정
      * Authorization 헤더에 "Bearer valid-token"이 들어오면 userId = 1L 사용자로 인증된 상태가 됨
      */
@@ -888,6 +1080,20 @@ public class UserControllerTest {
                 isDeleted,
                 deletedAt,
                 createdAt,
+                createdAt
+        );
+    }
+
+    private void insertPostBookmark(Long userId, Long postId, LocalDateTime createdAt) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO post_bookmarks
+                    (user_id, post_id, created_at)
+                VALUES
+                    (?, ?, ?)
+                """,
+                userId,
+                postId,
                 createdAt
         );
     }
