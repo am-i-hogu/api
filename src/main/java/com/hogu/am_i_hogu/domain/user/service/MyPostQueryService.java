@@ -5,7 +5,7 @@ import com.hogu.am_i_hogu.common.pagination.CursorRequest;
 import com.hogu.am_i_hogu.domain.comment.dto.PostCommentCount;
 import com.hogu.am_i_hogu.domain.comment.repository.CommentRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
-import com.hogu.am_i_hogu.domain.user.domain.VoteSummary;
+import com.hogu.am_i_hogu.domain.user.dto.response.VoteSummary;
 import com.hogu.am_i_hogu.domain.user.dto.MyPostCursor;
 import com.hogu.am_i_hogu.domain.user.dto.MyPostSummary;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyPostItemResponse;
