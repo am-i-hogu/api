@@ -17,18 +17,22 @@ public class UserController {
     private final MyPostQueryService myPostQueryService;
     private final MyCommentQueryService myCommentQueryService;
     private final MyBookmarkQueryService myBookmarkQueryService;
+    private final MyVoteQueryService myVoteQueryService;
 
     public UserController(
             NicknameCheckService nicknameCheckService,
             ProfileUpdateService profileUpdateService,
             MyPostQueryService myPostQueryService,
             MyCommentQueryService myCommentQueryService,
-            MyBookmarkQueryService myBookmarkQueryService) {
+            MyBookmarkQueryService myBookmarkQueryService,
+            MyVoteQueryService myVoteQueryService
+    ) {
         this.nicknameCheckService = nicknameCheckService;
         this.profileUpdateService = profileUpdateService;
         this.myPostQueryService = myPostQueryService;
         this.myCommentQueryService = myCommentQueryService;
         this.myBookmarkQueryService = myBookmarkQueryService;
+        this.myVoteQueryService = myVoteQueryService;
     }
 
     /**
@@ -113,6 +117,24 @@ public class UserController {
     ) {
         Long userId = Long.valueOf(authentication.getName());
         MyBookmarkListResponse response = myBookmarkQueryService.getMyBookmarks(userId, cursorRequest);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * [HISTORY-004] 참여한 투표 조회
+     *
+     * @param authentication    유저 인증 정보
+     * @param cursorRequest     cursor 정보(투표 생성 일시, post id 포함)
+     * @return 조회된 투표 리스트
+     */
+    @GetMapping("/me/bookmarks")
+    public ResponseEntity<MyVoteListResponse> getMyVotes(
+            Authentication authentication,
+            @ModelAttribute CursorRequest cursorRequest
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        MyVoteListResponse response = myVoteQueryService.getMyVotes(userId, cursorRequest);
 
         return ResponseEntity.ok(response);
     }
