@@ -35,11 +35,11 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     @Query("""
             SELECT new com.hogu.am_i_hogu.domain.user.dto.MyPostSummary(
-            p.id,
-            p.title,
-            p.createdAt,
-            SUM(CASE WHEN pv.myVote = 'HOGU' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN pv.myVote = 'NOT_HOGU' THEN 1 ELSE 0 END)
+                p.id,
+                p.title,
+                p.createdAt,
+                SUM(CASE WHEN pv.myVote = 'HOGU' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN pv.myVote = 'NOT_HOGU' THEN 1 ELSE 0 END)
             )
             FROM Post p
             LEFT JOIN PostVote pv ON pv.id.postId = p.id
