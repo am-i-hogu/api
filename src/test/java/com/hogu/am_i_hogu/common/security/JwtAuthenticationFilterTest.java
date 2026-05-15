@@ -1,6 +1,8 @@
 package com.hogu.am_i_hogu.common.security;
 
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
+import com.hogu.am_i_hogu.domain.user.domain.User;
+import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.AfterEach;
@@ -13,6 +15,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 
 import java.io.IOException;
+import java.util.Optional;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.Mockito.*;
@@ -20,8 +23,9 @@ import static org.mockito.Mockito.*;
 public class JwtAuthenticationFilterTest {
     private final JwtProvider jwtProvider = mock(JwtProvider.class);
     private final AuthenticationEntryPoint authenticationEntryPoint = mock(AuthenticationEntryPoint.class);
+    private final UserRepository userRepository = mock(UserRepository.class);
     private final JwtAuthenticationFilter jwtAuthenticationFilter =
-            new JwtAuthenticationFilter(jwtProvider, authenticationEntryPoint);
+            new JwtAuthenticationFilter(jwtProvider, authenticationEntryPoint, userRepository);
 
     // 각 테스트 실행 후 security context 초기화
     @AfterEach
@@ -138,6 +142,10 @@ public class JwtAuthenticationFilterTest {
         Authentication authentication = mock(Authentication.class);
         when(jwtProvider.validateAccessToken("valid-access-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-access-token"))
+                .thenReturn(1L);
+        when(userRepository.findByIdAndIsDeletedFalse(1L))
+                .thenReturn(Optional.of(mock(User.class)));
         when(jwtProvider.getAuthentication("valid-access-token"))
                 .thenReturn(authentication);
 
@@ -147,5 +155,40 @@ public class JwtAuthenticationFilterTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isEqualTo(authentication);
         verify(filterChain).doFilter(same(request), same(response));
         verify(authenticationEntryPoint, never()).commence(any(), any(), any());
+    }
+
+    /**
+     * 유효한 access token이지만 탈퇴한 사용자인 경우 올바른 오류 코드를 attribute에 저장하는지 테스트:
+     * - 유효한 access token 값을 Authorization header에 담아 요청을 보내고,
+     * - (1) request의 errorCode가 INVALID_ACCESS_TOKEN인지 확인
+     * - (2) request의 security context가 비어있는지 확인
+     * - (3) commence가 호출되었는지 확인
+     * - (4) doFilter가 호출되지 않았는지 확인
+     */
+    @Test
+    void filterReturnsInvalidAccessTokenWhenUserIsDeleted() throws IOException, ServletException {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setMethod("POST");
+        request.setRequestURI("/api/posts/1");
+        request.addHeader("Authorization", "Bearer valid-access-token");
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain filterChain = mock(FilterChain.class);
+        when(jwtProvider.validateAccessToken("valid-access-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-access-token"))
+                .thenReturn(1L);
+        when(userRepository.findByIdAndIsDeletedFalse(1L))
+                .thenReturn(Optional.empty());
+
+        jwtAuthenticationFilter.doFilterInternal(request, response, filterChain);
+
+        assertThat(request.getAttribute("errorCode")).isEqualTo(CommonErrorCode.INVALID_ACCESS_TOKEN);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(authenticationEntryPoint).commence(
+                same(request),
+                same(response),
+                any(BadCredentialsException.class));
+        verify(filterChain, never()).doFilter(any(), any());
     }
 }

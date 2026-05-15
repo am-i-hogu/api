@@ -27,7 +27,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
-import java.util.Map;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -880,6 +879,8 @@ public class OAuthControllerTest {
     private void stubAuthenticatedUser() {
         when(jwtProvider.validateAccessToken("valid-access-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-access-token"))
+                .thenReturn(TEST_USER_ID);
         when(jwtProvider.getAuthentication("valid-access-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         String.valueOf(TEST_USER_ID),

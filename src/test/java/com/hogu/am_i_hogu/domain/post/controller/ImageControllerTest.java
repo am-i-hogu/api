@@ -7,6 +7,8 @@ import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.SecurityConfig;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.post.service.ImageUploadService;
+import com.hogu.am_i_hogu.domain.user.domain.User;
+import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -19,8 +21,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -43,11 +47,18 @@ class ImageControllerTest {
     @MockitoBean
     private JwtProvider jwtProvider;
 
+    @MockitoBean
+    private UserRepository userRepository;
+
     // 정상 케이스: jpg 이미지 파일을 업로드하면 200 OK와 임시 imageUrl을 반환한다.
     @Test
     void uploadImageReturnsTemporaryImageUrl() throws Exception {
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-token"))
+                .thenReturn(1L);
+        when(userRepository.findByIdAndIsDeletedFalse(1L))
+                .thenReturn(Optional.of(mock(User.class)));
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",
@@ -74,6 +85,10 @@ class ImageControllerTest {
     void uploadImageRejectsMissingFile() throws Exception {
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-token"))
+                .thenReturn(1L);
+        when(userRepository.findByIdAndIsDeletedFalse(1L))
+                .thenReturn(Optional.of(mock(User.class)));
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",
@@ -92,6 +107,10 @@ class ImageControllerTest {
     void uploadImageRejectsUnsupportedFormat() throws Exception {
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-token"))
+                .thenReturn(1L);
+        when(userRepository.findByIdAndIsDeletedFalse(1L))
+                .thenReturn(Optional.of(mock(User.class)));
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",
@@ -118,6 +137,10 @@ class ImageControllerTest {
     void uploadImageRejectsUnsupportedContentType() throws Exception {
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-token"))
+                .thenReturn(1L);
+        when(userRepository.findByIdAndIsDeletedFalse(1L))
+                .thenReturn(Optional.of(mock(User.class)));
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",
@@ -144,6 +167,10 @@ class ImageControllerTest {
     void uploadImageRejectsFileLargerThanFiveMb() throws Exception {
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-token"))
+                .thenReturn(1L);
+        when(userRepository.findByIdAndIsDeletedFalse(1L))
+                .thenReturn(Optional.of(mock(User.class)));
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",

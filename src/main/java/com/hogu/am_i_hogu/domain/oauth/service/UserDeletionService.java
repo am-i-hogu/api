@@ -54,7 +54,7 @@ public class UserDeletionService {
 
     @Transactional
     public void deleteUser(Long userId) {
-        User user = userRepository.findByIdAndIsDeletedFalse(userId)
+        User user = userRepository.findWithLockByIdAndIsDeletedFalse(userId)
                 .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
 
         SocialAccount socialAccount = socialAccountRepository.findByUserId(userId)

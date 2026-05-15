@@ -637,6 +637,9 @@ class PostControllerTest {
     // 정상 케이스: 비회원도 게시글 상세 정보를 조회할 수 있다.
     @Test
     void getPostDetailAsGuestReturnsPostDetail() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         Long postId = 1234L;
         LocalDateTime now = LocalDateTime.now();
 
@@ -753,6 +756,9 @@ class PostControllerTest {
     // 실패 케이스: 존재하지 않는 게시글을 조회하면 404 Not Found와 POST_NOT_FOUND를 반환한다.
     @Test
     void getPostDetailRejectNotFoundPost() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         Long notFoundPostId = 9999L;
 
         mockMvc.perform(get("/api/posts/{postId}", notFoundPostId))
@@ -763,6 +769,9 @@ class PostControllerTest {
     // 실패 케이스: 삭제된 게시글을 조회하면 404 Not Found와 POST_ALREADY_DELETED를 반환한다.
     @Test
     void getPostDetailRejectsDeletedPost() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         Long postId = 1234L;
         LocalDateTime now = LocalDateTime.now();
 
@@ -1188,6 +1197,8 @@ class PostControllerTest {
     private void stubAuthenticatedUser() {
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-token"))
+                .thenReturn(TEST_USER_ID);
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         String.valueOf(TEST_USER_ID),

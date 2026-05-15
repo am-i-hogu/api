@@ -303,8 +303,8 @@ public class UserControllerTest {
     /**
      * 프로필 업데이트 실패 테스트:
      * 인증된 사용자와 일치하는 user row가 DB에 없을 때 프로필 수정 요청을 보내고,
-     * - (1) 응답 status가 404 Not Found인지 확인
-     * - (2) USER_NOT_FOUND 오류 코드를 반환하는지 확인
+     * - (1) 응답 status가 401 Unauthorized인지 확인
+     * - (2) INVALID_ACCESS_TOKEN 오류 코드를 반환하는지 확인
      */
     @Test
     void profileUpdateRejectsWhenUserNotFound() throws Exception {
@@ -320,8 +320,8 @@ public class UserControllerTest {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(requestBody))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_ACCESS_TOKEN"));
     }
 
     /**
@@ -332,6 +332,9 @@ public class UserControllerTest {
      */
     @Test
     void nicknameCheckReturnsTrue() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         mockMvc.perform(get("/api/users/check-nickname")
                     .param("nickname", "availableNickname"))
                 .andExpect(status().isOk())
@@ -346,6 +349,9 @@ public class UserControllerTest {
      */
     @Test
     void nicknameCheckReturnsFalse() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         LocalDateTime now = LocalDateTime.now();
         jdbcTemplate.update(
                 """
@@ -377,6 +383,9 @@ public class UserControllerTest {
      */
     @Test
     void nicknameCheckRejectsMissingNicknameParam() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         mockMvc.perform(get("/api/users/check-nickname"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
@@ -392,6 +401,9 @@ public class UserControllerTest {
      */
     @Test
     void nicknameCheckRejectsEmptyNickname() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         mockMvc.perform(get("/api/users/check-nickname")
                     .param("nickname", " "))
                 .andExpect(status().isBadRequest())
@@ -408,6 +420,9 @@ public class UserControllerTest {
      */
     @Test
     void nicknameCheckRejectsSpecialChar() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         mockMvc.perform(get("/api/users/check-nickname")
                     .param("nickname", "special char nickname"))
                 .andExpect(status().isBadRequest())
@@ -424,6 +439,9 @@ public class UserControllerTest {
      */
     @Test
     void nicknameCheckRejectsLongNickname() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         String nickname = "thisisverylongnickname";
         mockMvc.perform(get("/api/users/check-nickname")
                     .param("nickname", nickname))
@@ -442,6 +460,9 @@ public class UserControllerTest {
      */
     @Test
     void nicknameCheckRejectsSpecialCharAndLongNickname() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         String nickname = "this is very long nickname";
         mockMvc.perform(get("/api/users/check-nickname")
                 .param("nickname", nickname))
@@ -460,6 +481,8 @@ public class UserControllerTest {
     private void stubAuthenticatedUser() {
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-token"))
+                .thenReturn(1L);
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         String.valueOf(1L),

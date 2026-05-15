@@ -40,8 +40,6 @@ public class AuthControllerTest {
             .withDatabaseName("am_i_hogu_auth_test_db")
             .withUsername("test_user")
             .withPassword("test_password");
-    @Autowired
-    private TokenHasher tokenHasher;
 
     @DynamicPropertySource
     static void configureDatasource(DynamicPropertyRegistry registry) {
@@ -56,6 +54,9 @@ public class AuthControllerTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private TokenHasher tokenHasher;
 
     @MockitoBean
     private JwtProvider jwtProvider;
@@ -110,6 +111,7 @@ public class AuthControllerTest {
     @Test
     void logoutReturns204WhenRefreshTokenCookieIsMissing() throws Exception {
         stubAuthenticatedUser();
+        insertUser(1L, "nickname", null);
 
         mockMvc.perform(post("/api/auth/logout")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
@@ -129,6 +131,7 @@ public class AuthControllerTest {
     @Test
     void logoutReturns204WhenRefreshTokenDoesNotExistInDatabase() throws Exception {
         stubAuthenticatedUser();
+        insertUser(1L, "nickname", null);
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
@@ -198,6 +201,8 @@ public class AuthControllerTest {
     void logoutReturns204WhenAccessTokenIsMissing() throws Exception {
         insertUser(1L, "nickname", null);
         insertRefreshToken(100L, 1L, "valid-refresh-token", false);
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
         when(jwtProvider.validateRefreshToken("valid-refresh-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
@@ -334,6 +339,8 @@ public class AuthControllerTest {
     private void stubAuthenticatedUser() {
         when(jwtProvider.validateAccessToken("valid-access-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-access-token"))
+                .thenReturn(1L);
         when(jwtProvider.getAuthentication("valid-access-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         String.valueOf(1L),

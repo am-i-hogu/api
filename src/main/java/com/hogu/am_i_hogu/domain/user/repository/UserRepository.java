@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByNickname(String nickname);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<User> findByIdAndIsDeletedFalse(Long userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<User> findWithLockByIdAndIsDeletedFalse(Long userId);
 }
