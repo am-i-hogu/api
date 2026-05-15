@@ -5,6 +5,7 @@ import com.hogu.am_i_hogu.common.exception.ErrorResponse;
 import com.hogu.am_i_hogu.common.pagination.CursorCodec;
 import com.hogu.am_i_hogu.common.pagination.CursorRequest;
 import com.hogu.am_i_hogu.domain.comment.repository.CommentRepository;
+import com.hogu.am_i_hogu.domain.comment.dto.PostCommentCount;
 import com.hogu.am_i_hogu.domain.user.dto.MyCommentCursor;
 import com.hogu.am_i_hogu.domain.user.dto.MyCommentSummary;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyCommentItemResponse;
@@ -16,6 +17,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class MyCommentQueryService {
@@ -52,7 +55,8 @@ public class MyCommentQueryService {
                 ? queriedComments.subList(0, pageSize)
                 : queriedComments;
 
-        List<MyCommentItemResponse> comments = mapToResponses(commentSummaries);
+        Map<Long, Long> commentCounts = getCommentCounts(commentSummaries);
+        List<MyCommentItemResponse> comments = mapToResponses(commentSummaries, commentCounts);
         String nextCursor = createNextCursor(hasNext, commentSummaries);
 
         return new MyCommentListResponse(comments, hasNext, nextCursor);
@@ -102,8 +106,28 @@ public class MyCommentQueryService {
         );
     }
 
-    // 조회한 댓글 요약 정보를 최종 응답 DTO 리스트로 변환
-    private List<MyCommentItemResponse> mapToResponses(List<MyCommentSummary> commentSummaries) {
+    // 각 게시글 댓글 수를 조회 후 Map(게시글ID : 댓글 수) 형태로 변환
+    private Map<Long, Long> getCommentCounts(List<MyCommentSummary> commentSummaries) {
+        List<Long> postIds = commentSummaries.stream()
+                .map(MyCommentSummary::postId)
+                .toList();
+
+        if (postIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return commentRepository.countCommentsGroupedByPostIds(postIds).stream()
+                .collect(Collectors.toMap(
+                        PostCommentCount::postId,
+                        PostCommentCount::commentCount
+                ));
+    }
+
+    // 조회한 댓글 요약 정보와 댓글 수를 최종 응답 DTO 리스트로 변환
+    private List<MyCommentItemResponse> mapToResponses(
+            List<MyCommentSummary> commentSummaries,
+            Map<Long, Long> commentCounts
+    ) {
         return commentSummaries.stream()
                 .map(summary -> new MyCommentItemResponse(
                         summary.commentId(),
@@ -112,6 +136,8 @@ public class MyCommentQueryService {
                         new MyCommentPostResponse(
                                 summary.postId(),
                                 summary.postTitle(),
+                                summary.postCategory(),
+                                commentCounts.getOrDefault(summary.postId(), 0L),
                                 summary.postIsDeleted()
                         )
                 ))

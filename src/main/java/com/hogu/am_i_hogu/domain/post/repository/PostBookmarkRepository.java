@@ -19,6 +19,7 @@ public interface PostBookmarkRepository extends JpaRepository<PostBookmark, Post
             SELECT new com.hogu.am_i_hogu.domain.user.dto.MyBookmarkSummary(
                 p.id,
                 p.title,
+                p.category.code,
                 p.createdAt,
                 pb.createdAt,
                 SUM(CASE WHEN pv.myVote = 'HOGU' THEN 1 ELSE 0 END),

@@ -516,10 +516,12 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.posts.length()").value(2))
                 .andExpect(jsonPath("$.posts[0].postId").value(101L))
                 .andExpect(jsonPath("$.posts[0].title").value("title 2"))
+                .andExpect(jsonPath("$.posts[0].category").value("USED_TRADE"))
                 .andExpect(jsonPath("$.posts[0].voteSummary").value("NONE"))
                 .andExpect(jsonPath("$.posts[0].commentCount").value(0))
                 .andExpect(jsonPath("$.posts[1].postId").value(100))
                 .andExpect(jsonPath("$.posts[1].title").value("title 1"))
+                .andExpect(jsonPath("$.posts[1].category").value("USED_TRADE"))
                 .andExpect(jsonPath("$.posts[1].voteSummary").value("TIE"))
                 .andExpect(jsonPath("$.posts[1].commentCount").value(2))
                 .andExpect(jsonPath("$.hasNext").value(false))
@@ -663,11 +665,15 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.comments[0].content").value("comment 2"))
                 .andExpect(jsonPath("$.comments[0].post.postId").value(101L))
                 .andExpect(jsonPath("$.comments[0].post.title").value("deleted title"))
+                .andExpect(jsonPath("$.comments[0].post.category").value("USED_TRADE"))
+                .andExpect(jsonPath("$.comments[0].post.commentCount").value(0))
                 .andExpect(jsonPath("$.comments[0].post.isDeleted").value(true))
                 .andExpect(jsonPath("$.comments[1].commentId").value(1000L))
                 .andExpect(jsonPath("$.comments[1].content").value("comment 1"))
                 .andExpect(jsonPath("$.comments[1].post.postId").value(100L))
                 .andExpect(jsonPath("$.comments[1].post.title").value("title 1"))
+                .andExpect(jsonPath("$.comments[1].post.category").value("USED_TRADE"))
+                .andExpect(jsonPath("$.comments[1].post.commentCount").value(2))
                 .andExpect(jsonPath("$.comments[1].post.isDeleted").value(false))
                 .andExpect(jsonPath("$.hasNext").value(false))
                 .andExpect(jsonPath("$.nextCursor").value(Matchers.nullValue()));
@@ -818,10 +824,12 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.posts.length()").value(2))
                 .andExpect(jsonPath("$.posts[0].postId").value(101L))
                 .andExpect(jsonPath("$.posts[0].title").value("deleted title"))
+                .andExpect(jsonPath("$.posts[0].category").value("USED_TRADE"))
                 .andExpect(jsonPath("$.posts[0].voteSummary").value("NONE"))
                 .andExpect(jsonPath("$.posts[0].commentCount").value(0))
                 .andExpect(jsonPath("$.posts[1].postId").value(100L))
                 .andExpect(jsonPath("$.posts[1].title").value("title 1"))
+                .andExpect(jsonPath("$.posts[1].category").value("USED_TRADE"))
                 .andExpect(jsonPath("$.posts[1].voteSummary").value("TIE"))
                 .andExpect(jsonPath("$.posts[1].commentCount").value(2))
                 .andExpect(jsonPath("$.hasNext").value(false))
@@ -907,7 +915,9 @@ public class UserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.posts.length()").value(1))
                 .andExpect(jsonPath("$.posts[0].postId").value(100L))
-                .andExpect(jsonPath("$.posts[0].title").value("deleted title"));
+                .andExpect(jsonPath("$.posts[0].title").value("deleted title"))
+                .andExpect(jsonPath("$.posts[0].category").value("USED_TRADE"))
+                .andExpect(jsonPath("$.posts[0].commentCount").value(0));
     }
 
     /**
@@ -1002,10 +1012,14 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.votes[0].myVote").value("HOGU"))
                 .andExpect(jsonPath("$.votes[0].post.postId").value(101L))
                 .andExpect(jsonPath("$.votes[0].post.title").value("deleted title"))
+                .andExpect(jsonPath("$.votes[0].post.category").value("USED_TRADE"))
+                .andExpect(jsonPath("$.votes[0].post.commentCount").value(0))
                 .andExpect(jsonPath("$.votes[0].post.isDeleted").value(true))
                 .andExpect(jsonPath("$.votes[1].myVote").value("NOT_HOGU"))
                 .andExpect(jsonPath("$.votes[1].post.postId").value(100L))
                 .andExpect(jsonPath("$.votes[1].post.title").value("title 1"))
+                .andExpect(jsonPath("$.votes[1].post.category").value("USED_TRADE"))
+                .andExpect(jsonPath("$.votes[1].post.commentCount").value(0))
                 .andExpect(jsonPath("$.votes[1].post.isDeleted").value(false))
                 .andExpect(jsonPath("$.hasNext").value(false))
                 .andExpect(jsonPath("$.nextCursor").value(Matchers.nullValue()));
@@ -1092,6 +1106,8 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.votes[0].myVote").value("HOGU"))
                 .andExpect(jsonPath("$.votes[0].post.postId").value(100L))
                 .andExpect(jsonPath("$.votes[0].post.title").value("deleted title"))
+                .andExpect(jsonPath("$.votes[0].post.category").value("USED_TRADE"))
+                .andExpect(jsonPath("$.votes[0].post.commentCount").value(0))
                 .andExpect(jsonPath("$.votes[0].post.isDeleted").value(true));
     }
 

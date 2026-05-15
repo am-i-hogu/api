@@ -136,6 +136,7 @@ public class MyBookmarkQueryService {
                 .map(summary -> new MyPostItemResponse(
                         summary.postId(),
                         summary.title(),
+                        summary.category(),
                         summary.postCreatedAt(),
                         toVoteSummary(summary.hoguCount(), summary.notHoguCount()),
                         commentCounts.getOrDefault(summary.postId(), 0L)

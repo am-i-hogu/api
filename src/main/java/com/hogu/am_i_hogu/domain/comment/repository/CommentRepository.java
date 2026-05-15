@@ -32,6 +32,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
                 c.createdAt,
                 p.id,
                 p.title,
+                p.category.code,
                 p.isDeleted
             )
             FROM Comment c

@@ -37,6 +37,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             SELECT new com.hogu.am_i_hogu.domain.user.dto.MyPostSummary(
                 p.id,
                 p.title,
+                p.category.code,
                 p.createdAt,
                 SUM(CASE WHEN pv.myVote = 'HOGU' THEN 1 ELSE 0 END),
                 SUM(CASE WHEN pv.myVote = 'NOT_HOGU' THEN 1 ELSE 0 END)

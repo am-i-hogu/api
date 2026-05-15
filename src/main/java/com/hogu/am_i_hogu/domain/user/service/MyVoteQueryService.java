@@ -4,6 +4,8 @@ import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.exception.ErrorResponse;
 import com.hogu.am_i_hogu.common.pagination.CursorCodec;
 import com.hogu.am_i_hogu.common.pagination.CursorRequest;
+import com.hogu.am_i_hogu.domain.comment.dto.PostCommentCount;
+import com.hogu.am_i_hogu.domain.comment.repository.CommentRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostVoteRepository;
 import com.hogu.am_i_hogu.domain.user.dto.MyVoteCursor;
 import com.hogu.am_i_hogu.domain.user.dto.MyVoteSummary;
@@ -16,6 +18,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class MyVoteQueryService {
@@ -25,13 +29,16 @@ public class MyVoteQueryService {
 
     private final CursorCodec cursorCodec;
     private final PostVoteRepository postVoteRepository;
+    private final CommentRepository commentRepository;
 
     public MyVoteQueryService(
             CursorCodec cursorCodec,
-            PostVoteRepository postVoteRepository
+            PostVoteRepository postVoteRepository,
+            CommentRepository commentRepository
     ) {
         this.cursorCodec = cursorCodec;
         this.postVoteRepository = postVoteRepository;
+        this.commentRepository = commentRepository;
     }
 
     /**
@@ -51,7 +58,8 @@ public class MyVoteQueryService {
                 ? queriedVotes.subList(0, pageSize)
                 : queriedVotes;
 
-        List<MyVoteItemResponse> votes = mapToResponses(voteSummaries);
+        Map<Long, Long> commentCounts = getCommentCounts(voteSummaries);
+        List<MyVoteItemResponse> votes = mapToResponses(voteSummaries, commentCounts);
         String nextCursor = createNextCursor(hasNext, voteSummaries);
 
         return new MyVoteListResponse(votes, hasNext, nextCursor);
@@ -101,8 +109,28 @@ public class MyVoteQueryService {
         );
     }
 
-    // 조회한 투표 요약 정보를 최종 응답 DTO 리스트로 변환
-    private List<MyVoteItemResponse> mapToResponses(List<MyVoteSummary> voteSummaries) {
+    // 각 게시글 댓글 수를 조회 후 Map(게시글ID : 댓글 수) 형태로 변환
+    private Map<Long, Long> getCommentCounts(List<MyVoteSummary> voteSummaries) {
+        List<Long> postIds = voteSummaries.stream()
+                .map(MyVoteSummary::postId)
+                .toList();
+
+        if (postIds.isEmpty()) {
+            return Map.of();
+        }
+
+        return commentRepository.countCommentsGroupedByPostIds(postIds).stream()
+                .collect(Collectors.toMap(
+                        PostCommentCount::postId,
+                        PostCommentCount::commentCount
+                ));
+    }
+
+    // 조회한 투표 요약 정보와 댓글 수를 최종 응답 DTO 리스트로 변환
+    private List<MyVoteItemResponse> mapToResponses(
+            List<MyVoteSummary> voteSummaries,
+            Map<Long, Long> commentCounts
+    ) {
         return voteSummaries.stream()
                 .map(summary -> new MyVoteItemResponse(
                         summary.myVote(),
@@ -110,6 +138,8 @@ public class MyVoteQueryService {
                         new MyVotePostResponse(
                                 summary.postId(),
                                 summary.postTitle(),
+                                summary.postCategory(),
+                                commentCounts.getOrDefault(summary.postId(), 0L),
                                 summary.postIsDeleted()
                         )
                 ))

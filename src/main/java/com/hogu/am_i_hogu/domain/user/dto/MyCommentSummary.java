@@ -8,6 +8,7 @@ public record MyCommentSummary(
         LocalDateTime createdAt,
         Long postId,
         String postTitle,
+        String postCategory,
         boolean postIsDeleted
 ) {
 }

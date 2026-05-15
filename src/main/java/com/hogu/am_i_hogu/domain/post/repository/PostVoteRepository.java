@@ -39,6 +39,7 @@ public interface PostVoteRepository extends JpaRepository<PostVote, PostVoteId> 
                 pv.createdAt,
                 p.id,
                 p.title,
+                p.category.code,
                 p.isDeleted
             )
             FROM PostVote pv

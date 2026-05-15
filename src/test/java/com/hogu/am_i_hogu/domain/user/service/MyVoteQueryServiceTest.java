@@ -3,6 +3,7 @@ package com.hogu.am_i_hogu.domain.user.service;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.pagination.CursorCodec;
 import com.hogu.am_i_hogu.common.pagination.CursorRequest;
+import com.hogu.am_i_hogu.domain.comment.repository.CommentRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostVoteRepository;
 import com.hogu.am_i_hogu.domain.user.dto.MyVoteCursor;
 import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
@@ -16,8 +17,9 @@ public class MyVoteQueryServiceTest {
 
     private final CursorCodec cursorCodec = mock(CursorCodec.class);
     private final PostVoteRepository postVoteRepository = mock(PostVoteRepository.class);
+    private final CommentRepository commentRepository = mock(CommentRepository.class);
     private final MyVoteQueryService myVoteQueryService = new MyVoteQueryService(
-            cursorCodec, postVoteRepository
+            cursorCodec, postVoteRepository, commentRepository
     );
 
     /**
@@ -40,5 +42,6 @@ public class MyVoteQueryServiceTest {
         });
 
         verifyNoInteractions(postVoteRepository);
+        verifyNoInteractions(commentRepository);
     }
 }

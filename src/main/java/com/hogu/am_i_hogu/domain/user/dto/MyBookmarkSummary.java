@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 public record MyBookmarkSummary(
         Long postId,
         String title,
+        String category,
         LocalDateTime postCreatedAt,
         LocalDateTime bookmarkCreatedAt,
         long hoguCount,

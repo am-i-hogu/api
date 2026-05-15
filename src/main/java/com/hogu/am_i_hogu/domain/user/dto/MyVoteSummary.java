@@ -7,6 +7,7 @@ public record MyVoteSummary(
         LocalDateTime createdAt,
         Long postId,
         String postTitle,
+        String postCategory,
         boolean postIsDeleted
 ) {
 }
