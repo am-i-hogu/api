@@ -1,4 +1,4 @@
-package com.hogu.am_i_hogu.domain.oauth;
+package com.hogu.am_i_hogu.domain.oauth.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
@@ -6,7 +6,6 @@ import com.hogu.am_i_hogu.domain.oauth.config.OAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
-import com.hogu.am_i_hogu.domain.oauth.service.OAuthClient;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpHeaders;

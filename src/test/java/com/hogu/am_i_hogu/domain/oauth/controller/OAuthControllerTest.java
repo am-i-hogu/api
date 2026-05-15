@@ -1,4 +1,4 @@
-package com.hogu.am_i_hogu.domain.oauth;
+package com.hogu.am_i_hogu.domain.oauth.controller;
 
 import com.hogu.am_i_hogu.common.security.*;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
