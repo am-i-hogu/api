@@ -1,4 +1,4 @@
-package com.hogu.am_i_hogu.domain.oauth;
+package com.hogu.am_i_hogu.domain.oauth.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
@@ -6,7 +6,6 @@ import com.hogu.am_i_hogu.domain.oauth.config.OAuthProperties;
 import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
 import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
-import com.hogu.am_i_hogu.domain.oauth.service.OAuthClient;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpHeaders;
@@ -41,7 +40,7 @@ public class OAuthClientTest {
      * - (5) 응답 본문이 TokenResponse로 정상 반환되는지 확인
      */
     @Test
-    void requestTokenTest() {
+    void requestTokenReturnsTokenResponseWhenRequestSucceeds() {
         oauthClientProperties.setClientId("test-client-id");
         oauthClientProperties.setClientSecret("test-client-secret");
         oauthClientProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
@@ -98,7 +97,7 @@ public class OAuthClientTest {
      * INVALID_AUTH_CODE 예외가 발생하는지 테스트
      */
     @Test
-    void invalidAuthCodeTest() {
+    void requestTokenThrowsInvalidAuthCodeWhenAuthCodeIsInvalid() {
         oauthClientProperties.setClientId("test-client-id");
         oauthClientProperties.setClientSecret("test-client-secret");
         oauthClientProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
@@ -141,7 +140,7 @@ public class OAuthClientTest {
      * SOCIAL_SERVER_ERROR 예외가 발생하는지 테스트
      */
     @Test
-    void socialServerErrorTest() {
+    void requestTokenThrowsSocialServerErrorWhenServerErrorOccurs() {
         oauthClientProperties.setClientId("test-client-id");
         oauthClientProperties.setClientSecret("test-client-secret");
         oauthClientProperties.setRedirectUri("http://localhost:8080/api/auth/callback/GOOGLE");
