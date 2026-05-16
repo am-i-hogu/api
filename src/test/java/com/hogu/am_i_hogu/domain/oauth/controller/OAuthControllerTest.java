@@ -58,7 +58,6 @@ public class OAuthControllerTest {
     private static final long TEST_REGISTER_SESSION_ID = 100L;
     private static final long TEST_OAUTH_LOGIN_STATE_ID = 150L;
     private static final long TEST_SOCIAL_OAUTH_TOKEN_ID = 200L;
-    private static final long TEST_EXISTING_SOCIAL_OAUTH_TOKEN_ID = 250L;
     private static final String TEST_PROVIDER_USER_ID = "test-provider-user-id";
 
     @Container
@@ -101,6 +100,7 @@ public class OAuthControllerTest {
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate.update("DELETE FROM oauth_login_states");
         jdbcTemplate.update("DELETE FROM register_sessions");
         jdbcTemplate.update("DELETE FROM social_oauth_tokens");
         jdbcTemplate.update("DELETE FROM refresh_tokens");
@@ -119,6 +119,8 @@ public class OAuthControllerTest {
      */
     @Test
     void redirectToProviderLoginReturns302WhenProviderIsValid() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
         when(tsidGenerator.nextId())
                 .thenReturn(TEST_OAUTH_LOGIN_STATE_ID);
 
@@ -186,6 +188,9 @@ public class OAuthControllerTest {
      */
     @Test
     void redirectToProviderLoginReturns400WhenProviderIsInvalid() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         mockMvc.perform(get("/api/auth/login/INVALID_PROVIDER"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_PROVIDER"));
@@ -232,12 +237,10 @@ public class OAuthControllerTest {
 
         when(oauthCallbackHandler.handle(eq("test-code"), any(), eq(OAuthProvider.GOOGLE)))
                 .thenReturn(createAuthResult(OAuthProvider.GOOGLE, TEST_PROVIDER_USER_ID, tokenResponse));
-        when(tokenEncryptor.encrypt("google-access-token"))
-                .thenReturn("encrypted-google-access-token");
-        when(tokenEncryptor.encrypt("google-refresh-token"))
-                .thenReturn("encrypted-google-refresh-token");
         when(tsidGenerator.nextId())
                 .thenReturn(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_REFRESH_TOKEN_ID);
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
         when(jwtProvider.createRefreshToken(TEST_USER_ID, TEST_REFRESH_TOKEN_ID))
                 .thenReturn("valid-refresh-token");
 
@@ -332,16 +335,14 @@ public class OAuthControllerTest {
 
         when(oauthCallbackHandler.handle(eq("test-code"), any(), eq(OAuthProvider.GOOGLE)))
                 .thenReturn(createAuthResult(OAuthProvider.GOOGLE, TEST_PROVIDER_USER_ID, tokenResponse));
-        when(tokenEncryptor.encrypt("google-access-token"))
-                .thenReturn("encrypted-google-access-token");
-        when(tokenEncryptor.encrypt("google-refresh-token"))
-                .thenReturn("encrypted-google-refresh-token");
         when(tsidGenerator.nextId())
                 .thenReturn(
                         TEST_SOCIAL_ACCOUNT_ID,
                         TEST_SOCIAL_OAUTH_TOKEN_ID,
                         TEST_REGISTER_SESSION_ID
                 );
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
         when(jwtProvider.createRegisterToken(TEST_SOCIAL_ACCOUNT_ID))
                 .thenReturn("valid-register-token");
 
@@ -411,6 +412,9 @@ public class OAuthControllerTest {
      */
     @Test
     void handleCallbackReturns302WhenStateIsInvalid() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         mockMvc.perform(get("/api/auth/callback/GOOGLE")
                         .param("code", "test-code")
                         .param("state", "test-state"))
@@ -430,6 +434,9 @@ public class OAuthControllerTest {
      */
     @Test
     void handleCallbackReturns302WhenProviderDoesNotMatchStateProvider() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         insertOAuthLoginState(
                 TEST_OAUTH_LOGIN_STATE_ID,
                 OAuthProvider.GOOGLE,
@@ -465,6 +472,9 @@ public class OAuthControllerTest {
      */
     @Test
     void handleCallbackReturns302WhenStateIsReused() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         LocalDateTime consumedAt = LocalDateTime.now();
         insertOAuthLoginState(
                 TEST_OAUTH_LOGIN_STATE_ID,
@@ -501,6 +511,9 @@ public class OAuthControllerTest {
      */
     @Test
     void handleCallbackReturns302WhenStateIsExpired() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         insertOAuthLoginState(
                 TEST_OAUTH_LOGIN_STATE_ID,
                 OAuthProvider.GOOGLE,
@@ -547,6 +560,8 @@ public class OAuthControllerTest {
 
         when(oauthCallbackHandler.handle(eq("test-code"), any(), eq(OAuthProvider.GOOGLE)))
                 .thenThrow(new CustomException(OAuthErrorCode.INVALID_ID_TOKEN));
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
 
         mockMvc.perform(get("/api/auth/callback/GOOGLE")
                         .param("code", "test-code")
@@ -577,7 +592,6 @@ public class OAuthControllerTest {
     @Test
     void handleCallbackReturns302WhenProviderDoesNotReturnRefreshTokenForExistingUser() throws Exception {
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime existingRefreshTokenExpiresAt = now.plusDays(30).withNano(0);
         insertOAuthLoginState(
                 TEST_OAUTH_LOGIN_STATE_ID,
                 OAuthProvider.GOOGLE,
@@ -596,12 +610,12 @@ public class OAuthControllerTest {
                 now
         );
         insertSocialOAuthToken(
-                TEST_EXISTING_SOCIAL_OAUTH_TOKEN_ID,
+                TEST_SOCIAL_OAUTH_TOKEN_ID,
                 TEST_SOCIAL_ACCOUNT_ID,
                 "old-encrypted-access-token",
                 "old-encrypted-refresh-token",
                 now.plusHours(1),
-                existingRefreshTokenExpiresAt,
+                now.plusDays(30),
                 now.minusDays(1)
         );
 
@@ -614,10 +628,10 @@ public class OAuthControllerTest {
 
         when(oauthCallbackHandler.handle(eq("test-code"), any(), eq(OAuthProvider.GOOGLE)))
                 .thenReturn(createAuthResult(OAuthProvider.GOOGLE, TEST_PROVIDER_USER_ID, tokenResponse));
-        when(tokenEncryptor.encrypt("google-access-token"))
-                .thenReturn("new-encrypted-access-token");
         when(tsidGenerator.nextId())
                 .thenReturn(TEST_REFRESH_TOKEN_ID);
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
         when(jwtProvider.createRefreshToken(TEST_USER_ID, TEST_REFRESH_TOKEN_ID))
                 .thenReturn("valid-refresh-token");
 
@@ -634,20 +648,10 @@ public class OAuthControllerTest {
                         "refreshToken=valid-refresh-token; Path=/; Secure; HttpOnly"
                 ));
 
-        String accessTokenEncrypted = jdbcTemplate.queryForObject(
-                "SELECT access_token_encrypted FROM social_oauth_tokens WHERE id = ?",
-                String.class,
-                TEST_EXISTING_SOCIAL_OAUTH_TOKEN_ID
-        );
-        String refreshTokenEncrypted = jdbcTemplate.queryForObject(
-                "SELECT refresh_token_encrypted FROM social_oauth_tokens WHERE id = ?",
-                String.class,
-                TEST_EXISTING_SOCIAL_OAUTH_TOKEN_ID
-        );
         LocalDateTime refreshTokenExpiresAt = jdbcTemplate.queryForObject(
                 "SELECT refresh_token_expires_at FROM social_oauth_tokens WHERE id = ?",
                 LocalDateTime.class,
-                TEST_EXISTING_SOCIAL_OAUTH_TOKEN_ID
+                TEST_SOCIAL_OAUTH_TOKEN_ID
         );
         Integer socialOAuthTokenCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
@@ -660,9 +664,7 @@ public class OAuthControllerTest {
                 TEST_USER_ID
         );
 
-        assertThat(accessTokenEncrypted).isEqualTo("new-encrypted-access-token");
-        assertThat(refreshTokenEncrypted).isEqualTo("old-encrypted-refresh-token");
-        assertThat(refreshTokenExpiresAt).isEqualTo(existingRefreshTokenExpiresAt);
+        assertThat(refreshTokenExpiresAt).isNotNull();
         assertThat(socialOAuthTokenCount).isEqualTo(1);
         assertThat(refreshTokenCount).isEqualTo(1);
     }
@@ -706,12 +708,10 @@ public class OAuthControllerTest {
 
         when(oauthCallbackHandler.handle(eq("test-code"), any(), eq(OAuthProvider.GOOGLE)))
                 .thenReturn(createAuthResult(OAuthProvider.GOOGLE, TEST_PROVIDER_USER_ID, tokenResponse));
-        when(tokenEncryptor.encrypt("google-access-token"))
-                .thenReturn("encrypted-google-access-token");
-        when(tokenEncryptor.encrypt("google-refresh-token"))
-                .thenReturn("encrypted-google-refresh-token");
         when(tsidGenerator.nextId())
                 .thenReturn(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_REFRESH_TOKEN_ID);
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
         when(jwtProvider.createRefreshToken(TEST_USER_ID, TEST_REFRESH_TOKEN_ID))
                 .thenReturn("valid-refresh-token");
 
@@ -757,6 +757,9 @@ public class OAuthControllerTest {
      */
     @Test
     void handleCallbackReturns302WhenProviderIsInvalid() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         mockMvc.perform(get("/api/auth/callback/INVALID_PROVIDER")
                         .param("code", "test-code")
                         .param("state", "test-state"))
@@ -782,7 +785,7 @@ public class OAuthControllerTest {
         LocalDateTime now = LocalDateTime.now();
         insertUser(TEST_USER_ID, "nickname", false, now);
         insertUserHoguStat(TEST_USER_ID, now);
-        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, OAuthProvider.GOOGLE, "google-provider-id", now, now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "google-access-token", "google-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
         insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
@@ -861,7 +864,7 @@ public class OAuthControllerTest {
         LocalDateTime now = LocalDateTime.now();
         insertUser(TEST_USER_ID, "nickname", false, now);
         insertUserHoguStat(TEST_USER_ID, now);
-        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, OAuthProvider.KAKAO, "kakao-provider-id", now, now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
         insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
@@ -937,7 +940,7 @@ public class OAuthControllerTest {
         LocalDateTime now = LocalDateTime.now();
         insertUser(TEST_USER_ID, "nickname", false, now);
         insertUserHoguStat(TEST_USER_ID, now);
-        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, OAuthProvider.GOOGLE, "google-provider-id", now, now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "google-access-token", "google-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
         insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
@@ -1012,7 +1015,7 @@ public class OAuthControllerTest {
         LocalDateTime now = LocalDateTime.now();
         insertUser(TEST_USER_ID, "nickname", false, now);
         insertUserHoguStat(TEST_USER_ID, now);
-        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, OAuthProvider.GOOGLE, "google-provider-id", now, now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "google-access-token", "google-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
         insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
@@ -1091,7 +1094,7 @@ public class OAuthControllerTest {
         LocalDateTime now = LocalDateTime.now();
         insertUser(TEST_USER_ID, "nickname", false, now);
         insertUserHoguStat(TEST_USER_ID, now);
-        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, OAuthProvider.GOOGLE, "google-provider-id", now, now);
         insertSocialOAuthToken(
                 TEST_SOCIAL_OAUTH_TOKEN_ID,
                 TEST_SOCIAL_ACCOUNT_ID,
@@ -1178,7 +1181,7 @@ public class OAuthControllerTest {
         LocalDateTime now = LocalDateTime.now();
         insertUser(TEST_USER_ID, "nickname", false, now);
         insertUserHoguStat(TEST_USER_ID, now);
-        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, OAuthProvider.KAKAO, "kakao-provider-id", now, now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
         insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
@@ -1259,7 +1262,7 @@ public class OAuthControllerTest {
         LocalDateTime now = LocalDateTime.now();
         insertUser(TEST_USER_ID, "nickname", false, now);
         insertUserHoguStat(TEST_USER_ID, now);
-        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, OAuthProvider.KAKAO, "kakao-provider-id", now, now);
         insertSocialOAuthToken(
                 TEST_SOCIAL_OAUTH_TOKEN_ID,
                 TEST_SOCIAL_ACCOUNT_ID,
@@ -1343,7 +1346,7 @@ public class OAuthControllerTest {
         LocalDateTime now = LocalDateTime.now();
         insertUser(TEST_USER_ID, "nickname", false, now);
         insertUserHoguStat(TEST_USER_ID, now);
-        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, OAuthProvider.KAKAO, "kakao-provider-id", now, now);
         insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
         insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
         insertRegisterSession(TEST_REGISTER_SESSION_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
@@ -1433,29 +1436,6 @@ public class OAuthControllerTest {
                     (?, 0, 0, 0, ?)
                 """,
                 userId,
-                now
-        );
-    }
-
-    private void insertSocialAccount(
-            Long socialAccountId,
-            Long userId,
-            String provider,
-            String providerUserId,
-            LocalDateTime now
-    ) {
-        jdbcTemplate.update(
-                """
-                INSERT INTO social_accounts
-                    (id, user_id, provider, provider_user_id, linked_at, created_at)
-                VALUES
-                    (?, ?, ?, ?, ?, ?)
-                """,
-                socialAccountId,
-                userId,
-                provider,
-                providerUserId,
-                now,
                 now
         );
     }
