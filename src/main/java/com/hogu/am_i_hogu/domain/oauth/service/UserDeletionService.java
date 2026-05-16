@@ -1,0 +1,214 @@
+package com.hogu.am_i_hogu.domain.oauth.service;
+
+import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
+import com.hogu.am_i_hogu.common.exception.CustomException;
+import com.hogu.am_i_hogu.common.security.TokenEncryptor;
+import com.hogu.am_i_hogu.domain.auth.repository.RefreshTokenRepository;
+import com.hogu.am_i_hogu.domain.auth.repository.RegisterSessionRepository;
+import com.hogu.am_i_hogu.domain.oauth.domain.SocialAccount;
+import com.hogu.am_i_hogu.domain.oauth.domain.SocialOAuthToken;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
+import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
+import com.hogu.am_i_hogu.domain.oauth.repository.SocialAccountRepository;
+import com.hogu.am_i_hogu.domain.oauth.repository.SocialOAuthTokenRepository;
+import com.hogu.am_i_hogu.domain.user.domain.User;
+import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
+import com.hogu.am_i_hogu.domain.user.repository.UserHoguStatRepository;
+import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
+import jakarta.transaction.Transactional;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+
+@Service
+public class UserDeletionService {
+
+    private final UserRepository userRepository;
+    private final SocialAccountRepository socialAccountRepository;
+    private final SocialOAuthTokenRepository socialOAuthTokenRepository;
+    private final TokenEncryptor tokenEncryptor;
+    private final OAuthClient oauthClient;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final RegisterSessionRepository registerSessionRepository;
+    private final UserHoguStatRepository userHoguStatRepository;
+
+    public UserDeletionService(
+            UserRepository userRepository,
+            SocialAccountRepository socialAccountRepository,
+            SocialOAuthTokenRepository socialOAuthTokenRepository,
+            TokenEncryptor tokenEncryptor,
+            OAuthClient oauthClient,
+            RefreshTokenRepository refreshTokenRepository,
+            RegisterSessionRepository registerSessionRepository,
+            UserHoguStatRepository userHoguStatRepository
+    ) {
+        this.userRepository = userRepository;
+        this.socialAccountRepository = socialAccountRepository;
+        this.socialOAuthTokenRepository = socialOAuthTokenRepository;
+        this.tokenEncryptor = tokenEncryptor;
+        this.oauthClient = oauthClient;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.registerSessionRepository = registerSessionRepository;
+        this.userHoguStatRepository = userHoguStatRepository;
+    }
+
+    @Transactional
+    public void deleteUser(Long userId) {
+        User user = userRepository.findWithLockByIdAndIsDeletedFalse(userId)
+                .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
+
+        SocialAccount socialAccount = socialAccountRepository.findByUserId(userId)
+                .orElseThrow(() -> new CustomException(CommonErrorCode.SERVER_ERROR));
+
+        SocialOAuthToken socialOAuthToken = socialOAuthTokenRepository.findBySocialAccountId(socialAccount.getId())
+                .orElseThrow(() -> new CustomException(CommonErrorCode.SERVER_ERROR));
+
+        String accessToken = tokenEncryptor.decrypt(socialOAuthToken.getAccessTokenEncrypted());
+        String refreshToken = tokenEncryptor.decrypt(socialOAuthToken.getRefreshTokenEncrypted());
+
+        switch (socialAccount.getProvider()) {
+            case GOOGLE -> unlinkGoogle(
+                    accessToken,
+                    refreshToken,
+                    socialOAuthToken.getAccessTokenExpiresAt()
+            );
+            case KAKAO -> unlinkKakao(
+                    accessToken,
+                    refreshToken,
+                    socialOAuthToken.getAccessTokenExpiresAt(),
+                    socialOAuthToken.getRefreshTokenExpiresAt()
+            );
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        registerSessionRepository.deleteAllBySocialAccountId(socialAccount.getId());
+        socialOAuthTokenRepository.delete(socialOAuthToken);
+        refreshTokenRepository.deleteAllByUserId(userId);
+        userHoguStatRepository.deleteById(userId);
+        socialAccountRepository.delete(socialAccount);
+
+        user.delete(now);
+    }
+
+    /**
+     * google 토큰 revoke 요청
+     * - google은 access token 또는 refresh token으로 revoke 요청 가능
+     * - refresh token으로 먼저 시도하고, 실패 시 access token으로 시도
+     * - access token 시도까지 실패하면 오류 반환
+     *
+     * @param accessToken           google 측에서 발급한 access token
+     * @param refreshToken          google 측에서 발급한 refresh token
+     * @param accessTokenExpiresAt  access token의 만료 일시
+     */
+    private void unlinkGoogle(
+            String accessToken,
+            String refreshToken,
+            LocalDateTime accessTokenExpiresAt
+    ) {
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            revokeGoogleTokenWithFallback(refreshToken, accessToken, accessTokenExpiresAt);
+            return;
+        }
+
+        if (accessToken != null
+                && !accessToken.isBlank()
+                && !isExpired(accessTokenExpiresAt)) {
+            oauthClient.revokeGoogleToken(accessToken);
+            return;
+        }
+
+        throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+    }
+
+    /**
+     * kakao unlink 요청
+     * - access token이 만료되지 않았다면 access token으로 unlink 시도
+     * - access token이 만료되었고, refresh token은 만료되지 않았다면 재발급 API 호출 후
+     *   새로운 access token으로 unlink 재시도
+     * - access token, refresh token 모두 만료되었다면 오류 반환
+     *
+     * @param accessToken           kakao 측에서 발급한 access token
+     * @param refreshToken          kakao 측에서 발급한 refresh token
+     * @param accessTokenExpiresAt  access token의 만료 일시
+     * @param refreshTokenExpiresAt refresh token의 만료 일시
+     */
+    private void unlinkKakao(
+            String accessToken,
+            String refreshToken,
+            LocalDateTime accessTokenExpiresAt,
+            LocalDateTime refreshTokenExpiresAt
+    ) {
+        if (isExpired(accessTokenExpiresAt)) {
+            if (isExpired(refreshTokenExpiresAt)) {
+                throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+            }
+
+            reissueKakaoTokenAndUnlink(refreshToken);
+            return;
+        }
+
+        try {
+            oauthClient.unlinkKakao(accessToken);
+        } catch (CustomException e) {
+            // unlink 호출 중 토큰이 만료된 케이스가 아니라면 reissue 시도하지 않고 오류 반환
+            if (e.getErrorCode() != OAuthErrorCode.SOCIAL_SERVER_ERROR) {
+                throw e;
+            }
+
+            reissueKakaoTokenAndUnlink(refreshToken);
+        }
+    }
+
+    /**
+     * kakao access token 재발급 및 unlink 시도
+     *
+     * @param refreshToken  kakao 측에서 발급한 refresh token
+     */
+    private void reissueKakaoTokenAndUnlink(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new CustomException(CommonErrorCode.SERVER_ERROR);
+        }
+
+        TokenResponse reissuedToken = oauthClient.reissueKakaoToken(refreshToken);
+
+        if (reissuedToken == null
+                || reissuedToken.getAccessToken() == null
+                || reissuedToken.getAccessToken().isBlank()) {
+            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        }
+
+        oauthClient.unlinkKakao(reissuedToken.getAccessToken());
+    }
+
+    /**
+     * google revoke 시도
+     * refresh token으로 먼저 시도 후 실패 시 access token으로 시도
+     *
+     * @param refreshToken          google 측에서 발급한 refresh token
+     * @param accessToken           google 측에서 발급한 access token
+     * @param accessTokenExpiresAt  access token의 만료 일시
+     */
+    private void revokeGoogleTokenWithFallback(
+            String refreshToken,
+            String accessToken,
+            LocalDateTime accessTokenExpiresAt
+    ) {
+        try {
+            oauthClient.revokeGoogleToken(refreshToken);
+        } catch (CustomException e) {
+            if (accessToken == null
+                    || accessToken.isBlank()
+                    || isExpired(accessTokenExpiresAt)) {
+                throw e;
+            }
+
+            oauthClient.revokeGoogleToken(accessToken);
+        }
+    }
+
+    private boolean isExpired(LocalDateTime expiresAt) {
+        LocalDateTime now = LocalDateTime.now();
+        return (expiresAt != null && !expiresAt.isAfter(now));
+    }
+}

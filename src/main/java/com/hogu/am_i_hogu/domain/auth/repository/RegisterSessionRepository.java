@@ -13,4 +13,6 @@ import java.util.Optional;
 public interface RegisterSessionRepository extends JpaRepository<RegisterSession, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<RegisterSession> findFirstBySocialAccountIdOrderByCreatedAtDesc(Long socialAccountId);
+
+    void deleteAllBySocialAccountId(Long socialAccountId);
 }

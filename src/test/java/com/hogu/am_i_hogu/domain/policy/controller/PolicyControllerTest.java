@@ -58,6 +58,7 @@ public class PolicyControllerTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("DELETE FROM policy_revisions");
+        jdbcTemplate.update("DELETE FROM users");
     }
 
     /**
@@ -72,6 +73,7 @@ public class PolicyControllerTest {
     void getPrivacyPolicyReturns200WhenCurrentPrivacyPolicyExists() throws Exception {
         LocalDateTime updatedAt = LocalDateTime.of(2026, 5, 1, 9, 0, 0);
         stubAuthenticatedUser();
+        insertUser(1L, "nickname", null);
 
         jdbcTemplate.update(
                 """
@@ -104,6 +106,9 @@ public class PolicyControllerTest {
     @Test
     void getPrivacyPolicyReturns401WhenAccessTokenIsMissing() throws Exception {
         LocalDateTime updatedAt = LocalDateTime.of(2026, 5, 1, 9, 0, 0);
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+
         jdbcTemplate.update(
                 """
                 INSERT INTO policy_revisions
@@ -132,6 +137,7 @@ public class PolicyControllerTest {
     void getPrivacyPolicyReturns500WhenCurrentPrivacyPolicyDoesNotExist() throws Exception {
         LocalDateTime updatedAt = LocalDateTime.of(2026, 5, 1, 9, 0, 0);
         stubAuthenticatedUser();
+        insertUser(1L, "nickname", null);
 
         jdbcTemplate.update(
                 """
@@ -160,11 +166,32 @@ public class PolicyControllerTest {
     private void stubAuthenticatedUser() {
         when(jwtProvider.validateAccessToken("valid-access-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-access-token"))
+                .thenReturn(1L);
         when(jwtProvider.getAuthentication("valid-access-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         String.valueOf(1L),
                         null,
                         Collections.emptyList()
                 ));
+    }
+
+    private void insertUser(Long id, String nickname, String profileImageUrl) {
+        LocalDateTime now = LocalDateTime.now();
+        jdbcTemplate.update(
+                """
+                INSERT INTO users
+                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?)
+                """,
+                id,
+                nickname,
+                profileImageUrl,
+                false,
+                null,
+                now,
+                now
+        );
     }
 }

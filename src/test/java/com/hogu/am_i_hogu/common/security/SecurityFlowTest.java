@@ -1,5 +1,7 @@
 package com.hogu.am_i_hogu.common.security;
 
+import com.hogu.am_i_hogu.domain.user.domain.User;
+import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -13,7 +15,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
+import java.util.Optional;
 
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -39,6 +43,9 @@ public class SecurityFlowTest {
 
     @MockitoBean
     private JwtProvider jwtProvider;
+
+    @MockitoBean
+    private UserRepository userRepository;
 
     @RestController
     static class TestController {
@@ -81,6 +88,10 @@ public class SecurityFlowTest {
     void privateEndpoint200Test() throws Exception {
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-token"))
+                .thenReturn(1L);
+        when(userRepository.findByIdAndIsDeletedFalse(1L))
+                .thenReturn(Optional.of(mock(User.class)));
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",

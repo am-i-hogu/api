@@ -1,6 +1,7 @@
 package com.hogu.am_i_hogu.common.security;
 
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
+import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,13 +21,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtProvider jwtProvider;
     private final AuthenticationEntryPoint authenticationEntryPoint;
+    private final UserRepository userRepository;
 
     public JwtAuthenticationFilter(
             JwtProvider jwtProvider,
-            AuthenticationEntryPoint authenticationEntryPoint
+            AuthenticationEntryPoint authenticationEntryPoint,
+            UserRepository userRepository
     ) {
         this.jwtProvider = jwtProvider;
         this.authenticationEntryPoint = authenticationEntryPoint;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -75,9 +79,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         /**
          * access token이 유효한 경우:
-         * - context에 authentication 객체로 사용자 정보 저장
+         * - 사용자 정보가 유효한지 검증
+         * - 사용자 정보가 유효하다면 context에 authentication 객체로 사용자 정보 저장
+         * - 사용자 정보가 유효하지 않다면 INVALID_ACCESS_TOKEN 오류 반환
          * - 다음 filter로 이동
          */
+        Long userId = jwtProvider.getSubjectAsLong(accessToken);
+        if (userRepository.findByIdAndIsDeletedFalse(userId).isEmpty()) {
+            handleAccessTokenError(request, response, CommonErrorCode.INVALID_ACCESS_TOKEN);
+            return;
+        }
+
         Authentication authentication = jwtProvider.getAuthentication(accessToken);
         SecurityContextHolder.getContext().setAuthentication(authentication);
 

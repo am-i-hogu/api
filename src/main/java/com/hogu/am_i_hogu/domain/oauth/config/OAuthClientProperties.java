@@ -22,4 +22,5 @@ public class OAuthClientProperties {
     private List<String> issuerUris;    // token 발급 주체 정보
     private String scope;               // 유저에게 권한을 요구할 정보의 범위
     private Map<String, String> authorizationParams = new HashMap<>();  // authorization url query에 포함할 옵션
+    private String revokeUri;
 }

@@ -1,162 +1,915 @@
 package com.hogu.am_i_hogu.domain.oauth;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
-import com.hogu.am_i_hogu.common.security.JwtAccessDeniedHandler;
-import com.hogu.am_i_hogu.common.security.JwtAuthenticationEntryPoint;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
-import com.hogu.am_i_hogu.common.security.SecurityConfig;
-import com.hogu.am_i_hogu.domain.oauth.controller.OAuthController;
-import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
-import com.hogu.am_i_hogu.domain.oauth.dto.response.OAuthCallbackResult;
+import com.hogu.am_i_hogu.common.security.TokenEncryptor;
+import com.hogu.am_i_hogu.common.security.TokenHasher;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
-import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
-import com.hogu.am_i_hogu.domain.auth.service.OnboardingService;
+import com.hogu.am_i_hogu.domain.oauth.service.OAuthClient;
+import org.hamcrest.Matchers;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.LocalDateTime;
+import java.util.Collections;
 
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(OAuthController.class)
+@SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import(SecurityConfig.class)
+@Testcontainers
 public class OAuthControllerTest {
+
+    private static final long TEST_USER_ID = 1L;
+    private static final long TEST_SOCIAL_ACCOUNT_ID = 100L;
+    private static final long TEST_SOCIAL_OAUTH_TOKEN_ID = 101L;
+    private static final long TEST_REFRESH_TOKEN_ID = 102L;
+    private static final long TEST_REGISTER_SESSIONS_ID = 103L;
+
+    @Container
+    static final MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")
+            .withDatabaseName("am_i_hogu_oauth_test_db")
+            .withUsername("test_user")
+            .withPassword("test_password");
+
+    @DynamicPropertySource
+    static void configureDatasource(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", mysql::getJdbcUrl);
+        registry.add("spring.datasource.username", mysql::getUsername);
+        registry.add("spring.datasource.password", mysql::getPassword);
+        registry.add("spring.datasource.driver-class-name", mysql::getDriverClassName);
+    }
+
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private TokenEncryptor tokenEncryptor;
+
+    @Autowired
+    private TokenHasher tokenHasher;
 
     @MockitoBean
     private JwtProvider jwtProvider;
 
     @MockitoBean
-    private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private OAuthClient oauthClient;
 
-    @MockitoBean
-    private JwtAccessDeniedHandler jwtAccessDeniedHandler;
-
-    @MockitoBean
-    private OAuthService oauthService;
-
-    @MockitoBean
-    private OnboardingService onboardingService;
-
-    /**
-     * 지원하는 provider로 로그인 요청 시 OAuth provider 로그인 페이지로 redirect 되는지 테스트:
-     * - access token 없이 GOOGLE 로그인 요청을 보내고,
-     * - (1) 응답 status가 302 Found인지 확인
-     * - (2) Location 헤더가 OAuthService가 반환한 URL과 같은지 확인
-     * - (3) OAuthService가 GOOGLE provider로 호출되었는지 확인
-     */
-    @Test
-    void redirectProviderLoginTest() throws Exception {
-        when(jwtProvider.validateAccessToken(null))
-                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
-        when(oauthService.getAuthorizationUrl(OAuthProvider.GOOGLE))
-                .thenReturn("https://accounts.google.com/o/oauth2/v2/auth?client_id=test-client-id");
-
-        mockMvc.perform(get("/api/auth/login/GOOGLE"))
-                .andExpect(status().isFound())
-                .andExpect(header().string(
-                        "Location",
-                        "https://accounts.google.com/o/oauth2/v2/auth?client_id=test-client-id"
-                ));
-
-        verify(oauthService).getAuthorizationUrl(OAuthProvider.GOOGLE);
+    @BeforeEach
+    void setUp() {
+        jdbcTemplate.update("DELETE FROM register_sessions");
+        jdbcTemplate.update("DELETE FROM social_oauth_tokens");
+        jdbcTemplate.update("DELETE FROM refresh_tokens");
+        jdbcTemplate.update("DELETE FROM social_accounts");
+        jdbcTemplate.update("DELETE FROM user_hogu_stats");
+        jdbcTemplate.update("DELETE FROM users");
     }
 
     /**
-     * 지원하지 않는 provider로 로그인 요청 시 400 Bad Request와 오류 응답을 반환하는지 테스트:
-     * - access token 없이 지원하지 않는 provider로 로그인 요청을 보내고,
-     * - (1) 응답 status가 400 Bad Request인지 확인
-     * - (2) 응답 본문이 UNSUPPORTED_PROVIDER 오류 코드를 반환하는지 확인
+     * 구글 사용자 탈퇴 성공 테스트:
+     * 구글로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) 응답 status가 204 No Content인지 확인
+     * - (2) refresh token cookie가 삭제되는지 확인
+     * - (3) 유저 soft delete 처리가 제대로 되었는지 확인 (is_deleted = true, nickname에 "d_" prefix 추가)
+     * - (4) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블에서 유저 정보가 모두 hard delete 되었는지 확인
+     * - (5) refresh token을 통해 revoke API가 호출되었는지 확인
      */
     @Test
-    void redirectUnsupportedProviderTest() throws Exception {
-        when(jwtProvider.validateAccessToken(null))
-                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+    void deleteUserReturns204AndDeletesGoogleUserData() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
+        insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "google-access-token", "google-refresh-token", now);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
-        mockMvc.perform(get("/api/auth/login/INVALID_PROVIDER"))
-                .andExpect(status().isBadRequest())
-                .andExpect(content().string("{\"code\":\"UNSUPPORTED_PROVIDER\"}"));
+        stubAuthenticatedUser();
+
+        mockMvc.perform(delete("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("refreshToken=")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Path=/")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Secure")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("HttpOnly")));
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String deletedNickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isTrue();
+        assertThat(deletedNickname).startsWith("d_");
+        assertThat(socialAccountCount).isZero();
+        assertThat(socialTokenCount).isZero();
+        assertThat(refreshTokenCount).isZero();
+        assertThat(registerSessionCount).isZero();
+        assertThat(userHoguStatCount).isZero();
+
+        verify(oauthClient).revokeGoogleToken("google-refresh-token");
     }
 
     /**
-     * 지원하는 provider callback 요청 테스트:
-     * - access token 없이 callback 요청을 보내고,
-     * - (1) 응답 status가 302 Found인지 확인
-     * - (2) Location 헤더가 OAuthService가 반환한 redirectUri와 같은지 확인
-     * - (3) Set-Cookie 헤더가 OAuthService가 반환한 cookie 정보를 포함하는지 확인
-     * - (4) OAuthService가 GOOGLE provider, code, state 값으로 호출되었는지 확인
+     * 카카오 사용자 탈퇴 성공 테스트:
+     * 카카오로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) 응답 status가 204 No Content인지 확인
+     * - (2) refresh token cookie가 삭제되는지 확인
+     * - (3) 유저 soft delete 처리가 제대로 되었는지 확인 (is_deleted = true, nickname에 "d_" prefix 추가)
+     * - (4) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블에서 유저 정보가 모두 hard delete 되었는지 확인
+     * - (5) access token으로 unlink API가 호출되었는지 확인
+     * - (6) access token 재발급 API가 호출되지 않았는지 확인
      */
     @Test
-    void callbackTest() throws Exception {
-        when(jwtProvider.validateAccessToken(null))
-                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
-        when(oauthService.handleCallback(OAuthProvider.GOOGLE, "test-code", "test-state"))
-                .thenReturn(new OAuthCallbackResult(
-                        "http://localhost:8080/oauth/callback?status=LOGIN_SUCCESS",
-                        "refreshToken",
-                        "test-refresh-token"
-                ));
+    void deleteUserReturns204AndDeletesKakaoUserData() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
+        insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
-        mockMvc.perform(get("/api/auth/callback/GOOGLE")
-                        .param("code", "test-code")
-                        .param("state", "test-state"))
-                .andExpect(status().isFound())
-                .andExpect(header().string("Location", "http://localhost:8080/oauth/callback?status=LOGIN_SUCCESS"))
-                .andExpect(header().string("Set-Cookie", "refreshToken=test-refresh-token; Path=/; Secure; HttpOnly"));
+        stubAuthenticatedUser();
 
-        verify(oauthService).handleCallback(OAuthProvider.GOOGLE, "test-code", "test-state");
+        mockMvc.perform(delete("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("refreshToken=")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Path=/")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Secure")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("HttpOnly")));
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String deletedNickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isTrue();
+        assertThat(deletedNickname).startsWith("d_");
+        assertThat(socialAccountCount).isZero();
+        assertThat(socialTokenCount).isZero();
+        assertThat(refreshTokenCount).isZero();
+        assertThat(registerSessionCount).isZero();
+        assertThat(userHoguStatCount).isZero();
+
+        verify(oauthClient).unlinkKakao("kakao-access-token");
+        verify(oauthClient, never()).reissueKakaoToken(anyString());
     }
 
     /**
-     * 지원하는 provider callback 요청 실패 테스트:
-     * - callback 처리 중 CustomException이 발생하면
-     * - (1) 응답 status가 302 Found인지 확인
-     * - (2) Location 헤더가 프론트 실패 redirect URI와 같은지 확인
+     * 구글 사용자 탈퇴 실패 테스트:
+     * 구글로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) refresh token revoke 실패 후 access token revoke도 실패하면 응답 status가 502 Bad Gateway인지 확인
+     * - (2) users 테이블의 soft delete 정보가 변경되지 않았는지 확인
+     * - (3) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블의 데이터가 그대로 유지되는지 확인
+     * - (4) refresh token과 access token을 통해 revoke API가 각각 호출되었는지 확인
      */
     @Test
-    void callbackFailureRedirectTest() throws Exception {
-        when(jwtProvider.validateAccessToken(null))
-                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
-        when(oauthService.handleCallback(OAuthProvider.GOOGLE, "test-code", "test-state"))
-                .thenThrow(new CustomException(OAuthErrorCode.INVALID_STATE));
+    void deleteUserDoesNotChangeDatabaseWhenGoogleUnlinkFails() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
+        insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "google-access-token", "google-refresh-token", now);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
-        mockMvc.perform(get("/api/auth/callback/GOOGLE")
-                        .param("code", "test-code")
-                        .param("state", "test-state"))
-                .andExpect(status().isFound())
-                .andExpect(header().string(
-                        "Location",
-                        "http://localhost:3000/oauth/callback?status=LOGIN_FAILED&code=INVALID_STATE"
-                ));
+        stubAuthenticatedUser();
+        stubGoogleUnlinkFailure();
+
+        mockMvc.perform(delete("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isBadGateway());
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String nickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isEqualTo(false);
+        assertThat(nickname).isEqualTo("nickname");
+        assertThat(socialAccountCount).isEqualTo(1);
+        assertThat(socialTokenCount).isEqualTo(1);
+        assertThat(refreshTokenCount).isEqualTo(1);
+        assertThat(registerSessionCount).isEqualTo(1);
+        assertThat(userHoguStatCount).isEqualTo(1);
+
+        verify(oauthClient).revokeGoogleToken("google-refresh-token");
+        verify(oauthClient).revokeGoogleToken("google-access-token");
     }
 
     /**
-     * 지원하지 않는 provider callback 요청 테스트:
-     * - access token 없이 지원하지 않는 provider로 callback 요청을 보내고,
-     * - (1) 응답 status가 302 Found인지 확인
-     * - (2) Location 헤더가 프론트 실패 redirect URI와 같은지 확인
+     * 구글 사용자 탈퇴 fallback 성공 테스트:
+     * 구글로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) refresh token revoke가 실패하면 access token revoke를 재시도하는지 확인
+     * - (2) access token revoke가 성공하면 응답 status가 204 No Content인지 확인
+     * - (3) 유저 soft delete 처리가 제대로 되었는지 확인 (is_deleted = true, nickname에 "d_" prefix 추가)
+     * - (4) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블에서 유저 정보가 모두 hard delete 되었는지 확인
+     * - (5) refresh token과 access token을 통해 revoke API가 각각 호출되었는지 확인
      */
     @Test
-    void callbackUnsupportedProviderTest() throws Exception {
-        when(jwtProvider.validateAccessToken(null))
-                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+    void deleteUserRevokesGoogleAccessTokenWhenGoogleRefreshTokenRevokeFails() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
+        insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "google-access-token", "google-refresh-token", now);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
 
-        mockMvc.perform(get("/api/auth/callback/INVALID_PROVIDER")
-                        .param("code", "test-code")
-                        .param("state", "test-state"))
-                .andExpect(status().isFound())
-                .andExpect(header().string(
-                        "Location",
-                        "http://localhost:3000/oauth/callback?status=LOGIN_FAILED&code=UNSUPPORTED_PROVIDER"
+        stubAuthenticatedUser();
+        doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
+                .doNothing()
+                .when(oauthClient)
+                .revokeGoogleToken("google-refresh-token");
+
+        mockMvc.perform(delete("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("refreshToken=")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")));
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String deletedNickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isTrue();
+        assertThat(deletedNickname).startsWith("d_");
+        assertThat(socialAccountCount).isZero();
+        assertThat(socialTokenCount).isZero();
+        assertThat(refreshTokenCount).isZero();
+        assertThat(registerSessionCount).isZero();
+        assertThat(userHoguStatCount).isZero();
+
+        verify(oauthClient).revokeGoogleToken("google-refresh-token");
+        verify(oauthClient).revokeGoogleToken("google-access-token");
+    }
+
+    /**
+     * 구글 사용자 탈퇴 실패 테스트:
+     * 구글로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) refresh token revoke에 실패하고 access token도 이미 만료된 경우 응답 status가 502 Bad Gateway인지 확인
+     * - (2) users 테이블의 soft delete 정보가 변경되지 않았는지 확인
+     * - (3) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블의 데이터가 그대로 유지되는지 확인
+     * - (4) access token revoke API가 호출되지 않았는지 확인
+     */
+    @Test
+    void deleteUserDoesNotChangeDatabaseWhenGoogleRefreshTokenRevokeFailsAndAccessTokenIsExpired() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "GOOGLE", "google-provider-id", now);
+        insertSocialOAuthToken(
+                TEST_SOCIAL_OAUTH_TOKEN_ID,
+                TEST_SOCIAL_ACCOUNT_ID,
+                "google-access-token",
+                "google-refresh-token",
+                now.minusHours(2),
+                now.plusDays(30),
+                now
+        );
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+
+        stubAuthenticatedUser();
+        doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
+                .doNothing()
+                .when(oauthClient)
+                .revokeGoogleToken("google-refresh-token");
+
+        mockMvc.perform(delete("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isBadGateway());
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String nickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isEqualTo(false);
+        assertThat(nickname).isEqualTo("nickname");
+        assertThat(socialAccountCount).isEqualTo(1);
+        assertThat(socialTokenCount).isEqualTo(1);
+        assertThat(refreshTokenCount).isEqualTo(1);
+        assertThat(registerSessionCount).isEqualTo(1);
+        assertThat(userHoguStatCount).isEqualTo(1);
+
+        verify(oauthClient, never()).revokeGoogleToken("google-access-token");
+    }
+
+    /**
+     * 카카오 사용자 탈퇴 재시도 성공 테스트:
+     * 카카오로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) 저장된 access token이 아직 만료되지 않았더라도 실제 unlink API 호출 시점에는 만료되었을 수 있으므로,
+     *       첫 unlink API 호출이 실패하면 access token 재발급을 시도하는지 확인
+     * - (2) 재발급된 access token으로 unlink API를 다시 호출하는지 확인
+     * - (3) 응답 status가 204 No Content인지 확인
+     * - (4) refresh token cookie가 삭제되는지 확인
+     * - (5) 유저 soft delete 처리가 제대로 되었는지 확인 (is_deleted = true, nickname에 "d_" prefix 추가)
+     * - (6) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블에서 유저 정보가 모두 hard delete 되었는지 확인
+     */
+    @Test
+    void deleteUserRetriesKakaoUnlinkAfterTokenReissue() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
+        insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+
+        stubAuthenticatedUser();
+        stubKakaoUnlinkRequiresReissue();
+        stubKakaoTokenReissueSuccess("reissued-kakao-access-token");
+
+        mockMvc.perform(delete("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("refreshToken=")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Path=/")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Secure")))
+                .andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("HttpOnly")));
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String nickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isEqualTo(true);
+        assertThat(nickname).startsWith("d_");
+        assertThat(socialAccountCount).isZero();
+        assertThat(socialTokenCount).isZero();
+        assertThat(refreshTokenCount).isZero();
+        assertThat(registerSessionCount).isZero();
+        assertThat(userHoguStatCount).isZero();
+
+        verify(oauthClient, times(2)).unlinkKakao(anyString());
+        verify(oauthClient).reissueKakaoToken("kakao-refresh-token");
+    }
+
+    /**
+     * 카카오 사용자 탈퇴 선분기 성공 테스트:
+     * 카카오로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) 저장된 access token이 이미 만료된 경우 첫 unlink 없이 access token 재발급을 시도하는지 확인
+     * - (2) 재발급된 access token으로 unlink API를 호출하는지 확인
+     * - (3) 응답 status가 204 No Content인지 확인
+     * - (4) 유저 soft delete 처리가 제대로 되었는지 확인 (is_deleted = true, nickname에 "d_" prefix 추가)
+     * - (5) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블에서 유저 정보가 모두 hard delete 되었는지 확인
+     */
+    @Test
+    void deleteUserReissuesKakaoTokenWhenStoredAccessTokenIsExpired() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
+        insertSocialOAuthToken(
+                TEST_SOCIAL_OAUTH_TOKEN_ID,
+                TEST_SOCIAL_ACCOUNT_ID,
+                "expired-kakao-access-token",
+                "kakao-refresh-token",
+                now.minusHours(2),
+                now.plusDays(30),
+                now
+        );
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+
+        stubAuthenticatedUser();
+        stubKakaoTokenReissueSuccess("reissued-kakao-access-token");
+
+        mockMvc.perform(delete("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isNoContent());
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String deletedNickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isTrue();
+        assertThat(deletedNickname).startsWith("d_");
+        assertThat(socialAccountCount).isZero();
+        assertThat(socialTokenCount).isZero();
+        assertThat(refreshTokenCount).isZero();
+        assertThat(registerSessionCount).isZero();
+        assertThat(userHoguStatCount).isZero();
+
+        verify(oauthClient, never()).unlinkKakao("expired-kakao-access-token");
+        verify(oauthClient).reissueKakaoToken("kakao-refresh-token");
+        verify(oauthClient).unlinkKakao("reissued-kakao-access-token");
+    }
+
+    /**
+     * 카카오 사용자 탈퇴 재발급 실패 테스트:
+     * 카카오로 가입한 유저의 탈퇴 요청을 보내고,
+     * - (1) 첫 unlink API 호출이 실패하면 access token 재발급을 시도하는지 확인
+     * - (2) access token 재발급에도 실패하면 응답 status가 502 Bad Gateway인지 확인
+     * - (3) users 테이블의 soft delete 정보가 변경되지 않았는지 확인
+     * - (4) social_accounts, social_oauth_tokens, refresh_tokens,
+     *       register_sessions, user_hogu_stats 테이블의 데이터가 그대로 유지되는지 확인
+     * - (5) unlink API와 access token 재발급 API가 각각 호출되었는지 확인
+     */
+    @Test
+    void deleteUserDoesNotChangeDatabaseWhenKakaoTokenReissueFails() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(TEST_USER_ID, "nickname", false, now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertSocialAccount(TEST_SOCIAL_ACCOUNT_ID, TEST_USER_ID, "KAKAO", "kakao-provider-id", now);
+        insertSocialOAuthToken(TEST_SOCIAL_OAUTH_TOKEN_ID, TEST_SOCIAL_ACCOUNT_ID, "kakao-access-token", "kakao-refresh-token", now);
+        insertRefreshToken(TEST_REFRESH_TOKEN_ID, TEST_USER_ID, "local-refresh-token", now);
+        insertRegisterSession(TEST_REGISTER_SESSIONS_ID, TEST_SOCIAL_ACCOUNT_ID, "register-token", now);
+
+        stubAuthenticatedUser();
+        doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
+                .when(oauthClient)
+                .unlinkKakao(anyString());
+        stubKakaoTokenReissueFailure();
+
+        mockMvc.perform(delete("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-access-token"))
+                .andExpect(status().isBadGateway());
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM users WHERE id = ?",
+                Boolean.class,
+                TEST_USER_ID
+        );
+        String nickname = jdbcTemplate.queryForObject(
+                "SELECT nickname FROM users WHERE id = ?",
+                String.class,
+                TEST_USER_ID
+        );
+        Integer socialAccountCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_accounts WHERE id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer socialTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM social_oauth_tokens WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer refreshTokenCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+        Integer registerSessionCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM register_sessions WHERE social_account_id = ?",
+                Integer.class,
+                TEST_SOCIAL_ACCOUNT_ID
+        );
+        Integer userHoguStatCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                TEST_USER_ID
+        );
+
+        assertThat(isDeleted).isEqualTo(false);
+        assertThat(nickname).isEqualTo("nickname");
+        assertThat(socialAccountCount).isEqualTo(1);
+        assertThat(socialTokenCount).isEqualTo(1);
+        assertThat(refreshTokenCount).isEqualTo(1);
+        assertThat(registerSessionCount).isEqualTo(1);
+        assertThat(userHoguStatCount).isEqualTo(1);
+
+        verify(oauthClient).unlinkKakao("kakao-access-token");
+        verify(oauthClient).reissueKakaoToken("kakao-refresh-token");
+    }
+
+    private void insertUser(Long userId, String nickname, boolean isDeleted, LocalDateTime now) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO users
+                    (id, nickname, profile_image_url, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?)
+                """,
+                userId,
+                nickname,
+                null,
+                isDeleted,
+                null,
+                now,
+                now
+        );
+    }
+
+    private void insertUserHoguStat(Long userId, LocalDateTime now) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO user_hogu_stats
+                    (user_id, hogu_vote_count, total_vote_count, hogu_index, updated_at)
+                VALUES
+                    (?, 0, 0, 0, ?)
+                """,
+                userId,
+                now
+        );
+    }
+
+    private void insertSocialAccount(
+            Long socialAccountId,
+            Long userId,
+            String provider,
+            String providerUserId,
+            LocalDateTime now
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO social_accounts
+                    (id, user_id, provider, provider_user_id, linked_at, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?)
+                """,
+                socialAccountId,
+                userId,
+                provider,
+                providerUserId,
+                now,
+                now
+        );
+    }
+
+    private void insertSocialOAuthToken(
+            Long socialOAuthTokenId,
+            Long socialAccountId,
+            String accessToken,
+            String refreshToken,
+            LocalDateTime now
+    ) {
+        insertSocialOAuthToken(
+                socialOAuthTokenId,
+                socialAccountId,
+                accessToken,
+                refreshToken,
+                now.plusHours(1),
+                now.plusDays(30),
+                now
+        );
+    }
+
+    private void insertSocialOAuthToken(
+            Long socialOAuthTokenId,
+            Long socialAccountId,
+            String accessToken,
+            String refreshToken,
+            LocalDateTime accessTokenExpiresAt,
+            LocalDateTime refreshTokenExpiresAt,
+            LocalDateTime now
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO social_oauth_tokens
+                    (id, social_account_id, access_token_encrypted, refresh_token_encrypted,
+                     access_token_expires_at, refresh_token_expires_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                socialOAuthTokenId,
+                socialAccountId,
+                tokenEncryptor.encrypt(accessToken),
+                tokenEncryptor.encrypt(refreshToken),
+                accessTokenExpiresAt,
+                refreshTokenExpiresAt,
+                now,
+                now
+        );
+    }
+
+    private void insertRefreshToken(
+            Long refreshTokenId,
+            Long userId,
+            String rawRefreshToken,
+            LocalDateTime now
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO refresh_tokens
+                    (id, user_id, token_hash, is_revoked, is_rotated, expires_at, revoked_at, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                refreshTokenId,
+                userId,
+                tokenHasher.hash(rawRefreshToken),
+                false,
+                false,
+                now.plusDays(7),
+                null,
+                now
+        );
+    }
+
+    private void insertRegisterSession(
+            Long registerSessionId,
+            Long socialAccountId,
+            String registerToken,
+            LocalDateTime now
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO register_sessions
+                    (id, social_account_id, register_token_hash, expires_at, consumed_at, created_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?)
+                """,
+                registerSessionId,
+                socialAccountId,
+                tokenHasher.hash(registerToken),
+                now.plusMinutes(10),
+                null,
+                now
+        );
+    }
+
+    private void stubAuthenticatedUser() {
+        when(jwtProvider.validateAccessToken("valid-access-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-access-token"))
+                .thenReturn(TEST_USER_ID);
+        when(jwtProvider.getAuthentication("valid-access-token"))
+                .thenReturn(new UsernamePasswordAuthenticationToken(
+                        String.valueOf(TEST_USER_ID),
+                        null,
+                        Collections.emptyList()
                 ));
+    }
+
+    private void stubGoogleUnlinkFailure() {
+        doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
+                .when(oauthClient)
+                .revokeGoogleToken(anyString());
+    }
+
+    private void stubKakaoUnlinkRequiresReissue() {
+        doThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR))
+                .doNothing()
+                .when(oauthClient)
+                .unlinkKakao(anyString());
+    }
+
+    private void stubKakaoTokenReissueSuccess(String reissuedAccessToken) {
+        TokenResponse tokenResponse = org.mockito.Mockito.mock(TokenResponse.class);
+        when(tokenResponse.getAccessToken()).thenReturn(reissuedAccessToken);
+        when(oauthClient.reissueKakaoToken(anyString())).thenReturn(tokenResponse);
+    }
+
+    private void stubKakaoTokenReissueFailure() {
+        when(oauthClient.reissueKakaoToken(anyString()))
+                .thenThrow(new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR));
     }
 }
