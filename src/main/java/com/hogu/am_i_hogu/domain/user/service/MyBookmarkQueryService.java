@@ -9,8 +9,8 @@ import com.hogu.am_i_hogu.domain.comment.repository.CommentRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostBookmarkRepository;
 import com.hogu.am_i_hogu.domain.user.dto.MyBookmarkCursor;
 import com.hogu.am_i_hogu.domain.user.dto.MyBookmarkSummary;
+import com.hogu.am_i_hogu.domain.user.dto.response.MyBookmarkItemResponse;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyBookmarkListResponse;
-import com.hogu.am_i_hogu.domain.user.dto.response.MyPostItemResponse;
 import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -60,7 +60,7 @@ public class MyBookmarkQueryService {
                 : queriedBookmarks;
 
         Map<Long, Long> commentCounts = getCommentCounts(bookmarkSummaries);
-        List<MyPostItemResponse> posts = mapToResponses(bookmarkSummaries, commentCounts);
+        List<MyBookmarkItemResponse> posts = mapToResponses(bookmarkSummaries, commentCounts);
         String nextCursor = createNextCursor(hasNext, bookmarkSummaries);
 
         return new MyBookmarkListResponse(posts, hasNext, nextCursor);
@@ -128,18 +128,19 @@ public class MyBookmarkQueryService {
     }
 
     // 조회한 북마크 게시물 요약 정보와 댓글 수를 최종 응답 DTO 리스트로 변환
-    private List<MyPostItemResponse> mapToResponses(
+    private List<MyBookmarkItemResponse> mapToResponses(
             List<MyBookmarkSummary> bookmarkSummaries,
             Map<Long, Long> commentCounts
     ) {
         return bookmarkSummaries.stream()
-                .map(summary -> new MyPostItemResponse(
+                .map(summary -> new MyBookmarkItemResponse(
                         summary.postId(),
                         summary.title(),
                         summary.category(),
                         summary.postCreatedAt(),
                         toVoteSummary(summary.hoguCount(), summary.notHoguCount()),
-                        commentCounts.getOrDefault(summary.postId(), 0L)
+                        commentCounts.getOrDefault(summary.postId(), 0L),
+                        summary.postIsDeleted()
                 ))
                 .toList();
     }

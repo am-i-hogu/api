@@ -23,7 +23,8 @@ public interface PostBookmarkRepository extends JpaRepository<PostBookmark, Post
                 p.createdAt,
                 pb.createdAt,
                 SUM(CASE WHEN pv.myVote = 'HOGU' THEN 1 ELSE 0 END),
-                SUM(CASE WHEN pv.myVote = 'NOT_HOGU' THEN 1 ELSE 0 END)
+                SUM(CASE WHEN pv.myVote = 'NOT_HOGU' THEN 1 ELSE 0 END),
+                p.isDeleted
             )
             FROM PostBookmark pb
             JOIN Post p ON p.id = pb.id.postId

@@ -9,6 +9,7 @@ public record MyBookmarkSummary(
         LocalDateTime postCreatedAt,
         LocalDateTime bookmarkCreatedAt,
         long hoguCount,
-        long notHoguCount
+        long notHoguCount,
+        boolean postIsDeleted
 ) {
 }
