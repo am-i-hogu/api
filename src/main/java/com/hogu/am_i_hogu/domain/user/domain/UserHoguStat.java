@@ -37,4 +37,17 @@ public class UserHoguStat {
         this.userId = userId;
         this.updatedAt = updatedAt;
     }
+
+    public void updateVoteStats(
+            int hoguVoteCount,
+            int totalVoteCount,
+            LocalDateTime updatedAt
+    ) {
+        this.hoguVoteCount = hoguVoteCount;
+        this.totalVoteCount = totalVoteCount;
+        this.hoguIndex = totalVoteCount == 0
+                ? 0
+                : (int) Math.round(hoguVoteCount * 100.0 / totalVoteCount);
+        this.updatedAt = updatedAt;
+    }
 }
