@@ -2,15 +2,18 @@ package com.hogu.am_i_hogu.domain.post.controller;
 
 import com.hogu.am_i_hogu.domain.post.dto.request.PostCreateRequest;
 import com.hogu.am_i_hogu.domain.post.dto.request.PostUpdateRequest;
+import com.hogu.am_i_hogu.domain.post.dto.request.PostVoteRequest;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostBookmarkResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostCreateResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostDetailResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostUpdateResponse;
+import com.hogu.am_i_hogu.domain.post.dto.response.PostVoteResponse;
 import com.hogu.am_i_hogu.domain.post.service.PostBookmarkService;
 import com.hogu.am_i_hogu.domain.post.service.PostCreateService;
 import com.hogu.am_i_hogu.domain.post.service.PostDeleteService;
 import com.hogu.am_i_hogu.domain.post.service.PostDetailService;
 import com.hogu.am_i_hogu.domain.post.service.PostUpdateService;
+import com.hogu.am_i_hogu.domain.post.service.PostVoteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +29,7 @@ public class PostController {
     private final PostUpdateService postUpdateService;
     private final PostDeleteService postDeleteService;
     private final PostBookmarkService postBookmarkService;
+    private final PostVoteService postVoteService;
 
     @GetMapping("/{postId}")
     public ResponseEntity<PostDetailResponse> getPostById(@PathVariable Long postId, Authentication authentication) {
@@ -86,6 +90,29 @@ public class PostController {
     ) {
         Long userId = Long.valueOf(authentication.getName());
         PostBookmarkResponse response = postBookmarkService.delete(userId, postId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{postId}/votes")
+    public ResponseEntity<PostVoteResponse> vote(
+            @PathVariable Long postId,
+            Authentication authentication,
+            @RequestBody(required = false) PostVoteRequest request
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        PostVoteResponse response = postVoteService.vote(userId, postId, request);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{postId}/votes")
+    public ResponseEntity<PostVoteResponse> cancelVote(
+            @PathVariable Long postId,
+            Authentication authentication
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        PostVoteResponse response = postVoteService.cancel(userId, postId);
 
         return ResponseEntity.ok(response);
     }

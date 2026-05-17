@@ -25,6 +25,27 @@ public interface PostVoteRepository extends JpaRepository<PostVote, PostVoteId> 
     long countByPostIdAndMyVote(@Param("postId") Long postId, @Param("myVote") String myVote);
 
     @Query("""
+            SELECT COUNT(pv)
+            FROM PostVote pv
+            JOIN Post p ON p.id = pv.id.postId
+            WHERE p.writer.id = :writerUserId
+              AND pv.myVote = :myVote
+            """)
+    long countByWriterUserIdAndMyVote(
+            @Param("writerUserId") Long writerUserId,
+            @Param("myVote") String myVote
+    );
+
+    @Query("""
+            SELECT COUNT(pv)
+            FROM PostVote pv
+            JOIN Post p ON p.id = pv.id.postId
+            WHERE p.writer.id = :writerUserId
+              AND pv.myVote IN ('HOGU', 'NOT_HOGU')
+            """)
+    long countEffectiveVotesByWriterUserId(@Param("writerUserId") Long writerUserId);
+
+    @Query("""
             SELECT pv
             FROM PostVote pv
             WHERE pv.id.postId = :postId
@@ -45,6 +66,7 @@ public interface PostVoteRepository extends JpaRepository<PostVote, PostVoteId> 
             FROM PostVote pv
             JOIN Post p ON p.id = pv.id.postId
             WHERE pv.id.userId = :userId
+                AND pv.myVote <> 'NONE'
                 AND (
                     :cursorCreatedAt IS NULL
                     OR pv.createdAt < :cursorCreatedAt
