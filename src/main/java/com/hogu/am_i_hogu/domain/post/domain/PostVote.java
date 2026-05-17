@@ -27,4 +27,16 @@ public class PostVote {
 
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    public PostVote(PostVoteId id, String myVote, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
+        this.myVote = myVote;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
+    public void updateVote(String myVote, LocalDateTime updatedAt) {
+        this.myVote = myVote;
+        this.updatedAt = updatedAt;
+    }
 }
