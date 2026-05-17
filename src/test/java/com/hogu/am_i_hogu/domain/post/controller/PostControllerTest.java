@@ -29,6 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -1078,6 +1079,175 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.code").value("POST_ALREADY_DELETED"));
     }
 
+    // 정상 케이스: 인증된 사용자가 게시물에 HOGU 투표하면 post_votes와 작성자 호구 통계를 갱신한다.
+    @Test
+    void voteOnPostCreatesVoteUpdatesWriterStatsAndReturnsSummary() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(writerUserId, "writer", now);
+        insertUserHoguStat(writerUserId, now);
+        insertPost(postId, writerUserId, "USED_TRADE", "투표할 글", "본문입니다", false, now);
+
+        String requestBody = """
+                {
+                  "myVote": "HOGU"
+                }
+                """;
+
+        mockMvc.perform(put("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalVotes").value(1))
+                .andExpect(jsonPath("$.yesVotes").value(1))
+                .andExpect(jsonPath("$.noVotes").value(0))
+                .andExpect(jsonPath("$.myVote").value("HOGU"));
+
+        String savedVote = jdbcTemplate.queryForObject(
+                "SELECT my_vote FROM post_votes WHERE user_id = ? AND post_id = ?",
+                String.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(savedVote).isEqualTo("HOGU");
+        assertWriterHoguStat(writerUserId, 1, 1, 100);
+    }
+
+    // 정상 케이스: 이미 투표한 사용자가 다른 선택지로 다시 투표하면 기존 row를 갱신한다.
+    @Test
+    void voteOnPostUpdatesExistingVoteAndRecalculatesWriterStats() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long otherVoterId = 3L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(writerUserId, "writer", now);
+        insertUser(otherVoterId, "other-voter", now);
+        insertUserHoguStat(writerUserId, now);
+        insertPost(postId, writerUserId, "USED_TRADE", "투표 변경할 글", "본문입니다", false, now);
+        insertPostVote(TEST_USER_ID, postId, "NOT_HOGU", now);
+        insertPostVote(otherVoterId, postId, "HOGU", now);
+
+        String requestBody = """
+                {
+                  "myVote": "HOGU"
+                }
+                """;
+
+        mockMvc.perform(put("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalVotes").value(2))
+                .andExpect(jsonPath("$.yesVotes").value(2))
+                .andExpect(jsonPath("$.noVotes").value(0))
+                .andExpect(jsonPath("$.myVote").value("HOGU"));
+
+        Integer voteRowCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_votes WHERE user_id = ? AND post_id = ?",
+                Integer.class,
+                TEST_USER_ID,
+                postId
+        );
+        String savedVote = jdbcTemplate.queryForObject(
+                "SELECT my_vote FROM post_votes WHERE user_id = ? AND post_id = ?",
+                String.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(voteRowCount).isEqualTo(1);
+        assertThat(savedVote).isEqualTo("HOGU");
+        assertWriterHoguStat(writerUserId, 2, 2, 100);
+    }
+
+    // 정상 케이스: 투표 취소는 row 삭제가 아니라 my_vote=NONE으로 갱신하고 집계에서 제외한다.
+    @Test
+    void cancelVoteMarksNoneUpdatesWriterStatsAndReturnsSummary() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long otherVoterId = 3L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(writerUserId, "writer", now);
+        insertUser(otherVoterId, "other-voter", now);
+        insertUserHoguStat(writerUserId, now);
+        insertPost(postId, writerUserId, "USED_TRADE", "투표 취소할 글", "본문입니다", false, now);
+        insertPostVote(TEST_USER_ID, postId, "HOGU", now);
+        insertPostVote(otherVoterId, postId, "NOT_HOGU", now);
+
+        mockMvc.perform(delete("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalVotes").value(1))
+                .andExpect(jsonPath("$.yesVotes").value(0))
+                .andExpect(jsonPath("$.noVotes").value(1))
+                .andExpect(jsonPath("$.myVote").value("NONE"));
+
+        String savedVote = jdbcTemplate.queryForObject(
+                "SELECT my_vote FROM post_votes WHERE user_id = ? AND post_id = ?",
+                String.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(savedVote).isEqualTo("NONE");
+        assertWriterHoguStat(writerUserId, 0, 1, 0);
+    }
+
+    // 실패 케이스: 게시물 작성자는 자기 게시물에 투표할 수 없다.
+    @Test
+    void voteOnPostRejectsWriterVote() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "내 글", "본문입니다", false, now);
+
+        String requestBody = """
+                {
+                  "myVote": "HOGU"
+                }
+                """;
+
+        mockMvc.perform(put("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN_ACCESS"));
+    }
+
+    // 실패 케이스: myVote가 HOGU/NOT_HOGU가 아니면 INVALID_MYVOTE를 반환한다.
+    @Test
+    void voteOnPostRejectsInvalidMyVote() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(writerUserId, "writer", now);
+        insertPost(postId, writerUserId, "USED_TRADE", "투표할 글", "본문입니다", false, now);
+
+        String requestBody = """
+                {
+                  "myVote": "NONE"
+                }
+                """;
+
+        mockMvc.perform(put("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_MYVOTE"));
+    }
+
     private void insertUser(Long userId, String nickname, LocalDateTime now) {
         jdbcTemplate.update(
                 """
@@ -1168,6 +1338,22 @@ class PostControllerTest {
         );
     }
 
+    private void insertUserHoguStat(Long userId, LocalDateTime now) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO user_hogu_stats
+                    (user_id, hogu_vote_count, total_vote_count, hogu_index, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?)
+                """,
+                userId,
+                0,
+                0,
+                0,
+                now
+        );
+    }
+
     private void insertPostBookmark(Long userId, Long postId, LocalDateTime now) {
         jdbcTemplate.update(
                 """
@@ -1188,6 +1374,28 @@ class PostControllerTest {
                 Integer.class,
                 postId
         );
+    }
+
+    private void assertWriterHoguStat(Long writerUserId, int hoguVoteCount, int totalVoteCount, int hoguIndex) {
+        Integer savedHoguVoteCount = jdbcTemplate.queryForObject(
+                "SELECT hogu_vote_count FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                writerUserId
+        );
+        Integer savedTotalVoteCount = jdbcTemplate.queryForObject(
+                "SELECT total_vote_count FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                writerUserId
+        );
+        Integer savedHoguIndex = jdbcTemplate.queryForObject(
+                "SELECT hogu_index FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                writerUserId
+        );
+
+        assertThat(savedHoguVoteCount).isEqualTo(hoguVoteCount);
+        assertThat(savedTotalVoteCount).isEqualTo(totalVoteCount);
+        assertThat(savedHoguIndex).isEqualTo(hoguIndex);
     }
 
     /**
