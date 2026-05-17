@@ -38,6 +38,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         // Authentication 유무 상관 없는 경우
+                        .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                         "/api/users/check-nickname",                        // USER-002: 닉네임 중복 체크
                                         "/api/posts",                                       // HOME-001: 홈 화면 조회
