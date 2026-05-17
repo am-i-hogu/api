@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    # 로컬 MySQL 연결 설정
+    url: jdbc:mysql://localhost:3306/${DB_NAME:hogu_db}?useUnicode=true&serverTimezone=Asia/Seoul
+    username: root
+
+oauth:
+  # google 소셜 로그인 정보
+  google:
+    redirect-uri: http://localhost:8080/api/auth/callback/GOOGLE
+
+  # kakao 소셜 로그인 정보
+  kakao:
+    redirect-uri: http://localhost:8080/api/auth/callback/KAKAO
+
+server:
+  env: local
+  port: 8080
+  serverAddress: localhost
+
+serverName: local_server
+
+app:
+  cookie:
+    secure: false
+  redirect:
+    # local test를 위한 uri이기 때문에 port를 8080으로 설정
+    onboarding-uri: http://localhost:8080/api/users
+    login-success-uri: http://localhost:8080/api/auth/refresh
+    login-failure-uri: http://localhost:3000/oauth/callback?status=LOGIN_FAILED

@@ -1,0 +1,131 @@
+package com.hogu.am_i_hogu.domain.oauth.service;
+
+import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
+import com.hogu.am_i_hogu.common.exception.CustomException;
+import com.hogu.am_i_hogu.domain.oauth.config.OAuthClientProperties;
+import com.hogu.am_i_hogu.domain.oauth.config.OAuthProperties;
+import com.hogu.am_i_hogu.domain.oauth.domain.OAuthProvider;
+import com.hogu.am_i_hogu.domain.oauth.dto.response.TokenResponse;
+import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
+
+@Component
+public class OAuthClient {
+    private final OAuthProperties oauthProperties;
+    private final RestClient restClient;
+
+    public OAuthClient(
+            OAuthProperties oauthProperties,
+            RestClient.Builder restClientBuilder
+    ) {
+        this.oauthProperties = oauthProperties;
+        this.restClient = restClientBuilder.build();
+    }
+
+    /**
+     * authorization code를 이용해 token endpoint에 token 교환 요청
+     * @param code  소셜 서버에서 보내준 authorization code
+     * @return token endpoint로부터 받아온 token 응답 객체
+     */
+    public TokenResponse requestToken(String code, OAuthProvider provider) {
+        OAuthClientProperties properties = oauthProperties.getClientProperties(provider);
+
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("code", code);
+        body.add("client_id", properties.getClientId());
+        body.add("client_secret", properties.getClientSecret());
+        body.add("redirect_uri", properties.getRedirectUri());
+        body.add("grant_type", "authorization_code");
+
+        try {
+            return restClient.post()
+                    .uri(properties.getTokenUri())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(body)
+                    .retrieve()
+                    .body(TokenResponse.class);
+        } catch (RestClientResponseException e) {
+            if (e.getStatusCode().value() == 400) {
+                throw new CustomException(OAuthErrorCode.INVALID_AUTH_CODE);
+            }
+            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        } catch (Exception e) {
+            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * google revoke API 호출
+     * @param token google 측에서 발급한 access token 또는 refresh token
+     */
+    public void revokeGoogleToken(String token) {
+        OAuthClientProperties properties = oauthProperties.getClientProperties(OAuthProvider.GOOGLE);
+
+        try {
+            restClient.post()
+                    .uri(properties.getRevokeUri() + "?token={token}", token)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        } catch (Exception e) {
+            throw new CustomException(CommonErrorCode.SERVER_ERROR);
+        }
+    }
+
+    /**
+     * kakao unlink API 호출
+     * @param accessToken kakao 측에서 발급한 access token
+     */
+    public void unlinkKakao(String accessToken) {
+        OAuthClientProperties properties = oauthProperties.getClientProperties(OAuthProvider.KAKAO);
+
+        try {
+            restClient.post()
+                    .uri(properties.getRevokeUri())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException e) {
+            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        } catch (Exception e) {
+            throw new CustomException(CommonErrorCode.SERVER_ERROR);
+        }
+    }
+
+    /**
+     * kakao 토큰 재발급 API 호출
+     * @param refreshToken kakao 측에서 발급한 refresh token
+     * @return kakao 측에서 새롭게 발급한 access token, refresh token
+     */
+    public TokenResponse reissueKakaoToken(String refreshToken) {
+        OAuthClientProperties properties = oauthProperties.getClientProperties(OAuthProvider.KAKAO);
+
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("grant_type", "refresh_token");
+        body.add("client_id", properties.getClientId());
+        body.add("refresh_token", refreshToken);
+        body.add("client_secret", properties.getClientSecret());
+
+        try {
+            return restClient.post()
+                    .uri(properties.getTokenUri())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(body)
+                    .retrieve()
+                    .body(TokenResponse.class);
+        } catch (RestClientResponseException e) {
+            throw new CustomException(OAuthErrorCode.SOCIAL_SERVER_ERROR);
+        } catch (Exception e) {
+            throw new CustomException(CommonErrorCode.SERVER_ERROR);
+        }
+    }
+}

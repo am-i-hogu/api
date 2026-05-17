@@ -1,0 +1,73 @@
+name: 📝 Documentation
+description: 문서 수정 요청
+title: 'docs: '
+labels: ['docs']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        문서 수정을 위한 이슈를 작성해주세요.
+
+  - type: dropdown
+    id: doc-type
+    attributes:
+      label: 문서 유형
+      description: 어떤 종류의 문서 작업인지 선택해주세요.
+      options:
+        - README 수정
+        - API 문서 작성/수정
+        - 사용자 가이드 작성/수정
+        - 개발자 가이드 작성/수정
+        - 코드 주석 개선
+        - 새로운 문서 작성
+        - 기존 문서 업데이트
+    validations:
+      required: true
+
+  - type: textarea
+    id: doc-description
+    attributes:
+      label: 문서 작업 설명
+      description: 어떤 문서 작업이 필요한지 자세히 설명해주세요.
+      placeholder: 어떤 문서 작업을 하고 싶으신가요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: target-audience
+    attributes:
+      label: 대상 독자
+      description: 이 문서를 읽을 대상이 누구인지 명시해주세요.
+      placeholder: 개발자, 사용자, 관리자 등
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-state
+    attributes:
+      label: 현재 상태
+      description: 현재 문서의 상태나 문제점을 설명해주세요.
+      placeholder: 현재 문서에 어떤 문제가 있나요?
+    validations:
+      required: false
+
+  - type: textarea
+    id: content-outline
+    attributes:
+      label: 문서 구성안
+      description: 작성하거나 수정할 문서의 구성을 간략히 작성해주세요.
+      placeholder: |
+        1. 섹션 1
+        2. 섹션 2
+        3. 섹션 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 추가 정보
+      description: 참고 자료, 관련 링크, 예시 등을 첨부해주세요.
+      placeholder: 추가적인 정보가 있다면 여기에 작성해주세요.
+    validations:
+      required: false

@@ -1,0 +1,12 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  profiles:
+    active: local
+    group:
+      local: common, secret
+      blue: common, secret
+      green: common, secret
+
+server:
+  env: blue
