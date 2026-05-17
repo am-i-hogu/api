@@ -4,6 +4,7 @@ import com.hogu.am_i_hogu.common.security.JwtAccessDeniedHandler;
 import com.hogu.am_i_hogu.common.security.JwtAuthenticationEntryPoint;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.SecurityConfig;
+import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -38,6 +39,9 @@ class HealthCheckControllerTest {
 
     @MockitoBean
     private JwtAccessDeniedHandler jwtAccessDeniedHandler;
+
+    @MockitoBean
+    private UserRepository userRepository;
 
     @Test
     void healthCheckReturnsUpWithoutAccessToken() throws Exception {
