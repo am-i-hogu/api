@@ -2,7 +2,7 @@ package com.hogu.am_i_hogu.domain.user.service;
 
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
-import com.hogu.am_i_hogu.domain.user.dto.SimpleHoguLevelInfo;
+import com.hogu.am_i_hogu.domain.user.dto.HoguLevelShortInfo;
 import com.hogu.am_i_hogu.domain.user.dto.UserInfoSummary;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyPageResponse;
 import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
@@ -35,17 +35,17 @@ public class MyPageService {
      * @return 사용자 프로필 정보 및 호구 레벨 정보
      */
     public MyPageResponse getMyPage(Long userId) {
-        UserInfoSummary userInfoSummary = userRepository.findMyPageSummaryByUserId(userId)
+        UserInfoSummary userInfoSummary = userRepository.findUserInfoSummaryByUserId(userId)
                 .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
 
         if (userInfoSummary.votedPostCount() < 5) {
             return createResponse(userInfoSummary);
         }
 
-        SimpleHoguLevelInfo simpleHoguLevelInfo = hoguLevelRepository.findSimpleHoguLevelByHoguIndex(userInfoSummary.hoguIndex())
+        HoguLevelShortInfo hoguLevelShortInfo = hoguLevelRepository.findShortHoguLevelByHoguIndex(userInfoSummary.hoguIndex())
                 .orElseThrow(() -> new CustomException(CommonErrorCode.SERVER_ERROR));
 
-        return createResponse(userInfoSummary, simpleHoguLevelInfo);
+        return createResponse(userInfoSummary, hoguLevelShortInfo);
     }
 
     // 투표 포함된 게시물이 5개 미만인 경우에 대한 응답 생성
@@ -62,14 +62,14 @@ public class MyPageService {
     // 투표 포함된 게시물이 5개 이상인 경우에 대한 응답 생성
     private MyPageResponse createResponse(
             UserInfoSummary userInfoSummary,
-            SimpleHoguLevelInfo simpleHoguLevelInfo
+            HoguLevelShortInfo hoguLevelShortInfo
     ) {
         return new MyPageResponse(
                 userInfoSummary.nickname(),
                 userInfoSummary.profileImageUrl(),
                 userInfoSummary.hoguIndex(),
-                simpleHoguLevelInfo.code(),
-                simpleHoguLevelInfo.shortDescription()
+                hoguLevelShortInfo.code(),
+                hoguLevelShortInfo.shortDescription()
         );
     }
 }

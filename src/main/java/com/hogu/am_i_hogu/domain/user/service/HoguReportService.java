@@ -41,7 +41,7 @@ public class HoguReportService {
      * @return 사용자 프로필 정보 및 호구 레벨, 카테고리 분석 정보
      */
     public HoguReportResponse getHoguReport(Long userId) {
-        UserInfoSummary userInfoSummary = userRepository.findMyPageSummaryByUserId(userId)
+        UserInfoSummary userInfoSummary = userRepository.findUserInfoSummaryByUserId(userId)
                 .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
 
         // 사용자가 작성한 게시물 조회해 총 게시물 수, 호구 게시물 수, 호구 아님 게시물 수 산출
@@ -51,39 +51,26 @@ public class HoguReportService {
         int notHoguPostCount = countNotHoguPosts(postVoteSummary);
 
         // 사용자의 호구 레벨 정보 생성
-        HoguLevelInfo hoguLevelInfo = createHoguLevelResponse(
+        HoguLevelDetailInfo hoguLevelDetailInfo = resolveHoguLevelInfo(
                 userInfoSummary.votedPostCount(),
                 userInfoSummary.hoguIndex()
         );
 
         // 카테고리 분석 정보 생성
         List<CategoryAnalysisResponse> categoryAnalysis =
-                createCategoryAnalysis(hoguLevelInfo.code(), userId);
+                buildCategoryAnalysis(hoguLevelDetailInfo.code(), userId);
 
         return new HoguReportResponse(
                 userInfoSummary.nickname(),
                 userInfoSummary.profileImageUrl(),
                 userInfoSummary.hoguIndex(),
-                hoguLevelInfo.code(),
-                hoguLevelInfo.shortDescription(),
-                hoguLevelInfo.description(),
+                hoguLevelDetailInfo.code(),
+                hoguLevelDetailInfo.shortDescription(),
+                hoguLevelDetailInfo.description(),
                 categoryAnalysis,
                 totalPostCount,
                 hoguPostCount,
                 notHoguPostCount
-        );
-    }
-
-    // 카테고리 분석 응답 생성
-    private CategoryAnalysisResponse toCategoryAnalysisResponse(CategoryAnalysisSummary summary) {
-        int hoguIndex = calculateHoguIndex(summary.hoguVoteCount(), summary.totalVoteCount());
-        HoguLevelInfo hoguLevelInfo = hoguLevelRepository.findHoguLevelByHoguIndex(hoguIndex)
-                .orElseThrow(() -> new CustomException(CommonErrorCode.SERVER_ERROR));
-
-        return new CategoryAnalysisResponse(
-                summary.category(),
-                hoguIndex,
-                hoguLevelInfo.code()
         );
     }
 
@@ -109,23 +96,23 @@ public class HoguReportService {
                 .count());
     }
 
-    // 호구 레벨 응답 생성
-    private HoguLevelInfo createHoguLevelResponse(int votedPostCount, int hoguIndex) {
+    // 호구 레벨 정보 생성
+    private HoguLevelDetailInfo resolveHoguLevelInfo(int votedPostCount, int hoguIndex) {
         if (votedPostCount < 5) {
-            return new HoguLevelInfo(
+            return new HoguLevelDetailInfo(
                     NONE_HOGU_LEVEL,
                     NONE_DESCRIPTION,
                     NONE_DESCRIPTION
             );
         }
-        HoguLevelInfo hoguLevelInfo = hoguLevelRepository.findHoguLevelByHoguIndex(hoguIndex)
+        HoguLevelDetailInfo hoguLevelDetailInfo = hoguLevelRepository.findDetailHoguLevelByHoguIndex(hoguIndex)
                 .orElseThrow(() -> new CustomException(CommonErrorCode.SERVER_ERROR));
 
-        return hoguLevelInfo;
+        return hoguLevelDetailInfo;
     }
 
     // 카테고리 분석 정보 생성
-    private List<CategoryAnalysisResponse> createCategoryAnalysis(String code, Long userId) {
+    private List<CategoryAnalysisResponse> buildCategoryAnalysis(String code, Long userId) {
         if (code.equals(NONE_HOGU_LEVEL)) {
             return List.of();
         }
@@ -135,5 +122,18 @@ public class HoguReportService {
         return categoryAnalysisSummary.stream()
                 .map(this::toCategoryAnalysisResponse)
                 .toList();
+    }
+
+    // 카테고리 분석 응답 생성
+    private CategoryAnalysisResponse toCategoryAnalysisResponse(CategoryAnalysisSummary summary) {
+        int hoguIndex = calculateHoguIndex(summary.hoguVoteCount(), summary.totalVoteCount());
+        HoguLevelDetailInfo hoguLevelDetailInfo = hoguLevelRepository.findDetailHoguLevelByHoguIndex(hoguIndex)
+                .orElseThrow(() -> new CustomException(CommonErrorCode.SERVER_ERROR));
+
+        return new CategoryAnalysisResponse(
+                summary.category(),
+                hoguIndex,
+                hoguLevelDetailInfo.code()
+        );
     }
 }

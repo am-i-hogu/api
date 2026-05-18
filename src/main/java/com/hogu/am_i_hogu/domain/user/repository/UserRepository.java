@@ -32,5 +32,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
             WHERE u.id = :userId
                 AND u.isDeleted = false
             """)
-    Optional<UserInfoSummary> findMyPageSummaryByUserId(@Param("userId") Long userId);
+    Optional<UserInfoSummary> findUserInfoSummaryByUserId(@Param("userId") Long userId);
 }

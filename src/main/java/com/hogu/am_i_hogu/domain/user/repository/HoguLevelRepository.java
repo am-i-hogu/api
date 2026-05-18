@@ -1,8 +1,8 @@
 package com.hogu.am_i_hogu.domain.user.repository;
 
 import com.hogu.am_i_hogu.domain.user.domain.HoguLevel;
-import com.hogu.am_i_hogu.domain.user.dto.HoguLevelInfo;
-import com.hogu.am_i_hogu.domain.user.dto.SimpleHoguLevelInfo;
+import com.hogu.am_i_hogu.domain.user.dto.HoguLevelDetailInfo;
+import com.hogu.am_i_hogu.domain.user.dto.HoguLevelShortInfo;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,7 +12,7 @@ import java.util.Optional;
 public interface HoguLevelRepository extends JpaRepository<HoguLevel, String> {
 
     @Query("""
-            SELECT new com.hogu.am_i_hogu.domain.user.dto.SimpleHoguLevelInfo(
+            SELECT new com.hogu.am_i_hogu.domain.user.dto.HoguLevelShortInfo(
             h.code,
             h.shortDescription
             )
@@ -20,10 +20,10 @@ public interface HoguLevelRepository extends JpaRepository<HoguLevel, String> {
             WHERE h.minHoguIndex <= :hoguIndex
                 AND h.maxHoguIndex >= :hoguIndex
             """)
-    Optional<SimpleHoguLevelInfo> findSimpleHoguLevelByHoguIndex(@Param("hoguIndex") Integer hoguIndex);
+    Optional<HoguLevelShortInfo> findShortHoguLevelByHoguIndex(@Param("hoguIndex") Integer hoguIndex);
 
     @Query("""
-            SELECT new com.hogu.am_i_hogu.domain.user.dto.HoguLevelInfo(
+            SELECT new com.hogu.am_i_hogu.domain.user.dto.HoguLevelDetailInfo(
             h.code,
             h.shortDescription,
             h.description
@@ -32,6 +32,6 @@ public interface HoguLevelRepository extends JpaRepository<HoguLevel, String> {
             WHERE h.minHoguIndex <= :hoguIndex
                 AND h.maxHoguIndex >= :hoguIndex
             """)
-    Optional<HoguLevelInfo> findHoguLevelByHoguIndex(@Param("hoguIndex") Integer hoguIndex);
+    Optional<HoguLevelDetailInfo> findDetailHoguLevelByHoguIndex(@Param("hoguIndex") Integer hoguIndex);
 
 }
