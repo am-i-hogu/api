@@ -19,6 +19,7 @@ public class UserController {
     private final MyBookmarkQueryService myBookmarkQueryService;
     private final MyVoteQueryService myVoteQueryService;
     private final MyPageService myPageService;
+    private final HoguReportService hoguReportService;
 
     public UserController(
             NicknameCheckService nicknameCheckService,
@@ -27,7 +28,8 @@ public class UserController {
             MyCommentQueryService myCommentQueryService,
             MyBookmarkQueryService myBookmarkQueryService,
             MyVoteQueryService myVoteQueryService,
-            MyPageService myPageService) {
+            MyPageService myPageService, HoguReportService hoguReportService
+    ) {
         this.nicknameCheckService = nicknameCheckService;
         this.profileUpdateService = profileUpdateService;
         this.myPostQueryService = myPostQueryService;
@@ -35,6 +37,7 @@ public class UserController {
         this.myBookmarkQueryService = myBookmarkQueryService;
         this.myVoteQueryService = myVoteQueryService;
         this.myPageService = myPageService;
+        this.hoguReportService = hoguReportService;
     }
 
     /**
@@ -81,6 +84,22 @@ public class UserController {
     ) {
         Long userId = Long.valueOf(authentication.getName());
         MyPageResponse response = myPageService.getMyPage(userId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * [REPORT-001] 호구 보고서 조회
+     *
+     * @param authentication 유저 인증 정보
+     * @return 유저의 호구 보고서
+     */
+    @GetMapping("/me/report")
+    public ResponseEntity<HoguReportResponse> getHoguReport(
+            Authentication authentication
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        HoguReportResponse response = hoguReportService.getHoguReport(userId);
 
         return ResponseEntity.ok(response);
     }
