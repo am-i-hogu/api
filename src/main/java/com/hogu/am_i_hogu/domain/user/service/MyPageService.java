@@ -27,6 +27,13 @@ public class MyPageService {
         this.hoguLevelRepository = hoguLevelRepository;
     }
 
+    /**
+     * 마이페이지 조회
+     * 투표가 포함된 게시물 수가 5개 이상인 경우에만 호구 레벨 반환
+     *
+     * @param userId 조회 요청한 사용자 id
+     * @return 사용자 프로필 정보 및 호구 레벨 정보
+     */
     public MyPageResponse getMyPage(Long userId) {
         UserInfoSummary userInfoSummary = userRepository.findMyPageSummaryByUserId(userId)
                 .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
@@ -41,6 +48,7 @@ public class MyPageService {
         return createResponse(userInfoSummary, simpleHoguLevelInfo);
     }
 
+    // 투표 포함된 게시물이 5개 미만인 경우에 대한 응답 생성
     private MyPageResponse createResponse(UserInfoSummary userInfoSummary) {
         return new MyPageResponse(
                 userInfoSummary.nickname(),
@@ -51,6 +59,7 @@ public class MyPageService {
         );
     }
 
+    // 투표 포함된 게시물이 5개 이상인 경우에 대한 응답 생성
     private MyPageResponse createResponse(
             UserInfoSummary userInfoSummary,
             SimpleHoguLevelInfo simpleHoguLevelInfo

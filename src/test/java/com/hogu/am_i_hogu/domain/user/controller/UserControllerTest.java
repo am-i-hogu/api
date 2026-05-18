@@ -572,6 +572,7 @@ public class UserControllerTest {
      * - (1) 응답 status가 200 OK인지 확인
      * - (2) 유저 프로필 정보가 적절히 반환되는지 확인
      * - (3) 유저 호구 레벨 및 레벨 설명이 적절히 반환되는지 확인
+     * - (4) 카테고리별 분석이 적절히 반환되는지 확인
      */
     @Test
     void getHoguReportReturns200WhenVotedPostIsLessThan5() throws Exception {
@@ -608,7 +609,11 @@ public class UserControllerTest {
 
     /**
      * 호구 보고서 조회 성공 테스트:
-     *
+     * 투표 참여된 게시물 수가 5개 이상이며 작성된 게시물의 카테고리가 2가지 이상인 유저가 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 유저 프로필 정보가 적절히 반환되는지 확인
+     * - (3) 유저 호구 레벨 및 레벨 설명이 적절히 반환되는지 확인
+     * - (4) 카테고리별 분석이 적절히 반환되는지 확인
      */
     @Test
     void getHoguReportReturns200WhenVotedPostIsEqualTo5AndHasTwoCategories() throws Exception {
