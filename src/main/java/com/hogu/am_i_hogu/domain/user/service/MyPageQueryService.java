@@ -25,7 +25,7 @@ public class MyPageQueryService {
         MyPageSummary myPageSummary = userRepository.findMyPageSummaryByUserId(userId)
                 .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
 
-        if (myPageSummary.totalVoteCount() <= 10) {
+        if (myPageSummary.votedPostCount() <= 10) {
             return createResponse(myPageSummary);
         }
 

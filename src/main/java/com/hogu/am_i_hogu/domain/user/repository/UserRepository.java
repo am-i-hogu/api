@@ -24,7 +24,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             SELECT new com.hogu.am_i_hogu.domain.user.dto.MyPageSummary(
             u.nickname,
             u.profileImageUrl,
-            s.totalVoteCount,
+            s.votedPostCount,
             s.hoguIndex
             )
             FROM User u
