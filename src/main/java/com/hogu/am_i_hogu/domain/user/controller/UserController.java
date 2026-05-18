@@ -18,6 +18,7 @@ public class UserController {
     private final MyCommentQueryService myCommentQueryService;
     private final MyBookmarkQueryService myBookmarkQueryService;
     private final MyVoteQueryService myVoteQueryService;
+    private final MyPageQueryService myPageQueryService;
 
     public UserController(
             NicknameCheckService nicknameCheckService,
@@ -25,14 +26,15 @@ public class UserController {
             MyPostQueryService myPostQueryService,
             MyCommentQueryService myCommentQueryService,
             MyBookmarkQueryService myBookmarkQueryService,
-            MyVoteQueryService myVoteQueryService
-    ) {
+            MyVoteQueryService myVoteQueryService,
+            MyPageQueryService myPageQueryService) {
         this.nicknameCheckService = nicknameCheckService;
         this.profileUpdateService = profileUpdateService;
         this.myPostQueryService = myPostQueryService;
         this.myCommentQueryService = myCommentQueryService;
         this.myBookmarkQueryService = myBookmarkQueryService;
         this.myVoteQueryService = myVoteQueryService;
+        this.myPageQueryService = myPageQueryService;
     }
 
     /**
@@ -64,6 +66,22 @@ public class UserController {
             @RequestParam(name="nickname", required = false) String nickname
     ) {
         CheckNicknameResponse response = nicknameCheckService.checkNickname(nickname);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * [MYPAGE-001] 마이페이지 조회
+     *
+     * @param authentication 유저 인증 정보
+     * @return 사용자 정보
+     */
+    @GetMapping("/me")
+    public ResponseEntity<MyPageResponse> getMyPage(
+            Authentication authentication
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        MyPageResponse response = myPageQueryService.getMyPage(userId);
+
         return ResponseEntity.ok(response);
     }
 
