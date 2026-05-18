@@ -484,17 +484,17 @@ public class UserControllerTest {
 
     /**
      * 마이페이지 조회 성공 테스트:
-     * 투표 참여된 게시물 수가 10개가 넘는 유저가 조회 요청을 보내고,
+     * 투표 참여된 게시물 수가 5개가 넘는 유저가 조회 요청을 보내고,
      * - (1) 응답 status가 200 OK인지 확인
      * - (2) 유저 프로필 정보, 레벨 정보가 적절히 반환되는지 확인
      */
     @Test
-    void getMyPageReturns200WhenVotedPostExceeds10() throws Exception {
+    void getMyPageReturns200WhenVotedPostExceeds5() throws Exception {
         LocalDateTime now = LocalDateTime.now();
 
         stubAuthenticatedUser();
         insertUser(1L, "nickname", null);
-        insertUserHoguStat(1L, 72, 12, now);
+        insertUserHoguStat(1L, 72, 10, now);
 
         mockMvc.perform(get("/api/users/me")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
@@ -502,24 +502,24 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.nickname").value("nickname"))
                 .andExpect(jsonPath("$.profileImageUrl").value(Matchers.nullValue()))
                 .andExpect(jsonPath("$.hoguIndex").value(72))
-                .andExpect(jsonPath("$.hoguLevel").value("양보 과다형"))
-                .andExpect(jsonPath("$.hoguDescription", startsWith("상대를 배려하다가")));
+                .andExpect(jsonPath("$.hoguLevel").value("RISKY"))
+                .andExpect(jsonPath("$.hoguShortDescription").value("거절보다 양보가 앞서는 타입"));
     }
 
     /**
      * 마이페이지 조회 성공 테스트:
-     * 투표 참여된 게시물 수가 10개 이하인 유저가 조회 요청을 보내고,
+     * 투표 참여된 게시물 수가 5개 미만인 유저가 조회 요청을 보내고,
      * - (1) 응답 status가 200 OK인지 확인
      * - (2) 유저 프로필 정보가 적절히 반환되는지 확인
      * - (3) 유저 호구 레벨 및 레벨 설명이 적절히 반환되는지 확인
      */
     @Test
-    void getMyPageReturns200WhenVotedPostIsLessThan10() throws Exception {
+    void getMyPageReturns200WhenVotedPostIsLessThan5() throws Exception {
         LocalDateTime now = LocalDateTime.now();
 
         stubAuthenticatedUser();
         insertUser(1L, "nickname", null);
-        insertUserHoguStat(1L, 72, 9, now);
+        insertUserHoguStat(1L, 72, 3, now);
 
         mockMvc.perform(get("/api/users/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
@@ -528,7 +528,7 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.profileImageUrl").value(Matchers.nullValue()))
                 .andExpect(jsonPath("$.hoguIndex").value(72))
                 .andExpect(jsonPath("$.hoguLevel").value("NONE"))
-                .andExpect(jsonPath("$.hoguDescription").value("레벨을 집계할 수 없습니다."));
+                .andExpect(jsonPath("$.hoguShortDescription").value("레벨을 집계할 수 없습니다."));
     }
 
     /**
@@ -538,7 +538,7 @@ public class UserControllerTest {
      * - (2) 유저 프로필 정보, 레벨 정보가 적절히 반환되는지 확인
      */
     @Test
-    void getMyPageReturns200WhenHoguIndexIsExactly59() throws Exception {
+    void getMyPageReturns200WhenHoguIndexIsBoundaryValue() throws Exception {
         LocalDateTime now = LocalDateTime.now();
 
         stubAuthenticatedUser();
@@ -551,8 +551,8 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.nickname").value("nickname"))
                 .andExpect(jsonPath("$.profileImageUrl").value(Matchers.nullValue()))
                 .andExpect(jsonPath("$.hoguIndex").value(59))
-                .andExpect(jsonPath("$.hoguLevel").value("흔들림 주의형"))
-                .andExpect(jsonPath("$.hoguDescription",startsWith("평소에는 괜찮지만,")));
+                .andExpect(jsonPath("$.hoguLevel").value("WARNING"))
+                .andExpect(jsonPath("$.hoguShortDescription").value("가끔 손해를 감수하는 타입"));
     }
 
     /**

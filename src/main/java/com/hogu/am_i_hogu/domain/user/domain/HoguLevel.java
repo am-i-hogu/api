@@ -28,4 +28,7 @@ public class HoguLevel {
 
     @Column(nullable = false)
     private Integer minHoguIndex;
+
+    @Column(nullable = false)
+    private String shortDescription;
 }

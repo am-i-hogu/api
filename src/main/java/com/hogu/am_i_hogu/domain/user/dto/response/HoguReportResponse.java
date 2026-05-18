@@ -7,6 +7,7 @@ public record HoguReportResponse(
         String profileImageUrl,
         Integer hoguIndex,
         String hoguLevel,
+        String hoguShortDescription,
         String hoguDescription,
         List<CategoryAnalysisResponse> categoryAnalysis,
         Integer totalPostCount,

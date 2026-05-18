@@ -5,6 +5,6 @@ public record MyPageResponse(
         String profileImageUrl,
         Integer hoguIndex,
         String hoguLevel,
-        String hoguDescription
+        String hoguShortDescription
 ) {
 }

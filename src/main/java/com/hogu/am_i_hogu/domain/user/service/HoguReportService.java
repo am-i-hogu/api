@@ -3,10 +3,7 @@ package com.hogu.am_i_hogu.domain.user.service;
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
-import com.hogu.am_i_hogu.domain.user.dto.CategoryAnalysisSummary;
-import com.hogu.am_i_hogu.domain.user.dto.HoguLevelInfo;
-import com.hogu.am_i_hogu.domain.user.dto.PostVoteSummary;
-import com.hogu.am_i_hogu.domain.user.dto.UserInfoSummary;
+import com.hogu.am_i_hogu.domain.user.dto.*;
 import com.hogu.am_i_hogu.domain.user.dto.response.CategoryAnalysisResponse;
 import com.hogu.am_i_hogu.domain.user.dto.response.HoguReportResponse;
 import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
@@ -18,6 +15,9 @@ import java.util.List;
 
 @Service
 public class HoguReportService {
+
+    private static final String NONE_HOGU_LEVEL = "NONE";
+    private static final String NONE_DESCRIPTION = "레벨을 집계할 수 없습니다.";
 
     private final UserRepository userRepository;
     private final PostRepository postRepository;
@@ -48,13 +48,14 @@ public class HoguReportService {
         );
 
         List<CategoryAnalysisResponse> categoryAnalysis =
-                createCategoryAnalysis(hoguLevelInfo.displayName(), userId);
+                createCategoryAnalysis(hoguLevelInfo.code(), userId);
 
         return new HoguReportResponse(
                 userInfoSummary.nickname(),
                 userInfoSummary.profileImageUrl(),
                 userInfoSummary.hoguIndex(),
-                hoguLevelInfo.displayName(),
+                hoguLevelInfo.code(),
+                hoguLevelInfo.shortDescription(),
                 hoguLevelInfo.description(),
                 categoryAnalysis,
                 totalPostCount,
@@ -65,13 +66,13 @@ public class HoguReportService {
 
     private CategoryAnalysisResponse toCategoryAnalysisResponse(CategoryAnalysisSummary summary) {
         int hoguIndex = calculateHoguIndex(summary.hoguVoteCount(), summary.totalVoteCount());
-        HoguLevelInfo hoguLevelInfo = hoguLevelRepository.findHoguLevelByHoguIndex(hoguIndex)
+        HoguLevelInfo simpleHoguLevelInfo = hoguLevelRepository.findHoguLevelByHoguIndex(hoguIndex)
                 .orElseThrow(() -> new CustomException(CommonErrorCode.SERVER_ERROR));
 
         return new CategoryAnalysisResponse(
                 summary.category(),
                 hoguIndex,
-                hoguLevelInfo.displayName()
+                simpleHoguLevelInfo.code()
         );
     }
 
@@ -95,10 +96,11 @@ public class HoguReportService {
     }
 
     private HoguLevelInfo createHoguLevelResponse(int votedPostCount, int hoguIndex) {
-        if (votedPostCount <= 5) {
+        if (votedPostCount < 5) {
             return new HoguLevelInfo(
-                    "NONE",
-                    "레벨을 집계할 수 없습니다."
+                    NONE_HOGU_LEVEL,
+                    NONE_DESCRIPTION,
+                    NONE_DESCRIPTION
             );
         }
         HoguLevelInfo hoguLevelInfo = hoguLevelRepository.findHoguLevelByHoguIndex(hoguIndex)
@@ -108,7 +110,7 @@ public class HoguReportService {
     }
 
     private List<CategoryAnalysisResponse> createCategoryAnalysis(String code, Long userId) {
-        if (code.equals("NONE")) {
+        if (code.equals(NONE_HOGU_LEVEL)) {
             return List.of();
         }
 

@@ -2,7 +2,7 @@ package com.hogu.am_i_hogu.domain.user.service;
 
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
-import com.hogu.am_i_hogu.domain.user.dto.HoguLevelInfo;
+import com.hogu.am_i_hogu.domain.user.dto.SimpleHoguLevelInfo;
 import com.hogu.am_i_hogu.domain.user.dto.UserInfoSummary;
 import com.hogu.am_i_hogu.domain.user.dto.response.MyPageResponse;
 import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class MyPageService {
+
+    private static final String NONE_HOGU_LEVEL = "NONE";
+    private static final String NONE_DESCRIPTION = "레벨을 집계할 수 없습니다.";
 
     private final UserRepository userRepository;
     private final HoguLevelRepository hoguLevelRepository;
@@ -28,14 +31,14 @@ public class MyPageService {
         UserInfoSummary userInfoSummary = userRepository.findMyPageSummaryByUserId(userId)
                 .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
 
-        if (userInfoSummary.votedPostCount() <= 10) {
+        if (userInfoSummary.votedPostCount() < 5) {
             return createResponse(userInfoSummary);
         }
 
-        HoguLevelInfo hoguLevelInfo = hoguLevelRepository.findHoguLevelByHoguIndex(userInfoSummary.hoguIndex())
+        SimpleHoguLevelInfo simpleHoguLevelInfo = hoguLevelRepository.findSimpleHoguLevelByHoguIndex(userInfoSummary.hoguIndex())
                 .orElseThrow(() -> new CustomException(CommonErrorCode.SERVER_ERROR));
 
-        return createResponse(userInfoSummary, hoguLevelInfo);
+        return createResponse(userInfoSummary, simpleHoguLevelInfo);
     }
 
     private MyPageResponse createResponse(UserInfoSummary userInfoSummary) {
@@ -43,21 +46,21 @@ public class MyPageService {
                 userInfoSummary.nickname(),
                 userInfoSummary.profileImageUrl(),
                 userInfoSummary.hoguIndex(),
-                "NONE",
-                "레벨을 집계할 수 없습니다."
+                NONE_HOGU_LEVEL,
+                NONE_DESCRIPTION
         );
     }
 
     private MyPageResponse createResponse(
             UserInfoSummary userInfoSummary,
-            HoguLevelInfo hoguLevelInfo
+            SimpleHoguLevelInfo simpleHoguLevelInfo
     ) {
         return new MyPageResponse(
                 userInfoSummary.nickname(),
                 userInfoSummary.profileImageUrl(),
                 userInfoSummary.hoguIndex(),
-                hoguLevelInfo.displayName(),
-                hoguLevelInfo.description()
+                simpleHoguLevelInfo.code(),
+                simpleHoguLevelInfo.shortDescription()
         );
     }
 }
