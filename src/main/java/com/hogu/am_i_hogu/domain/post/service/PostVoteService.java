@@ -4,6 +4,7 @@ import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.post.domain.Post;
 import com.hogu.am_i_hogu.domain.post.domain.PostVoteId;
+import com.hogu.am_i_hogu.domain.post.dto.PostVoteCounts;
 import com.hogu.am_i_hogu.domain.post.dto.request.PostVoteRequest;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostVoteResponse;
 import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
@@ -86,12 +87,9 @@ public class PostVoteService {
     }
 
     private void updateWriterHoguStat(Long writerUserId, LocalDateTime now) {
-        int hoguVoteCount = Math.toIntExact(
-                postVoteRepository.countByWriterUserIdAndMyVote(writerUserId, HOGU_VOTE)
-        );
-        int totalVoteCount = Math.toIntExact(
-                postVoteRepository.countEffectiveVotesByWriterUserId(writerUserId)
-        );
+        PostVoteCounts voteCounts = postVoteRepository.countByWriterUserId(writerUserId);
+        int hoguVoteCount = Math.toIntExact(voteCounts.hoguVoteCount());
+        int totalVoteCount = Math.toIntExact(voteCounts.totalVoteCount());
 
         UserHoguStat stat = userHoguStatRepository.findById(writerUserId)
                 .orElseGet(() -> new UserHoguStat(writerUserId, now));
@@ -100,8 +98,9 @@ public class PostVoteService {
     }
 
     private PostVoteResponse getVoteResponse(Long postId, String myVote) {
-        int yesVotes = Math.toIntExact(postVoteRepository.countByPostIdAndMyVote(postId, HOGU_VOTE));
-        int noVotes = Math.toIntExact(postVoteRepository.countByPostIdAndMyVote(postId, NOT_HOGU_VOTE));
+        PostVoteCounts voteCounts = postVoteRepository.countByPostId(postId);
+        int yesVotes = Math.toIntExact(voteCounts.hoguVoteCount());
+        int noVotes = Math.toIntExact(voteCounts.notHoguVoteCount());
 
         return new PostVoteResponse(yesVotes + noVotes, yesVotes, noVotes, myVote);
     }
