@@ -2,6 +2,7 @@ package com.hogu.am_i_hogu.domain.post.repository;
 
 import com.hogu.am_i_hogu.domain.post.domain.PostVote;
 import com.hogu.am_i_hogu.domain.post.domain.PostVoteId;
+import com.hogu.am_i_hogu.domain.post.dto.PostVoteCounts;
 import com.hogu.am_i_hogu.domain.user.dto.MyVoteSummary;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -35,33 +36,25 @@ public interface PostVoteRepository extends JpaRepository<PostVote, PostVoteId> 
     );
 
     @Query("""
-            SELECT COUNT(pv)
+            SELECT new com.hogu.am_i_hogu.domain.post.dto.PostVoteCounts(
+                SUM(CASE WHEN pv.myVote = 'HOGU' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN pv.myVote = 'NOT_HOGU' THEN 1 ELSE 0 END)
+            )
             FROM PostVote pv
             WHERE pv.id.postId = :postId
-              AND pv.myVote = :myVote
             """)
-    long countByPostIdAndMyVote(@Param("postId") Long postId, @Param("myVote") String myVote);
+    PostVoteCounts countByPostId(@Param("postId") Long postId);
 
     @Query("""
-            SELECT COUNT(pv)
+            SELECT new com.hogu.am_i_hogu.domain.post.dto.PostVoteCounts(
+                SUM(CASE WHEN pv.myVote = 'HOGU' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN pv.myVote = 'NOT_HOGU' THEN 1 ELSE 0 END)
+            )
             FROM PostVote pv
             JOIN Post p ON p.id = pv.id.postId
             WHERE p.writer.id = :writerUserId
-              AND pv.myVote = :myVote
             """)
-    long countByWriterUserIdAndMyVote(
-            @Param("writerUserId") Long writerUserId,
-            @Param("myVote") String myVote
-    );
-
-    @Query("""
-            SELECT COUNT(pv)
-            FROM PostVote pv
-            JOIN Post p ON p.id = pv.id.postId
-            WHERE p.writer.id = :writerUserId
-              AND pv.myVote IN ('HOGU', 'NOT_HOGU')
-            """)
-    long countEffectiveVotesByWriterUserId(@Param("writerUserId") Long writerUserId);
+    PostVoteCounts countByWriterUserId(@Param("writerUserId") Long writerUserId);
 
     @Query("""
             SELECT pv
