@@ -3,7 +3,6 @@ package com.hogu.am_i_hogu.domain.post.service;
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.post.domain.Post;
-import com.hogu.am_i_hogu.domain.post.domain.PostVote;
 import com.hogu.am_i_hogu.domain.post.domain.PostVoteId;
 import com.hogu.am_i_hogu.domain.post.dto.request.PostVoteRequest;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostVoteResponse;
@@ -38,11 +37,7 @@ public class PostVoteService {
         validateNotWriter(post, userId);
 
         LocalDateTime now = LocalDateTime.now();
-        PostVoteId id = new PostVoteId(userId, postId);
-        PostVote postVote = postVoteRepository.findById(id)
-                .orElseGet(() -> new PostVote(id, request.myVote(), now, now));
-        postVote.updateVote(request.myVote(), now);
-        postVoteRepository.save(postVote);
+        postVoteRepository.upsertVote(userId, postId, request.myVote(), now);
 
         updateWriterHoguStat(post.getWriter().getId(), now);
 

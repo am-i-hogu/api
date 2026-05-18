@@ -5,6 +5,7 @@ import com.hogu.am_i_hogu.domain.post.domain.PostVoteId;
 import com.hogu.am_i_hogu.domain.user.dto.MyVoteSummary;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -15,6 +16,23 @@ import java.util.Optional;
 
 @Repository
 public interface PostVoteRepository extends JpaRepository<PostVote, PostVoteId> {
+
+    @Modifying
+    @Query(value = """
+            INSERT INTO post_votes
+                (user_id, post_id, my_vote, created_at, updated_at)
+            VALUES
+                (:userId, :postId, :myVote, :now, :now)
+            ON DUPLICATE KEY UPDATE
+                my_vote = VALUES(my_vote),
+                updated_at = VALUES(updated_at)
+            """, nativeQuery = true)
+    int upsertVote(
+            @Param("userId") Long userId,
+            @Param("postId") Long postId,
+            @Param("myVote") String myVote,
+            @Param("now") LocalDateTime now
+    );
 
     @Query("""
             SELECT COUNT(pv)
