@@ -9,8 +9,8 @@ public record HoguReportResponse(
         String hoguLevel,
         String hoguDescription,
         List<CategoryAnalysisResponse> categoryAnalysis,
-        Long totalPostCount,
-        Long hoguPostCount,
-        Long notHoguPostCount
+        Integer totalPostCount,
+        Integer hoguPostCount,
+        Integer notHoguPostCount
 ) {
 }

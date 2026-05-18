@@ -1,7 +1,7 @@
 package com.hogu.am_i_hogu.domain.user.repository;
 
 import com.hogu.am_i_hogu.domain.user.domain.User;
-import com.hogu.am_i_hogu.domain.user.dto.MyPageSummary;
+import com.hogu.am_i_hogu.domain.user.dto.UserInfoSummary;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -21,7 +21,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findWithLockByIdAndIsDeletedFalse(Long userId);
 
     @Query("""
-            SELECT new com.hogu.am_i_hogu.domain.user.dto.MyPageSummary(
+            SELECT new com.hogu.am_i_hogu.domain.user.dto.UserInfoSummary(
             u.nickname,
             u.profileImageUrl,
             s.votedPostCount,
@@ -32,5 +32,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
             WHERE u.id = :userId
                 AND u.isDeleted = false
             """)
-    Optional<MyPageSummary> findMyPageSummaryByUserId(@Param("userId") Long userId);
+    Optional<UserInfoSummary> findMyPageSummaryByUserId(@Param("userId") Long userId);
 }

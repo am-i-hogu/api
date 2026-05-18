@@ -18,7 +18,7 @@ public class UserController {
     private final MyCommentQueryService myCommentQueryService;
     private final MyBookmarkQueryService myBookmarkQueryService;
     private final MyVoteQueryService myVoteQueryService;
-    private final MyPageQueryService myPageQueryService;
+    private final MyPageService myPageService;
 
     public UserController(
             NicknameCheckService nicknameCheckService,
@@ -27,14 +27,14 @@ public class UserController {
             MyCommentQueryService myCommentQueryService,
             MyBookmarkQueryService myBookmarkQueryService,
             MyVoteQueryService myVoteQueryService,
-            MyPageQueryService myPageQueryService) {
+            MyPageService myPageService) {
         this.nicknameCheckService = nicknameCheckService;
         this.profileUpdateService = profileUpdateService;
         this.myPostQueryService = myPostQueryService;
         this.myCommentQueryService = myCommentQueryService;
         this.myBookmarkQueryService = myBookmarkQueryService;
         this.myVoteQueryService = myVoteQueryService;
-        this.myPageQueryService = myPageQueryService;
+        this.myPageService = myPageService;
     }
 
     /**
@@ -80,7 +80,7 @@ public class UserController {
             Authentication authentication
     ) {
         Long userId = Long.valueOf(authentication.getName());
-        MyPageResponse response = myPageQueryService.getMyPage(userId);
+        MyPageResponse response = myPageService.getMyPage(userId);
 
         return ResponseEntity.ok(response);
     }
