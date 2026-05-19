@@ -1,6 +1,6 @@
 package com.hogu.am_i_hogu.domain.user.controller;
 
-import com.hogu.am_i_hogu.common.pagination.CursorRequest;
+import com.hogu.am_i_hogu.domain.user.dto.request.CursorRequest;
 import com.hogu.am_i_hogu.domain.user.dto.request.UpdateProfileRequest;
 import com.hogu.am_i_hogu.domain.user.dto.response.*;
 import com.hogu.am_i_hogu.domain.user.service.*;

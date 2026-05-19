@@ -1,4 +1,4 @@
-package com.hogu.am_i_hogu.common.pagination;
+package com.hogu.am_i_hogu.domain.user.dto.request;
 
 public record CursorRequest(
         Integer pageSize,
