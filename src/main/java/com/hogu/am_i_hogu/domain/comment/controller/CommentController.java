@@ -1,11 +1,14 @@
 package com.hogu.am_i_hogu.domain.comment.controller;
 
 import com.hogu.am_i_hogu.domain.comment.dto.request.CommentCreateRequest;
+import com.hogu.am_i_hogu.domain.comment.dto.request.CommentUpdateRequest;
 import com.hogu.am_i_hogu.domain.comment.dto.request.CursorRequest;
 import com.hogu.am_i_hogu.domain.comment.dto.response.CommentCreateResponse;
 import com.hogu.am_i_hogu.domain.comment.dto.response.CommentReadResponse;
+import com.hogu.am_i_hogu.domain.comment.dto.response.CommentUpdateResponse;
 import com.hogu.am_i_hogu.domain.comment.service.CommentCreateService;
 import com.hogu.am_i_hogu.domain.comment.service.CommentReadService;
+import com.hogu.am_i_hogu.domain.comment.service.CommentUpdateService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -16,13 +19,15 @@ public class CommentController {
 
     private final CommentCreateService commentCreateService;
     private final CommentReadService commentReadService;
+    private final CommentUpdateService commentUpdateService;
 
     public CommentController(
             CommentCreateService commentCreateService,
-            CommentReadService commentReadService
-    ) {
+            CommentReadService commentReadService,
+            CommentUpdateService commentUpdateService) {
         this.commentCreateService = commentCreateService;
         this.commentReadService = commentReadService;
+        this.commentUpdateService = commentUpdateService;
     }
 
     /**
@@ -61,6 +66,27 @@ public class CommentController {
     ) {
         Long userId = Long.valueOf(authentication.getName());
         CommentCreateResponse response = commentCreateService.create(userId, postId, request);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * [CI-003] 집단지성 수정
+     * @param authentication    사용자 인증 정보
+     * @param postId            집단지성이 포함된 게시물 id
+     * @param commentId         수정할 집단지성 id
+     * @param request           집단지성 수정 정보(내용)
+     * @return 수정된 집단지성 정보
+     */
+    @PatchMapping("/{postId}/comments/{commentId}")
+    public ResponseEntity<CommentUpdateResponse> update(
+            Authentication authentication,
+            @PathVariable Long postId,
+            @PathVariable Long commentId,
+            @RequestBody(required = false)CommentUpdateRequest request
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        CommentUpdateResponse response = commentUpdateService.update(userId, postId commentId, request);
 
         return ResponseEntity.ok(response);
     }
