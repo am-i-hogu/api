@@ -1,5 +1,6 @@
 package com.hogu.am_i_hogu.domain.post.service;
 
+import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.exception.ErrorResponse;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
@@ -14,6 +15,7 @@ import com.hogu.am_i_hogu.domain.post.repository.CategoryRepository;
 import com.hogu.am_i_hogu.domain.post.repository.ImageAssetRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
 import com.hogu.am_i_hogu.domain.user.domain.User;
+import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
 import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -54,7 +56,8 @@ public class PostCreateService {
         LocalDateTime now = LocalDateTime.now();
 
         // 게시물 작성자와 카테고리는 posts 테이블의 FK 대상이므로 저장 전에 실제 row를 조회한다.
-        User writer = userRepository.findById(userId).orElseThrow();
+        User writer = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
         Category category = categoryRepository.findById(request.categories().get(0)).orElseThrow();
 
         // posts.id는 TSID로 생성한다.
