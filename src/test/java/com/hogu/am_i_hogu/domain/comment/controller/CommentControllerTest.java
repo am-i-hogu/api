@@ -28,6 +28,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -771,6 +772,182 @@ public class CommentControllerTest {
     @Test
     void updateReturns401WhenAccessTokenIsMissing() throws Exception {
         mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * 집단지성 삭제 성공 테스트:
+     * 작성자가 본인 집단지성 삭제 요청을 보내고,
+     * - (1) 응답 status가 204 No Content인지 확인
+     * - (2) DB에 집단지성이 soft delete 처리되었는지 확인
+     */
+    @Test
+    void deleteReturns204WhenCommentIsDeleted() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 1L, null, 0, "content", now, false);
+
+        mockMvc.perform(delete("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNoContent());
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM comments WHERE id = ?",
+                Boolean.class,
+                1000L
+        );
+        assertThat(isDeleted).isEqualTo(true);
+    }
+
+    /**
+     * 집단지성 삭제 실패 테스트:
+     * 작성자가 아닌 유저가 집단지성 삭제 요청을 보내고,
+     * - (1) 응답 status가 403 Forbidden인지 확인
+     * - (2) DB에 집단지성이 삭제되지 않았는지 확인
+     */
+    @Test
+    void deleteReturns403WhenUserIsNotWriter() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+        insertUser(2L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 2L, null, 0, "content", now, false);
+
+        mockMvc.perform(delete("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN_ACCESS"));
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM comments WHERE id = ?",
+                Boolean.class,
+                1000L
+        );
+        assertThat(isDeleted).isEqualTo(false);
+    }
+
+    /**
+     * 집단지성 삭제 실패 테스트:
+     * 삭제된 게시물의 집단지성 삭제 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) POST_ALREADY_DELETED 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void deleteReturns404WhenPostAlreadyDeleted() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", true, now);
+        insertComment(1000L, 100L, 1L, null, 0, "content", now, false);
+
+        mockMvc.perform(delete("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_ALREADY_DELETED"));
+    }
+
+    /**
+     * 집단지성 삭제 실패 테스트:
+     * 존재하지 않는 게시물의 집단지성 삭제 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) POST_NOT_FOUND 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void deleteReturns404WhenPostDoesNotExist() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        mockMvc.perform(delete("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+    }
+
+    /**
+     * 집단지성 삭제 실패 테스트:
+     * 삭제된 집단지성 삭제 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) COMMENT_ALREADY_DELETED 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void deleteReturns404WhenCommentAlreadyDeleted() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 1L, null, 0, "content", now, true);
+
+        mockMvc.perform(delete("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMENT_ALREADY_DELETED"));
+    }
+
+    /**
+     * 집단지성 삭제 실패 테스트:
+     * 존재하지 않는 집단지성 삭제 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) COMMENT_NOT_FOUND 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void deleteReturns404WhenCommentDoesNotExist() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+
+        mockMvc.perform(delete("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMENT_NOT_FOUND"));
+    }
+
+    /**
+     * 집단지성 삭제 실패 테스트:
+     * 다른 게시물에 속한 집단지성 삭제 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) COMMENT_NOT_FOUND 오류 코드를 반환하는지 확인
+     * - (3) DB에 집단지성이 삭제되지 않았는지 확인
+     */
+    @Test
+    void deleteReturns404WhenCommentDoesNotBelongToPost() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title 1", "content 1", false, now);
+        insertPost(101L, 1L, "USED_TRADE", "title 2", "content 2", false, now);
+        insertComment(1000L, 101L, 1L, null, 0, "content", now, false);
+
+        mockMvc.perform(delete("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMENT_NOT_FOUND"));
+
+        Boolean isDeleted = jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM comments WHERE id = ?",
+                Boolean.class,
+                1000L
+        );
+        assertThat(isDeleted).isEqualTo(false);
+    }
+
+    /**
+     * 집단지성 삭제 실패 테스트:
+     * access token 없이 요청을 보내고,
+     * 응답 status가 401 Unauthorized인지 확인
+     */
+    @Test
+    void deleteReturns401WhenAccessTokenIsMissing() throws Exception {
+        mockMvc.perform(delete("/api/posts/{postId}/comments/{commentId}", 100L, 1000L))
                 .andExpect(status().isUnauthorized());
     }
 

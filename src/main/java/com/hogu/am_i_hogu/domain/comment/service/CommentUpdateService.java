@@ -14,6 +14,7 @@ import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
 import com.hogu.am_i_hogu.domain.user.domain.User;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -34,6 +35,7 @@ public class CommentUpdateService {
         this.commentHelpfulMarkRepository = commentHelpfulMarkRepository;
     }
 
+    @Transactional
     public CommentUpdateResponse update(Long userId, Long postId, Long commentId, CommentUpdateRequest request) {
         Post post = getPostOrThrow(postId);
         Comment comment = getCommentOrThrow(commentId);

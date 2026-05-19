@@ -9,6 +9,7 @@ import com.hogu.am_i_hogu.domain.post.domain.Post;
 import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -26,6 +27,7 @@ public class CommentDeleteService {
         this.commentRepository = commentRepository;
     }
 
+    @Transactional
     public void delete(Long userId, Long postId, Long commentId) {
         getPostOrThrow(postId);
         Comment comment = getCommentOrThrow(commentId);
