@@ -673,7 +673,7 @@ public class UserControllerTest {
      */
     @Test
     void getHoguReportReturns401WhenAccessTokenIsMissing() throws Exception {
-        mockMvc.perform(get("/api/users/me"))
+        mockMvc.perform(get("/api/users/me/report"))
                 .andExpect(status().isUnauthorized());
     }
 
