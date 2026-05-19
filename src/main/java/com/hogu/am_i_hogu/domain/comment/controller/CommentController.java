@@ -7,6 +7,7 @@ import com.hogu.am_i_hogu.domain.comment.dto.response.CommentCreateResponse;
 import com.hogu.am_i_hogu.domain.comment.dto.response.CommentReadResponse;
 import com.hogu.am_i_hogu.domain.comment.dto.response.CommentUpdateResponse;
 import com.hogu.am_i_hogu.domain.comment.service.CommentCreateService;
+import com.hogu.am_i_hogu.domain.comment.service.CommentDeleteService;
 import com.hogu.am_i_hogu.domain.comment.service.CommentReadService;
 import com.hogu.am_i_hogu.domain.comment.service.CommentUpdateService;
 import org.springframework.http.ResponseEntity;
@@ -20,14 +21,16 @@ public class CommentController {
     private final CommentCreateService commentCreateService;
     private final CommentReadService commentReadService;
     private final CommentUpdateService commentUpdateService;
+    private final CommentDeleteService commentDeleteService;
 
     public CommentController(
             CommentCreateService commentCreateService,
             CommentReadService commentReadService,
-            CommentUpdateService commentUpdateService) {
+            CommentUpdateService commentUpdateService, CommentDeleteService commentDeleteService) {
         this.commentCreateService = commentCreateService;
         this.commentReadService = commentReadService;
         this.commentUpdateService = commentUpdateService;
+        this.commentDeleteService = commentDeleteService;
     }
 
     /**
@@ -89,5 +92,18 @@ public class CommentController {
         CommentUpdateResponse response = commentUpdateService.update(userId, postId, commentId, request);
 
         return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{postId}/comments/{commentId}")
+    public ResponseEntity<Void> delete(
+            Authentication authentication,
+            @PathVariable Long postId,
+            @PathVariable Long commentId,
+            @RequestBody(required = false)CommentUpdateRequest request
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        commentDeleteService.delete(userId, postId, commentId);
+
+        return ResponseEntity.noContent().build();
     }
 }
