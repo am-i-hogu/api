@@ -66,4 +66,9 @@ public class Comment {
         this.createdAt = createdAt;
         this.updatedAt = createdAt;
     }
+
+    public void update(String content, LocalDateTime updatedAt) {
+        this.content = content;
+        this.updatedAt = updatedAt;
+    }
 }

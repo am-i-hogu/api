@@ -140,7 +140,7 @@ public class CommentCreateService {
             Comment comment
     ) {
         boolean isPostWriter = writer.getId().equals(post.getWriter().getId());
-        int helpfulMarkCount = getHelpfulMarkCount(comment.getId());
+        long helpfulMarkCount = getHelpfulMarkCount(comment.getId());
         Long parentId = comment.getParentComment() == null
                 ? null
                 : comment.getParentComment().getId();
@@ -163,7 +163,7 @@ public class CommentCreateService {
         );
     }
 
-    private int getHelpfulMarkCount(Long commentId) {
-        return Math.toIntExact(commentHelpfulMarkRepository.countById_CommentId(commentId));
+    private long getHelpfulMarkCount(Long commentId) {
+        return commentHelpfulMarkRepository.countById_CommentId(commentId);
     }
 }
