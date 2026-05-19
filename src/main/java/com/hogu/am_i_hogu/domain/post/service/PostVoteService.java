@@ -10,8 +10,7 @@ import com.hogu.am_i_hogu.domain.post.dto.response.PostVoteResponse;
 import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostVoteRepository;
-import com.hogu.am_i_hogu.domain.user.domain.UserHoguStat;
-import com.hogu.am_i_hogu.domain.user.repository.UserHoguStatRepository;
+import com.hogu.am_i_hogu.domain.user.service.WriterHoguStatService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +26,7 @@ public class PostVoteService {
 
     private final PostRepository postRepository;
     private final PostVoteRepository postVoteRepository;
-    private final UserHoguStatRepository userHoguStatRepository;
+    private final WriterHoguStatService writerHoguStatService;
 
     @Transactional
     public PostVoteResponse vote(Long userId, Long postId, PostVoteRequest request) {
@@ -40,7 +39,7 @@ public class PostVoteService {
         LocalDateTime now = LocalDateTime.now();
         postVoteRepository.upsertVote(userId, postId, request.myVote(), now);
 
-        updateWriterHoguStat(post.getWriter().getId(), now);
+        writerHoguStatService.recalculate(post.getWriter().getId(), now);
 
         return getVoteResponse(postId, request.myVote());
     }
@@ -55,7 +54,7 @@ public class PostVoteService {
         postVoteRepository.findById(new PostVoteId(userId, postId))
                 .ifPresent(postVote -> postVote.updateVote(NONE_VOTE, now));
 
-        updateWriterHoguStat(post.getWriter().getId(), now);
+        writerHoguStatService.recalculate(post.getWriter().getId(), now);
 
         return getVoteResponse(postId, NONE_VOTE);
     }
@@ -84,18 +83,6 @@ public class PostVoteService {
         if (post.getWriter().getId().equals(userId)) {
             throw new CustomException(CommonErrorCode.FORBIDDEN_ACCESS);
         }
-    }
-
-    private void updateWriterHoguStat(Long writerUserId, LocalDateTime now) {
-        PostVoteCounts voteCounts = postVoteRepository.countByWriterUserId(writerUserId);
-        int votedPostCount = Math.toIntExact(voteCounts.votedPostCount());
-        int hoguVoteCount = Math.toIntExact(voteCounts.hoguVoteCount());
-        int totalVoteCount = Math.toIntExact(voteCounts.totalVoteCount());
-
-        UserHoguStat stat = userHoguStatRepository.findById(writerUserId)
-                .orElseGet(() -> new UserHoguStat(writerUserId, now));
-        stat.updateVoteStats(votedPostCount, hoguVoteCount, totalVoteCount, now);
-        userHoguStatRepository.save(stat);
     }
 
     private PostVoteResponse getVoteResponse(Long postId, String myVote) {
