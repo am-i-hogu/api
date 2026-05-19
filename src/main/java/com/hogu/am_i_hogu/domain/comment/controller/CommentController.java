@@ -1,8 +1,11 @@
 package com.hogu.am_i_hogu.domain.comment.controller;
 
 import com.hogu.am_i_hogu.domain.comment.dto.request.CommentCreateRequest;
+import com.hogu.am_i_hogu.domain.comment.dto.request.CursorRequest;
 import com.hogu.am_i_hogu.domain.comment.dto.response.CommentCreateResponse;
+import com.hogu.am_i_hogu.domain.comment.dto.response.CommentReadResponse;
 import com.hogu.am_i_hogu.domain.comment.service.CommentCreateService;
+import com.hogu.am_i_hogu.domain.comment.service.CommentReadService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -12,9 +15,34 @@ import org.springframework.web.bind.annotation.*;
 public class CommentController {
 
     private final CommentCreateService commentCreateService;
+    private final CommentReadService commentReadService;
 
-    public CommentController(CommentCreateService commentCreateService) {
+    public CommentController(
+            CommentCreateService commentCreateService,
+            CommentReadService commentReadService
+    ) {
         this.commentCreateService = commentCreateService;
+        this.commentReadService = commentReadService;
+    }
+
+    /**
+     * [CI-001] 집단지성 조회
+     *
+     * @param authentication    사용자 인증 정보(필수 X)
+     * @param postId            집단지성이 포함된 게시물 id
+     * @param cursorRequest     cursor 정보(sortBy, pageSize, cursor)
+     * @return
+     */
+    @GetMapping("/{postId}/comments")
+    public ResponseEntity<CommentReadResponse> read(
+            Authentication authentication,
+            @PathVariable Long postId,
+            @ModelAttribute CursorRequest cursorRequest
+    ) {
+        Long userId = authentication == null ? null : Long.valueOf(authentication.getName());
+        CommentReadResponse response = commentReadService.read(userId, postId, cursorRequest);
+
+        return ResponseEntity.ok(response);
     }
 
     /**
