@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import com.jayway.jsonpath.JsonPath;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -455,6 +456,233 @@ public class CommentControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    /**
+     * 집단지성 조회 성공 테스트:
+     * 집단지성이 하나도 없는 게시물에 대해 비회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) comments가 빈 배열인지 확인
+     * - (3) hasNext가 false이고 nextCursor가 null인지 확인
+     */
+    @Test
+    void readReturns200WhenCommentsAreEmpty() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(0))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+    }
+
+    /**
+     * 집단지성 조회 성공 테스트:
+     * 집단지성이 5개 이하인 게시물에 대해 비회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 오래된 순으로 집단지성이 반환되는지 확인
+     * - (3) hasNext가 false이고 nextCursor가 null인지 확인
+     */
+    @Test
+    void readReturns200WhenCommentCountIsLessThanOrEqualTo5() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+        insertUser(2L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 2L, null, 0, "content 1", now.minusMinutes(3), false);
+        insertComment(1001L, 100L, 2L, null, 0, "content 2", now.minusMinutes(2), false);
+        insertComment(1002L, 100L, 2L, null, 0, "content 3", now.minusMinutes(1), false);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(3))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1000L))
+                .andExpect(jsonPath("$.comments[0].isMine").value(false))
+                .andExpect(jsonPath("$.comments[0].writer.isPostWriter").value(false))
+                .andExpect(jsonPath("$.comments[0].isHelpful").value(false))
+                .andExpect(jsonPath("$.comments[0].totalHelpfulCount").value(0))
+                .andExpect(jsonPath("$.comments[2].commentId").value(1002L))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+    }
+
+    /**
+     * 집단지성 조회 성공 테스트:
+     * 집단지성이 pageSize보다 많은 게시물에 대해 비회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) pageSize만큼만 집단지성이 반환되는지 확인
+     * - (3) hasNext가 true이고 nextCursor가 null이 아닌지 확인
+     */
+    @Test
+    void readReturns200WhenCommentCountExceedsPageSize() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+        insertUser(2L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 2L, null, 0, "content 1", now.minusMinutes(6), false);
+        insertComment(1001L, 100L, 2L, null, 0, "content 2", now.minusMinutes(5), false);
+        insertComment(1002L, 100L, 2L, null, 0, "content 3", now.minusMinutes(4), false);
+        insertComment(1003L, 100L, 2L, null, 0, "content 4", now.minusMinutes(3), false);
+        insertComment(1004L, 100L, 2L, null, 0, "content 5", now.minusMinutes(2), false);
+        insertComment(1005L, 100L, 2L, null, 0, "content 6", now.minusMinutes(1), false);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(5))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1000L))
+                .andExpect(jsonPath("$.comments[4].commentId").value(1004L))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.nextCursor").isNotEmpty());
+    }
+
+    /**
+     * 집단지성 조회 성공 테스트:
+     * 비회원이 첫 페이지에서 받은 nextCursor로 두 번째 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 다음 페이지의 집단지성만 반환되는지 확인
+     * - (3) hasNext가 false이고 nextCursor가 null인지 확인
+     */
+    @Test
+    void readReturns200WhenCursorIsValidForNextPageRequest() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+        insertUser(2L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 2L, null, 0, "content 1", now.minusMinutes(6), false);
+        insertComment(1001L, 100L, 2L, null, 0, "content 2", now.minusMinutes(5), false);
+        insertComment(1002L, 100L, 2L, null, 0, "content 3", now.minusMinutes(4), false);
+        insertComment(1003L, 100L, 2L, null, 0, "content 4", now.minusMinutes(3), false);
+        insertComment(1004L, 100L, 2L, null, 0, "content 5", now.minusMinutes(2), false);
+        insertComment(1005L, 100L, 2L, null, 0, "content 6", now.minusMinutes(1), false);
+
+        String responseBody = mockMvc.perform(get("/api/posts/{postId}/comments", 100L))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String nextCursor = JsonPath.read(responseBody, "$.nextCursor");
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
+                        .param("cursor", nextCursor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(1))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1005L))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+    }
+
+    /**
+     * 집단지성 조회 실패 테스트:
+     * 삭제된 게시물에 대해 비회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) POST_ALREADY_DELETED 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void readReturns404WhenPostAlreadyDeleted() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", true, now);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_ALREADY_DELETED"));
+    }
+
+    /**
+     * 집단지성 조회 실패 테스트:
+     * 존재하지 않는 게시물에 대해 비회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) POST_NOT_FOUND 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void readReturns404WhenPostDoesNotExist() throws Exception {
+        stubUnauthenticatedUser();
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+    }
+
+    /**
+     * 집단지성 조회 실패 테스트:
+     * 유효하지 않은 정렬 기준과 cursor로 비회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) INVALID_INPUT_VALUE 오류 코드를 반환하는지 확인
+     * - (3) sortBy, cursor 오류가 함께 반환되는지 확인
+     */
+    @Test
+    void readReturns400WhenSortByAndCursorAreInvalid() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
+                        .param("sortBy", "INVALID")
+                        .param("cursor", "invalid-cursor"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("sortBy"))
+                .andExpect(jsonPath("$.errors[0].code").value("INVALID_SORTING"))
+                .andExpect(jsonPath("$.errors[1].field").value("cursor"))
+                .andExpect(jsonPath("$.errors[1].code").value("INVALID_CURSOR"));
+    }
+
+    /**
+     * 집단지성 조회 실패 테스트:
+     * 다중 정렬 기준과 유효하지 않은 cursor로 비회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) INVALID_INPUT_VALUE 오류 코드를 반환하는지 확인
+     * - (3) sortBy, cursor 오류가 함께 반환되는지 확인
+     */
+    @Test
+    void readReturns400WhenSortByIsMultipleAndCursorIsInvalid() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
+                        .param("sortBy", "OLDEST,LATEST")
+                        .param("cursor", "invalid-cursor"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("sortBy"))
+                .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_SORTING"))
+                .andExpect(jsonPath("$.errors[1].field").value("cursor"))
+                .andExpect(jsonPath("$.errors[1].code").value("INVALID_CURSOR"));
+    }
+
+    /**
+     * 집단지성 조회 성공 테스트:
+     * access token 없이 요청을 보내고,
+     * 응답 status가 200 OK인지 확인
+     */
+    @Test
+    void readReturns200WhenAccessTokenIsMissing() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L))
+                .andExpect(status().isOk());
+    }
+
     private void insertUser(Long id, String nickname, String profileImageUrl) {
         LocalDateTime now = LocalDateTime.now();
         jdbcTemplate.update(
@@ -536,5 +764,10 @@ public class CommentControllerTest {
                 createdAt,
                 createdAt
         );
+    }
+
+    private void stubUnauthenticatedUser() {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
     }
 }
