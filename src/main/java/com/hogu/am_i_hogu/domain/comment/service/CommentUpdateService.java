@@ -38,6 +38,8 @@ public class CommentUpdateService {
         Post post = getPostOrThrow(postId);
         Comment comment = getCommentOrThrow(commentId);
 
+        validateCommentBelongsToPost(postId, comment);
+
         validateWriter(userId, comment.getWriter().getId());
         validateRequest(request);
 
@@ -66,6 +68,12 @@ public class CommentUpdateService {
         }
 
         return comment;
+    }
+
+    private void validateCommentBelongsToPost(Long postId, Comment comment) {
+        if (!comment.getPost().getId().equals(postId)) {
+            throw new CustomException(CommentErrorCode.COMMENT_NOT_FOUND);
+        }
     }
 
     private void validateWriter(Long requestedUserId, Long writerId) {

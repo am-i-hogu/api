@@ -650,6 +650,43 @@ public class CommentControllerTest {
 
     /**
      * 집단지성 수정 실패 테스트:
+     * 다른 게시물에 속한 집단지성 수정 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) COMMENT_NOT_FOUND 오류 코드를 반환하는지 확인
+     * - (3) DB에 집단지성 내용이 수정되지 않았는지 확인
+     */
+    @Test
+    void updateReturns404WhenCommentDoesNotBelongToPost() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title 1", "content 1", false, now);
+        insertPost(101L, 1L, "USED_TRADE", "title 2", "content 2", false, now);
+        insertComment(1000L, 101L, 1L, null, 0, "old content", now, false);
+
+        String requestBody = """
+                {
+                    "content" : "new content"
+                }
+                """;
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMENT_NOT_FOUND"));
+
+        String savedContent = jdbcTemplate.queryForObject(
+                "SELECT content FROM comments WHERE id = ?",
+                String.class,
+                1000L
+        );
+        assertThat(savedContent).isEqualTo("old content");
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
      * 요청 body 없이 수정 요청을 보내고,
      * - (1) 응답 status가 400 Bad Request인지 확인
      * - (2) EMPTY_REQUEST_BODY 오류 코드를 반환하는지 확인
