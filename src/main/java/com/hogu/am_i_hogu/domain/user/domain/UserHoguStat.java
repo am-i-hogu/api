@@ -30,6 +30,9 @@ public class UserHoguStat {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(nullable = false)
+    private Integer votedPostCount = 0;
+
     public UserHoguStat(
             Long userId,
             LocalDateTime updatedAt
