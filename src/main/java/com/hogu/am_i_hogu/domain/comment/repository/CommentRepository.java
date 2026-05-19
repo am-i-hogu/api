@@ -1,6 +1,7 @@
 package com.hogu.am_i_hogu.domain.comment.repository;
 
 import com.hogu.am_i_hogu.domain.comment.domain.Comment;
+import com.hogu.am_i_hogu.domain.comment.dto.CommentInfo;
 import com.hogu.am_i_hogu.domain.comment.dto.PostCommentCount;
 import com.hogu.am_i_hogu.domain.user.dto.MyCommentSummary;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +25,36 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             GROUP BY c.post.id
             """)
     List<PostCommentCount> countCommentsGroupedByPostIds(@Param("postIds") List<Long> postIds);
+
+
+    @Query("""
+            SELECT new com.hogu.am_i_hogu.domain.comment.dto.CommentInfo(
+                c.id,
+                c.content,
+                c.writer.id,
+                c.writer.nickname,
+                c.writer.profileImageUrl,
+                c.createdAt,
+                c.updatedAt,
+                c.isDeleted,
+                c.parentComment.id,
+                c.depth
+            )
+            FROM Comment c
+            JOIN c.post p
+            WHERE p.id = :postId
+                AND (
+                    :cursorCreatedAt IS NULL
+                    OR c.createdAt > :cursorCreatedAt
+                    OR (c.createdAt = :cursorCreatedAt AND c.id > :cursorCommentId)
+                )
+            ORDER BY c.createdAt ASC, c.id ASC
+""")
+    List<CommentInfo> findCommentsByPostIdOrderByOldest(
+            @Param("postId") Long postId,
+            @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
+            @Param("cursorCommentId") LocalDateTime cursorCommentId
+    );
 
     @Query("""
             SELECT new com.hogu.am_i_hogu.domain.user.dto.MyCommentSummary(
