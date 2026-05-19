@@ -48,11 +48,14 @@ public interface PostVoteRepository extends JpaRepository<PostVote, PostVoteId> 
     @Query("""
             SELECT new com.hogu.am_i_hogu.domain.post.dto.PostVoteCounts(
                 SUM(CASE WHEN pv.myVote = 'HOGU' THEN 1 ELSE 0 END),
-                SUM(CASE WHEN pv.myVote = 'NOT_HOGU' THEN 1 ELSE 0 END)
+                SUM(CASE WHEN pv.myVote = 'NOT_HOGU' THEN 1 ELSE 0 END),
+                COUNT(DISTINCT p.id)
             )
             FROM PostVote pv
             JOIN Post p ON p.id = pv.id.postId
             WHERE p.writer.id = :writerUserId
+              AND p.isDeleted = false
+              AND pv.myVote IN ('HOGU', 'NOT_HOGU')
             """)
     PostVoteCounts countByWriterUserId(@Param("writerUserId") Long writerUserId);
 
