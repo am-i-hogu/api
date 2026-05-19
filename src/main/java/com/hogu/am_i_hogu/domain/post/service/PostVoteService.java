@@ -88,12 +88,13 @@ public class PostVoteService {
 
     private void updateWriterHoguStat(Long writerUserId, LocalDateTime now) {
         PostVoteCounts voteCounts = postVoteRepository.countByWriterUserId(writerUserId);
+        int votedPostCount = Math.toIntExact(voteCounts.votedPostCount());
         int hoguVoteCount = Math.toIntExact(voteCounts.hoguVoteCount());
         int totalVoteCount = Math.toIntExact(voteCounts.totalVoteCount());
 
         UserHoguStat stat = userHoguStatRepository.findById(writerUserId)
                 .orElseGet(() -> new UserHoguStat(writerUserId, now));
-        stat.updateVoteStats(hoguVoteCount, totalVoteCount, now);
+        stat.updateVoteStats(votedPostCount, hoguVoteCount, totalVoteCount, now);
         userHoguStatRepository.save(stat);
     }
 

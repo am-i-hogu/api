@@ -19,6 +19,9 @@ public class UserHoguStat {
     private Long userId;
 
     @Column(nullable = false)
+    private Integer votedPostCount = 0;
+
+    @Column(nullable = false)
     private Integer hoguVoteCount = 0;
 
     @Column(nullable = false)
@@ -42,10 +45,12 @@ public class UserHoguStat {
     }
 
     public void updateVoteStats(
+            int votedPostCount,
             int hoguVoteCount,
             int totalVoteCount,
             LocalDateTime updatedAt
     ) {
+        this.votedPostCount = votedPostCount;
         this.hoguVoteCount = hoguVoteCount;
         this.totalVoteCount = totalVoteCount;
         this.hoguIndex = totalVoteCount == 0
