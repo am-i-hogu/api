@@ -1200,6 +1200,30 @@ class PostControllerTest {
         assertWriterHoguStat(writerUserId, 1, 0, 1, 0);
     }
 
+    // 정상 케이스: 마지막 유효 투표를 취소하면 투표 참여 게시물 수도 0으로 재집계한다.
+    @Test
+    void cancelLastVoteUpdatesWriterVotedPostCountToZero() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(writerUserId, "writer", now);
+        insertUserHoguStat(writerUserId, now);
+        insertPost(postId, writerUserId, "USED_TRADE", "마지막 투표 취소할 글", "본문입니다", false, now);
+        insertPostVote(TEST_USER_ID, postId, "HOGU", now);
+
+        mockMvc.perform(delete("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalVotes").value(0))
+                .andExpect(jsonPath("$.yesVotes").value(0))
+                .andExpect(jsonPath("$.noVotes").value(0))
+                .andExpect(jsonPath("$.myVote").value("NONE"));
+
+        assertWriterHoguStat(writerUserId, 0, 0, 0, 0);
+    }
+
     // 실패 케이스: 게시물 작성자는 자기 게시물에 투표할 수 없다.
     @Test
     void voteOnPostRejectsWriterVote() throws Exception {
