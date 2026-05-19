@@ -1114,7 +1114,7 @@ class PostControllerTest {
                 postId
         );
         assertThat(savedVote).isEqualTo("HOGU");
-        assertWriterHoguStat(writerUserId, 1, 1, 100);
+        assertWriterHoguStat(writerUserId, 1, 1, 1, 100);
     }
 
     // 정상 케이스: 이미 투표한 사용자가 다른 선택지로 다시 투표하면 기존 row를 갱신한다.
@@ -1163,7 +1163,7 @@ class PostControllerTest {
         );
         assertThat(voteRowCount).isEqualTo(1);
         assertThat(savedVote).isEqualTo("HOGU");
-        assertWriterHoguStat(writerUserId, 2, 2, 100);
+        assertWriterHoguStat(writerUserId, 1, 2, 2, 100);
     }
 
     // 정상 케이스: 투표 취소는 row 삭제가 아니라 my_vote=NONE으로 갱신하고 집계에서 제외한다.
@@ -1197,7 +1197,7 @@ class PostControllerTest {
                 postId
         );
         assertThat(savedVote).isEqualTo("NONE");
-        assertWriterHoguStat(writerUserId, 0, 1, 0);
+        assertWriterHoguStat(writerUserId, 1, 0, 1, 0);
     }
 
     // 실패 케이스: 게시물 작성자는 자기 게시물에 투표할 수 없다.
@@ -1376,7 +1376,18 @@ class PostControllerTest {
         );
     }
 
-    private void assertWriterHoguStat(Long writerUserId, int hoguVoteCount, int totalVoteCount, int hoguIndex) {
+    private void assertWriterHoguStat(
+            Long writerUserId,
+            int votedPostCount,
+            int hoguVoteCount,
+            int totalVoteCount,
+            int hoguIndex
+    ) {
+        Integer savedVotedPostCount = jdbcTemplate.queryForObject(
+                "SELECT voted_post_count FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                writerUserId
+        );
         Integer savedHoguVoteCount = jdbcTemplate.queryForObject(
                 "SELECT hogu_vote_count FROM user_hogu_stats WHERE user_id = ?",
                 Integer.class,
@@ -1393,6 +1404,7 @@ class PostControllerTest {
                 writerUserId
         );
 
+        assertThat(savedVotedPostCount).isEqualTo(votedPostCount);
         assertThat(savedHoguVoteCount).isEqualTo(hoguVoteCount);
         assertThat(savedTotalVoteCount).isEqualTo(totalVoteCount);
         assertThat(savedHoguIndex).isEqualTo(hoguIndex);
