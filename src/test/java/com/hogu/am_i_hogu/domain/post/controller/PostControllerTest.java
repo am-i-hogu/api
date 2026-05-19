@@ -887,6 +887,38 @@ class PostControllerTest {
         assertThat(deletedAt).isNotNull();
     }
 
+    // 정상 케이스: 투표가 있는 게시물을 삭제하면 해당 투표는 작성자 호구 통계에서 제외한다.
+    @Test
+    void deletePostRecalculatesWriterStatsExcludingDeletedPostVotes() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        Long voterId = 2L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(voterId, "voter", now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "투표 있는 삭제 글", "본문입니다", false, now);
+        insertPostVote(voterId, postId, "HOGU", now);
+        jdbcTemplate.update(
+                """
+                UPDATE user_hogu_stats
+                SET voted_post_count = ?, hogu_vote_count = ?, total_vote_count = ?, hogu_index = ?
+                WHERE user_id = ?
+                """,
+                1,
+                1,
+                1,
+                100,
+                TEST_USER_ID
+        );
+
+        mockMvc.perform(delete("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNoContent());
+
+        assertWriterHoguStat(TEST_USER_ID, 0, 0, 0, 0);
+    }
+
     // 실패 케이스: 존재하지 않는 게시물을 삭제하면 404 Not Found와 POST_NOT_FOUND를 반환한다.
     @Test
     void deletePostRejectsNotFoundPost() throws Exception {
