@@ -86,7 +86,7 @@ public class CommentController {
             @RequestBody(required = false)CommentUpdateRequest request
     ) {
         Long userId = Long.valueOf(authentication.getName());
-        CommentUpdateResponse response = commentUpdateService.update(userId, postId commentId, request);
+        CommentUpdateResponse response = commentUpdateService.update(userId, postId, commentId, request);
 
         return ResponseEntity.ok(response);
     }

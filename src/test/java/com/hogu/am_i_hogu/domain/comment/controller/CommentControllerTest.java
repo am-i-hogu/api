@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -453,6 +454,286 @@ public class CommentControllerTest {
     @Test
     void getMyPostsReturns401WhenAccessTokenIsMissing() throws Exception {
         mockMvc.perform(post("/api/post/{postId}/comments", 100L))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * 집단지성 수정 성공 테스트:
+     * 작성자가 본인 집단지성 수정 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 수정된 집단지성 정보가 적절히 반환되는지 확인
+     * - (3) DB에 집단지성 내용이 수정되었는지 확인
+     */
+    @Test
+    void updateReturns200WhenCommentIsUpdated() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+        insertUser(2L, "post writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 1L, null, 0, "old content", now, false);
+
+        String requestBody = """
+                {
+                    "content" : "new content"
+                }
+                """;
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.commentId").value(1000L))
+                .andExpect(jsonPath("$.content").value("new content"))
+                .andExpect(jsonPath("$.isMine").value(true))
+                .andExpect(jsonPath("$.writer.nickname").value("comment writer"))
+                .andExpect(jsonPath("$.writer.profileImageUrl").value(nullValue()))
+                .andExpect(jsonPath("$.writer.isPostWriter").value(false))
+                .andExpect(jsonPath("$.createdAt").value(notNullValue()))
+                .andExpect(jsonPath("$.updatedAt").value(notNullValue()))
+                .andExpect(jsonPath("$.isHelpful").value(false))
+                .andExpect(jsonPath("$.totalHelpfulCount").value(0))
+                .andExpect(jsonPath("$.parentId").value(nullValue()))
+                .andExpect(jsonPath("$.depth").value(0));
+
+        String savedContent = jdbcTemplate.queryForObject(
+                "SELECT content FROM comments WHERE id = ?",
+                String.class,
+                1000L
+        );
+        assertThat(savedContent).isEqualTo("new content");
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
+     * 작성자가 아닌 유저가 집단지성 수정 요청을 보내고,
+     * - (1) 응답 status가 403 Forbidden인지 확인
+     * - (2) DB에 집단지성 내용이 수정되지 않았는지 확인
+     */
+    @Test
+    void updateReturns403WhenUserIsNotWriter() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+        insertUser(2L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 2L, null, 0, "old content", now, false);
+
+        String requestBody = """
+                {
+                    "content" : "new content"
+                }
+                """;
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN_ACCESS"));
+
+        String savedContent = jdbcTemplate.queryForObject(
+                "SELECT content FROM comments WHERE id = ?",
+                String.class,
+                1000L
+        );
+        assertThat(savedContent).isEqualTo("old content");
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
+     * 삭제된 게시물의 집단지성 수정 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) POST_ALREADY_DELETED 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void updateReturns404WhenPostAlreadyDeleted() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", true, now);
+        insertComment(1000L, 100L, 1L, null, 0, "old content", now, false);
+
+        String requestBody = """
+                {
+                    "content" : "new content"
+                }
+                """;
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_ALREADY_DELETED"));
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
+     * 존재하지 않는 게시물의 집단지성 수정 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) POST_NOT_FOUND 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void updateReturns404WhenPostDoesNotExist() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        String requestBody = """
+                {
+                    "content" : "new content"
+                }
+                """;
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
+     * 삭제된 집단지성 수정 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) COMMENT_ALREADY_DELETED 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void updateReturns404WhenCommentAlreadyDeleted() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 1L, null, 0, "old content", now, true);
+
+        String requestBody = """
+                {
+                    "content" : "new content"
+                }
+                """;
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMENT_ALREADY_DELETED"));
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
+     * 존재하지 않는 집단지성 수정 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) COMMENT_NOT_FOUND 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void updateReturns404WhenCommentDoesNotExist() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+
+        String requestBody = """
+                {
+                    "content" : "new content"
+                }
+                """;
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMENT_NOT_FOUND"));
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
+     * 요청 body 없이 수정 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) EMPTY_REQUEST_BODY 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void updateReturns400WhenRequestBodyIsEmpty() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 1L, null, 0, "old content", now, false);
+
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EMPTY_REQUEST_BODY"));
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
+     * 비어있는 본문으로 수정 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) EMPTY_CONTENT 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void updateReturns400WhenContentIsEmpty() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 1L, null, 0, "old content", now, false);
+
+        String requestBody = """
+                {
+                    "content" : "     "
+                }
+                """;
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EMPTY_CONTENT"));
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
+     * 본문 길이가 300자를 초과하는 수정 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) CONTENT_LENGTH_EXCEEDED 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void updateReturns400WhenContentLengthExceeds300() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 1L, null, 0, "old content", now, false);
+
+        String requestBody = """
+                {
+                    "content" : "%s"
+                }
+                """.formatted("a".repeat(301));
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CONTENT_LENGTH_EXCEEDED"));
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
+     * access token 없이 요청을 보내고,
+     * 응답 status가 401 Unauthorized인지 확인
+     */
+    @Test
+    void updateReturns401WhenAccessTokenIsMissing() throws Exception {
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L))
                 .andExpect(status().isUnauthorized());
     }
 
