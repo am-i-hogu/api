@@ -26,6 +26,39 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             """)
     List<PostCommentCount> countCommentsGroupedByPostIds(@Param("postIds") List<Long> postIds);
 
+    @Query("""
+            SELECT new com.hogu.am_i_hogu.domain.comment.dto.CommentInfo(
+                c.id,
+                c.content,
+                c.writer.id,
+                c.writer.nickname,
+                c.writer.profileImageUrl,
+                CASE WHEN c.writer.id = p.writer.id THEN true ELSE false END,
+                c.createdAt,
+                c.updatedAt,
+                c.isDeleted,
+                c.parentComment.id,
+                c.depth,
+                COUNT(chm)
+            )
+            FROM Comment c
+            JOIN c.post p
+            LEFT JOIN CommentHelpfulMark chm ON chm.id.commentId = c.id
+            WHERE p.id = :postId
+                AND (
+                    :cursorCreatedAt IS NULL
+                    OR c.createdAt > :cursorCreatedAt
+                    OR (c.createdAt = :cursorCreatedAt AND c.id > :cursorCommentId)
+                )
+            GROUP BY c.id
+            ORDER BY c.createdAt ASC, c.id ASC
+            """)
+    List<CommentInfo> findCommentsByPostIdOrderByOldest(
+            @Param("postId") Long postId,
+            @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
+            @Param("cursorCommentId") Long cursorCommentId,
+            Pageable pageable
+    );
 
     @Query("""
             SELECT new com.hogu.am_i_hogu.domain.comment.dto.CommentInfo(
@@ -34,26 +67,63 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
                 c.writer.id,
                 c.writer.nickname,
                 c.writer.profileImageUrl,
+                CASE WHEN c.writer.id = p.writer.id THEN true ELSE false END,
                 c.createdAt,
                 c.updatedAt,
                 c.isDeleted,
                 c.parentComment.id,
-                c.depth
+                c.depth,
+                COUNT(chm)
             )
             FROM Comment c
             JOIN c.post p
+            LEFT JOIN CommentHelpfulMark chm ON chm.id.commentId = c.id
             WHERE p.id = :postId
                 AND (
                     :cursorCreatedAt IS NULL
-                    OR c.createdAt > :cursorCreatedAt
-                    OR (c.createdAt = :cursorCreatedAt AND c.id > :cursorCommentId)
+                    OR c.createdAt < :cursorCreatedAt
+                    OR (c.createdAt = :cursorCreatedAt AND c.id < :cursorCommentId)
                 )
-            ORDER BY c.createdAt ASC, c.id ASC
-""")
-    List<CommentInfo> findCommentsByPostIdOrderByOldest(
+            GROUP BY c.id
+            ORDER BY c.createdAt DESC, c.id DESC
+            """)
+    List<CommentInfo> findCommentsByPostIdOrderByLatest(
             @Param("postId") Long postId,
             @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
-            @Param("cursorCommentId") LocalDateTime cursorCommentId
+            @Param("cursorCommentId") Long cursorCommentId,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT new com.hogu.am_i_hogu.domain.comment.dto.CommentInfo(
+                c.id,
+                c.content,
+                c.writer.id,
+                c.writer.nickname,
+                c.writer.profileImageUrl,
+                CASE WHEN c.writer.id = p.writer.id THEN true ELSE false END,
+                c.createdAt,
+                c.updatedAt,
+                c.isDeleted,
+                c.parentComment.id,
+                c.depth,
+                COUNT(chm)
+            )
+            FROM Comment c
+            JOIN c.post p
+            LEFT JOIN CommentHelpfulMark chm ON chm.id.commentId = c.id
+            WHERE p.id = :postId
+            GROUP BY c.id
+            HAVING :cursorHelpfulCount IS NULL
+                OR COUNT(chm) < :cursorHelpfulCount
+                OR (COUNT(chm) = :cursorHelpfulCount AND c.id < :cursorCommentId)
+            ORDER BY COUNT(chm) DESC, c.id DESC
+            """)
+    List<CommentInfo> findCommentsByPostIdOrderByHelpful(
+            @Param("postId") Long postId,
+            @Param("cursorHelpfulCount") Long cursorHelpfulCount,
+            @Param("cursorCommentId") Long cursorCommentId,
+            Pageable pageable
     );
 
     @Query("""

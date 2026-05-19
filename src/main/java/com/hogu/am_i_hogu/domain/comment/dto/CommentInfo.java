@@ -1,7 +1,5 @@
 package com.hogu.am_i_hogu.domain.comment.dto;
 
-import com.hogu.am_i_hogu.domain.comment.dto.response.CommentWriterResponse;
-
 import java.time.LocalDateTime;
 
 public record CommentInfo(
@@ -10,10 +8,12 @@ public record CommentInfo(
         Long writerId,
         String writerNickname,
         String writerProfileImageUrl,
+        boolean isPostWriter,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         boolean isDeleted,
         Long parentId,
-        int depth
+        int depth,
+        long totalHelpfulCount
 ) {
 }
