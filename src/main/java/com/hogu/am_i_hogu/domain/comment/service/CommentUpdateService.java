@@ -43,9 +43,9 @@ public class CommentUpdateService {
         validateWriter(userId, comment.getWriter().getId());
         validateRequest(request);
 
-        Comment updatedComment = updateComment(comment, request.content());
+        updateComment(comment, request.content());
 
-        return toCommentUpdateResponse(post, updatedComment);
+        return toCommentUpdateResponse(post, comment);
     }
 
     private Post getPostOrThrow(Long postId) {
@@ -96,11 +96,9 @@ public class CommentUpdateService {
         }
     }
 
-    private Comment updateComment(Comment comment, String content) {
+    private void updateComment(Comment comment, String content) {
         LocalDateTime now = LocalDateTime.now();
         comment.update(content, now);
-
-        return commentRepository.save(comment);
     }
 
     private CommentUpdateResponse toCommentUpdateResponse(Post post, Comment comment) {

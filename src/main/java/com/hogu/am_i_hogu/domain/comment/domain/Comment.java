@@ -71,4 +71,10 @@ public class Comment {
         this.content = content;
         this.updatedAt = updatedAt;
     }
+
+    public void delete(LocalDateTime deletedAt) {
+        this.isDeleted = true;
+        this.deletedAt = deletedAt;
+        this.updatedAt = deletedAt;
+    }
 }
