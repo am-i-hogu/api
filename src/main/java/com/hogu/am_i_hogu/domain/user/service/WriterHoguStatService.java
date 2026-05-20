@@ -1,5 +1,7 @@
 package com.hogu.am_i_hogu.domain.user.service;
 
+import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
+import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.post.dto.PostVoteCounts;
 import com.hogu.am_i_hogu.domain.post.repository.PostVoteRepository;
 import com.hogu.am_i_hogu.domain.user.domain.UserHoguStat;
@@ -24,7 +26,7 @@ public class WriterHoguStatService {
         int totalVoteCount = Math.toIntExact(voteCounts.totalVoteCount());
 
         UserHoguStat stat = userHoguStatRepository.findById(writerUserId)
-                .orElseGet(() -> new UserHoguStat(writerUserId, now));
+                .orElseThrow(() -> new CustomException(CommonErrorCode.SERVER_ERROR));
         stat.updateVoteStats(votedPostCount, hoguVoteCount, totalVoteCount, now);
         userHoguStatRepository.save(stat);
     }
