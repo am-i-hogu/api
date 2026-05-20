@@ -866,6 +866,7 @@ class PostControllerTest {
 
         Long postId = 1234L;
         LocalDateTime now = LocalDateTime.now();
+        insertUserHoguStat(TEST_USER_ID, now);
         insertPost(postId, TEST_USER_ID, "USED_TRADE", "삭제할 글", "본문입니다", false, now);
 
         mockMvc.perform(delete("/api/posts/{postId}", postId)
@@ -1158,11 +1159,12 @@ class PostControllerTest {
         Long otherVoterId = 3L;
         Long postId = 1234L;
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime existingVoteCreatedAt = now.minusDays(1);
         insertUser(writerUserId, "writer", now);
         insertUser(otherVoterId, "other-voter", now);
         insertUserHoguStat(writerUserId, now);
         insertPost(postId, writerUserId, "USED_TRADE", "투표 변경할 글", "본문입니다", false, now);
-        insertPostVote(TEST_USER_ID, postId, "NOT_HOGU", now);
+        insertPostVote(TEST_USER_ID, postId, "NOT_HOGU", existingVoteCreatedAt);
         insertPostVote(otherVoterId, postId, "HOGU", now);
 
         String requestBody = """
@@ -1193,8 +1195,15 @@ class PostControllerTest {
                 TEST_USER_ID,
                 postId
         );
+        LocalDateTime savedCreatedAt = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM post_votes WHERE user_id = ? AND post_id = ?",
+                LocalDateTime.class,
+                TEST_USER_ID,
+                postId
+        );
         assertThat(voteRowCount).isEqualTo(1);
         assertThat(savedVote).isEqualTo("HOGU");
+        assertThat(savedCreatedAt).isBefore(now.minusHours(1));
         assertWriterHoguStat(writerUserId, 1, 2, 2, 100);
     }
 
@@ -1254,6 +1263,44 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.myVote").value("NONE"));
 
         assertWriterHoguStat(writerUserId, 0, 0, 0, 0);
+    }
+
+    // 정상 케이스: 취소 상태(NONE)에서 다시 투표하면 created_at을 새 투표 시점으로 갱신한다.
+    @Test
+    void voteOnPostUpdatesCreatedAtWhenRevotingAfterCancel() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime canceledVoteCreatedAt = now.minusDays(1);
+        LocalDateTime revoteRequestStartedAt = LocalDateTime.now().minusMinutes(1);
+        insertUser(writerUserId, "writer", now);
+        insertUserHoguStat(writerUserId, now);
+        insertPost(postId, writerUserId, "USED_TRADE", "재투표할 글", "본문입니다", false, now);
+        insertPostVote(TEST_USER_ID, postId, "NONE", canceledVoteCreatedAt);
+
+        String requestBody = """
+                {
+                  "myVote": "HOGU"
+                }
+                """;
+
+        mockMvc.perform(put("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.myVote").value("HOGU"));
+
+        LocalDateTime savedCreatedAt = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM post_votes WHERE user_id = ? AND post_id = ?",
+                LocalDateTime.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(savedCreatedAt).isAfter(canceledVoteCreatedAt);
+        assertThat(savedCreatedAt).isAfter(revoteRequestStartedAt);
     }
 
     // 실패 케이스: 게시물 작성자는 자기 게시물에 투표할 수 없다.
