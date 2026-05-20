@@ -72,6 +72,7 @@ class PostControllerTest {
         jdbcTemplate.update("DELETE FROM post_bookmarks");
         jdbcTemplate.update("DELETE FROM post_votes");
         jdbcTemplate.update("DELETE FROM image_assets");
+        jdbcTemplate.update("DELETE FROM comments");
         jdbcTemplate.update("DELETE FROM posts");
         jdbcTemplate.update("DELETE FROM user_hogu_stats");
         jdbcTemplate.update("DELETE FROM users");
@@ -92,6 +93,199 @@ class PostControllerTest {
                 now,
                 now
         );
+    }
+
+    // 정상 케이스: 비회원도 홈 게시물 목록을 조회할 수 있고, 삭제된 글은 제외된다.
+    @Test
+    void getHomePostsAsGuestReturnsVisiblePostsOnly() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        LocalDateTime older = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        LocalDateTime newer = LocalDateTime.of(2026, 5, 1, 11, 0, 0);
+        insertPost(100L, TEST_USER_ID, "USED_TRADE", "오래된 글", "오래된 본문입니다", false, older);
+        insertPost(101L, TEST_USER_ID, "CONTRACT", "최신 글", "최신 본문입니다", false, newer);
+        insertPost(102L, TEST_USER_ID, "USED_TRADE", "삭제된 글", "삭제된 본문입니다", true, newer);
+        insertImage(1001L, 101L, "https://example.com/thumbnail.jpg", true, 0, newer);
+        mockMvc.perform(get("/api/posts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPostCount").doesNotExist())
+                .andExpect(jsonPath("$.posts.length()").value(2))
+                .andExpect(jsonPath("$.posts[0].postId").value(101L))
+                .andExpect(jsonPath("$.posts[0].isBookmarked").value(false))
+                .andExpect(jsonPath("$.posts[0].categories[0]").value("CONTRACT"))
+                .andExpect(jsonPath("$.posts[0].title").value("최신 글"))
+                .andExpect(jsonPath("$.posts[0].contentPreview").value("최신 본문입니다"))
+                .andExpect(jsonPath("$.posts[0].thumbnailUrl").value("https://example.com/thumbnail.jpg"))
+                .andExpect(jsonPath("$.posts[0].totalVoteCount").value(0))
+                .andExpect(jsonPath("$.posts[0].commentCount").value(0))
+                .andExpect(jsonPath("$.posts[0].writer.nickname").value("hogu"))
+                .andExpect(jsonPath("$.posts[1].postId").value(100L))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+    }
+
+    // 정상 케이스: 로그인 사용자의 북마크 여부를 홈 게시물 목록에 반영한다.
+    @Test
+    void getHomePostsAsAuthenticatedUserReturnsBookmarkStatus() throws Exception {
+        stubAuthenticatedUser();
+        Long otherUserId = 2L;
+        LocalDateTime now = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        insertUser(otherUserId, "other-hogu", now);
+        insertPost(100L, otherUserId, "USED_TRADE", "북마크한 글", "본문입니다", false, now);
+        insertPost(101L, otherUserId, "USED_TRADE", "북마크 안 한 글", "본문입니다", false, now.plusMinutes(1));
+        insertPostBookmark(TEST_USER_ID, 100L, now);
+        mockMvc.perform(get("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts[0].postId").value(101L))
+                .andExpect(jsonPath("$.posts[0].isBookmarked").value(false))
+                .andExpect(jsonPath("$.posts[1].postId").value(100L))
+                .andExpect(jsonPath("$.posts[1].isBookmarked").value(true));
+    }
+
+    // 정상 케이스: keyword와 categories로 필터링하고 카테고리 필터가 있으면 totalPostCount를 반환한다.
+    @Test
+    void getHomePostsFiltersByKeywordAndCategories() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        LocalDateTime now = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        insertPost(100L, TEST_USER_ID, "USED_TRADE", "아이폰 거래", "본문입니다", false, now);
+        insertPost(101L, TEST_USER_ID, "PURCHASE", "아이폰 구매", "본문입니다", false, now.plusMinutes(1));
+        insertPost(102L, TEST_USER_ID, "WORK", "아이폰 업무", "본문입니다", false, now.plusMinutes(2));
+        mockMvc.perform(get("/api/posts")
+                        .param("keyword", "아이폰")
+                        .param("categories", "USED_TRADE,PURCHASE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPostCount").value(2))
+                .andExpect(jsonPath("$.posts.length()").value(2))
+                .andExpect(jsonPath("$.posts[0].postId").value(101L))
+                .andExpect(jsonPath("$.posts[1].postId").value(100L));
+    }
+
+    // 정상 케이스: 댓글 수와 투표 참여 수 기준 정렬을 지원한다.
+    @Test
+    void getHomePostsSortsByCommentCountAndVoteParticipation() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        LocalDateTime now = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        insertUser(2L, "commenter", now);
+        insertUser(3L, "voter", now);
+        insertPost(100L, TEST_USER_ID, "USED_TRADE", "댓글 적은 글", "본문입니다", false, now);
+        insertPost(101L, TEST_USER_ID, "USED_TRADE", "댓글 많은 글", "본문입니다", false, now.plusMinutes(1));
+        insertPost(102L, TEST_USER_ID, "USED_TRADE", "투표 많은 글", "본문입니다", false, now.plusMinutes(2));
+        insertComment(1000L, 101L, 2L, "댓글 1", now);
+        insertComment(1001L, 101L, 2L, "댓글 2", now.plusSeconds(1));
+        insertPostVote(2L, 102L, "HOGU", now);
+        insertPostVote(3L, 102L, "NOT_HOGU", now.plusSeconds(1));
+        insertPostVote(TEST_USER_ID, 100L, "NONE", now.plusSeconds(2));
+        mockMvc.perform(get("/api/posts")
+                        .param("sortBy", "MOST_COMMENTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts[0].postId").value(101L))
+                .andExpect(jsonPath("$.posts[0].commentCount").value(2));
+        mockMvc.perform(get("/api/posts")
+                        .param("sortBy", "MOST_PARTICIPATED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts[0].postId").value(102L))
+                .andExpect(jsonPath("$.posts[0].totalVoteCount").value(2));
+    }
+
+    // 정상 케이스: 조회수 기준 정렬을 지원하고 동점이면 postId 내림차순으로 정렬한다.
+    @Test
+    void getHomePostsSortsByViewCount() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        LocalDateTime now = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        insertPost(100L, TEST_USER_ID, "USED_TRADE", "조회수 낮은 글", "본문입니다", false, now);
+        insertPost(101L, TEST_USER_ID, "USED_TRADE", "조회수 높은 글", "본문입니다", false, now.plusMinutes(1));
+        insertPost(102L, TEST_USER_ID, "USED_TRADE", "조회수 동점 글", "본문입니다", false, now.plusMinutes(2));
+        jdbcTemplate.update("UPDATE posts SET view_count = ? WHERE id = ?", 1, 100L);
+        jdbcTemplate.update("UPDATE posts SET view_count = ? WHERE id = ?", 10, 101L);
+        jdbcTemplate.update("UPDATE posts SET view_count = ? WHERE id = ?", 10, 102L);
+        mockMvc.perform(get("/api/posts")
+                        .param("sortBy", "MOST_VIEWED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts[0].postId").value(102L))
+                .andExpect(jsonPath("$.posts[1].postId").value(101L))
+                .andExpect(jsonPath("$.posts[2].postId").value(100L));
+    }
+
+    // 정상 케이스: pageSize와 nextCursor로 다음 페이지를 중복 없이 조회한다.
+    @Test
+    void getHomePostsReturnsNextPageWithCursor() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        LocalDateTime base = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        for (long postId = 100L; postId <= 105L; postId++) {
+            insertPost(
+                    postId,
+                    TEST_USER_ID,
+                    "USED_TRADE",
+                    "글 " + postId,
+                    "본문입니다",
+                    false,
+                    base.plusMinutes(postId - 100L)
+            );
+        }
+        String response = mockMvc.perform(get("/api/posts")
+                        .param("pageSize", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts.length()").value(5))
+                .andExpect(jsonPath("$.posts[0].postId").value(105L))
+                .andExpect(jsonPath("$.posts[4].postId").value(101L))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.nextCursor").isString())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String nextCursor = com.jayway.jsonpath.JsonPath.read(response, "$.nextCursor");
+        mockMvc.perform(get("/api/posts")
+                        .param("pageSize", "5")
+                        .param("cursor", nextCursor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts.length()").value(1))
+                .andExpect(jsonPath("$.posts[0].postId").value(100L))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+    }
+
+    // 실패 케이스: 잘못된 홈 조회 파라미터는 필드별 오류 코드를 반환한다.
+    @Test
+    void getHomePostsRejectsInvalidQueryParams() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        mockMvc.perform(get("/api/posts")
+                        .param("keyword", "   ")
+                        .param("categories", "UNKNOWN")
+                        .param("sortBy", "LATEST,MOST_VIEWED"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("keyword"))
+                .andExpect(jsonPath("$.errors[0].code").value("EMPTY_KEYWORD"))
+                .andExpect(jsonPath("$.errors[1].field").value("categories"))
+                .andExpect(jsonPath("$.errors[1].code").value("INVALID_CATEGORIES"))
+                .andExpect(jsonPath("$.errors[2].field").value("sortBy"))
+                .andExpect(jsonPath("$.errors[2].code").value("MULTIPLE_SORTING"));
+    }
+
+    // 실패 케이스: 존재하지 않는 정렬 기준과 해석 불가능한 cursor는 필드별 오류 코드를 반환한다.
+    @Test
+    void getHomePostsRejectsInvalidSortByAndCursor() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        mockMvc.perform(get("/api/posts")
+                        .param("sortBy", "UNKNOWN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("sortBy"))
+                .andExpect(jsonPath("$.errors[0].code").value("INVALID_SORTING"));
+        mockMvc.perform(get("/api/posts")
+                        .param("cursor", "invalid-cursor"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("cursor"))
+                .andExpect(jsonPath("$.errors[0].code").value("INVALID_CURSOR"));
     }
 
     // 정상 케이스: 인증된 사용자가 필수 값과 이미지 정보를 보내면 게시물이 생성되고 postId를 반환한다.
@@ -1436,6 +1630,27 @@ class PostControllerTest {
                 userId,
                 postId,
                 myVote,
+                now,
+                now
+        );
+    }
+
+    private void insertComment(Long commentId, Long postId, Long writerUserId, String content, LocalDateTime now) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO comments
+                    (id, post_id, writer_user_id, parent_comment_id, depth, content, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                commentId,
+                postId,
+                writerUserId,
+                null,
+                0,
+                content,
+                false,
+                null,
                 now,
                 now
         );
