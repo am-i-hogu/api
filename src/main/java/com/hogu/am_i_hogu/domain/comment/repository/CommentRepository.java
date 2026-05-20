@@ -114,7 +114,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             LEFT JOIN CommentHelpfulMark chm ON chm.id.commentId = c.id
             WHERE c.parentComment.id IN :parentIds
             GROUP BY c.id
-            ORDER BY c.parentComment.id ASC, c.createdAt ASC, c.id ASC
+            ORDER BY c.createdAt ASC, c.id ASC
             """)
     List<CommentInfo> findChildCommentsByParentIds(@Param("parentIds") List<Long> parentIds);
 

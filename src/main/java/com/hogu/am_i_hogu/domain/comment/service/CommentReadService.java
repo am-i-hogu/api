@@ -30,7 +30,7 @@ public class CommentReadService {
         HELPFUL
     }
 
-    private record QueryOptions(SortBy sortBy, CommentCursor cursor) {}
+    private record QueryOptions(SortBy sortBy, int pageSize, CommentCursor cursor) {}
     private record Slice<T>(List<T> comments, boolean hasNext) {}
 
     private static final int DEFAULT_PAGE_SIZE = 5;
@@ -55,32 +55,17 @@ public class CommentReadService {
 
     public CommentReadResponse read(Long userId, Long postId, CursorRequest request) {
         validatePost(postId);
-
-        int pageSize = normalizePageSize(request.pageSize());
         QueryOptions readOptions = resolveQueryOptions(request);
 
-        List<CommentInfo> queriedParents = getParentCommentsBySort(
-                postId,
-                readOptions.cursor(),
-                pageSize,
-                readOptions.sortBy()
-        );
-        Slice<CommentInfo> parentSlice = sliceComments(queriedParents, pageSize);
-        List<CommentInfo> parentComments = parentSlice.comments();
-
-        List<CommentInfo> childComments = getChildComments(parentComments);
-
-        List<CommentInfo> orderedComments = mergeParentAndChildren(parentComments, childComments);
-
-        Set<Long> helpfulCommentIds = userId == null
-                ? Set.of()
-                : getHelpfulCommentIds(userId, orderedComments);
+        Slice<CommentInfo> parentComments = getParentCommentsBySort(postId, readOptions);
+        List<CommentInfo> childComments = getChildComments(parentComments.comments());
+        List<CommentInfo> orderedComments = mergeParentAndChildren(parentComments.comments(), childComments);
+        Set<Long> helpfulCommentIds = getHelpfulCommentIds(userId, orderedComments);
 
         List<CommentItemResponse> comments = toResponse(orderedComments, userId, helpfulCommentIds);
+        String nextCursor = createNextCursor(parentComments.hasNext(), parentComments.comments(), readOptions.sortBy());
 
-        String nextCursor = createNextCursor(parentSlice.hasNext(), parentComments, readOptions.sortBy());
-
-        return new CommentReadResponse(comments, parentSlice.hasNext(), nextCursor);
+        return new CommentReadResponse(comments, parentComments.hasNext(), nextCursor);
 
     }
 
@@ -94,8 +79,9 @@ public class CommentReadService {
     }
 
     private QueryOptions resolveQueryOptions(CursorRequest request) {
-        List<ErrorResponse.ErrorDetail> errors = new ArrayList<>();
+        int pageSize = normalizePageSize(request.pageSize());
 
+        List<ErrorResponse.ErrorDetail> errors = new ArrayList<>();
         SortBy sortBy = resolveSortBy(request.sortBy(), errors);
         CommentCursor cursor = validateCursor(request.cursor(), sortBy, errors);
 
@@ -103,7 +89,7 @@ public class CommentReadService {
             throw new CustomException(CommentErrorCode.INVALID_PARAM_VALUE, errors);
         }
 
-        return new QueryOptions(sortBy, cursor);
+        return new QueryOptions(sortBy, pageSize, cursor);
     }
 
     // pageSize 검증하여 유효한 범위 내 값으로 조정
@@ -214,17 +200,16 @@ public class CommentReadService {
         }
     }
 
-    private List<CommentInfo> getParentCommentsBySort(
-            Long postId,
-            CommentCursor cursor,
-            int pageSize,
-            SortBy sortBy
-    ) {
+    private Slice<CommentInfo> getParentCommentsBySort(Long postId, QueryOptions readOptions) {
+        SortBy sortBy = readOptions.sortBy();
+        int pageSize = readOptions.pageSize();
+        CommentCursor cursor = readOptions.cursor();
+
         LocalDateTime cursorCreatedAt = cursor == null ? null : cursor.createdAt();
         Long cursorHelpfulCount = cursor == null ? null : cursor.totalHelpfulCount();
         Long cursorCommentId = cursor == null ? null : cursor.commentId();
 
-        return switch (sortBy) {
+        List<CommentInfo> queriedParents = switch (sortBy) {
             case LATEST -> commentRepository.findParentCommentsByPostIdOrderByLatest(
                     postId,
                     cursorCreatedAt,
@@ -238,12 +223,18 @@ public class CommentReadService {
                     PageRequest.of(0, pageSize + 1)
             );
         };
+
+        return sliceComments(queriedParents, pageSize);
     }
 
     private Set<Long> getHelpfulCommentIds(Long userId, List<CommentInfo> comments) {
+        if (userId == null) {
+            return Set.of();
+        }
+
         List<Long> commentIds = comments.stream()
-                        .map(CommentInfo::commentId)
-                        .toList();
+                .map(CommentInfo::commentId)
+                .toList();
 
         return commentHelpfulMarkRepository.findHelpfulCommentIdsByUserIdAndCommentIds(userId, commentIds);
     }
