@@ -1152,7 +1152,7 @@ public class CommentControllerTest {
         insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
 
         mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
-                        .param("sortBy", "OLDEST,LATEST")
+                        .param("sortBy", "HELPFUL,LATEST")
                         .param("cursor", "invalid-cursor"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
@@ -1402,6 +1402,156 @@ public class CommentControllerTest {
                 .andExpect(jsonPath("$.comments[1].commentId").value(1000L))
                 .andExpect(jsonPath("$.comments[1].isMine").value(true))
                 .andExpect(jsonPath("$.comments[1].isHelpful").value(false));
+    }
+
+    /**
+     * 집단지성 생성 실패 테스트:
+     * postId 타입이 잘못된 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) WRONG_POSTID_TYPE 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void createReturns400WhenPostIdTypeIsWrong() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        String requestBody = """
+                {
+                    "parentId" : null,
+                    "content" : "content"
+                }
+                """;
+        mockMvc.perform(post("/api/posts/{postId}/comments", "abc")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WRONG_POSTID_TYPE"));
+    }
+
+    /**
+     * 집단지성 생성 실패 테스트:
+     * parentId 타입이 잘못된 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) WRONG_PARENTID_TYPE 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void createReturns400WhenParentIdTypeIsWrong() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+
+        String requestBody = """
+                {
+                    "parentId" : "abc",
+                    "content" : "content"
+                }
+                """;
+        mockMvc.perform(post("/api/posts/{postId}/comments", 100L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WRONG_PARENTID_TYPE"));
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
+     * postId 타입이 잘못된 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) WRONG_POSTID_TYPE 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void updateReturns400WhenPostIdTypeIsWrong() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        String requestBody = """
+                {
+                    "content" : "new content"
+                }
+                """;
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", "abc", 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WRONG_POSTID_TYPE"));
+    }
+
+    /**
+     * 집단지성 수정 실패 테스트:
+     * commentId 타입이 잘못된 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) WRONG_COMMENTID_TYPE 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void updateReturns400WhenCommentIdTypeIsWrong() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        String requestBody = """
+                {
+                    "content" : "new content"
+                }
+                """;
+        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, "abc")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WRONG_COMMENTID_TYPE"));
+    }
+
+    /**
+     * 집단지성 삭제 실패 테스트:
+     * postId 타입이 잘못된 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) WRONG_POSTID_TYPE 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void deleteReturns400WhenPostIdTypeIsWrong() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        mockMvc.perform(delete("/api/posts/{postId}/comments/{commentId}", "abc", 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WRONG_POSTID_TYPE"));
+    }
+
+    /**
+     * 집단지성 삭제 실패 테스트:
+     * commentId 타입이 잘못된 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) WRONG_COMMENTID_TYPE 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void deleteReturns400WhenCommentIdTypeIsWrong() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        mockMvc.perform(delete("/api/posts/{postId}/comments/{commentId}", 100L, "abc")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WRONG_COMMENTID_TYPE"));
+    }
+
+    /**
+     * 집단지성 조회 실패 테스트:
+     * postId 타입이 잘못된 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) WRONG_POSTID_TYPE 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void readReturns400WhenPostIdTypeIsWrong() throws Exception {
+        stubUnauthenticatedUser();
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WRONG_POSTID_TYPE"));
     }
 
     private void insertUser(Long id, String nickname, String profileImageUrl) {
