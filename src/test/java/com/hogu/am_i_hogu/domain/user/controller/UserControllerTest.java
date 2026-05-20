@@ -1284,6 +1284,34 @@ public class UserControllerTest {
 
     /**
      * 참여한 투표 리스트 조회 성공 테스트:
+     * 취소된 투표(myVote=NONE)는 참여한 투표 목록에서 제외되는지 확인
+     */
+    @Test
+    void getMyVotesExcludesCanceledVotes() throws Exception {
+        stubAuthenticatedUser();
+
+        insertUser(1L, "nickname", null);
+        insertUser(2L, "writer", null);
+
+        LocalDateTime olderCreatedAt = LocalDateTime.of(2026, 5, 1, 9, 0, 0);
+        LocalDateTime newerCreatedAt = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        insertPost(100L, 2L, "USED_TRADE", "유효한 투표 글", "content", false, olderCreatedAt);
+        insertPost(101L, 2L, "USED_TRADE", "취소된 투표 글", "content", false, newerCreatedAt);
+        insertPostVote(1L, 100L, "HOGU", olderCreatedAt);
+        insertPostVote(1L, 101L, "NONE", newerCreatedAt);
+
+        mockMvc.perform(get("/api/users/me/votes")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.votes.length()").value(1))
+                .andExpect(jsonPath("$.votes[0].myVote").value("HOGU"))
+                .andExpect(jsonPath("$.votes[0].post.postId").value(100L))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(Matchers.nullValue()));
+    }
+
+    /**
+     * 참여한 투표 리스트 조회 성공 테스트:
      * 인증된 사용자가 삭제된 게시물에 투표한 상태에서 요청을 보내고,
      * - (1) 응답 status가 200 OK인지 확인
      * - (2) 삭제된 게시물의 투표도 포함되는지 확인

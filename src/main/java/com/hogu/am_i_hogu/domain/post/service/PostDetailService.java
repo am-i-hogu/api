@@ -4,6 +4,7 @@ import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.post.domain.ImageAsset;
 import com.hogu.am_i_hogu.domain.post.domain.Post;
 import com.hogu.am_i_hogu.domain.post.domain.PostVote;
+import com.hogu.am_i_hogu.domain.post.dto.PostVoteCounts;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostDetailResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostVoteResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostWriterResponse;
@@ -103,8 +104,9 @@ public class PostDetailService {
      * @return 투표 집계 응답
      */
     private PostVoteResponse getVoteResponse(Long postId, Long viewerUserId) {
-        int yesVotes = Math.toIntExact(postVoteRepository.countByPostIdAndMyVote(postId, HOGU_VOTE));
-        int noVotes = Math.toIntExact(postVoteRepository.countByPostIdAndMyVote(postId, NOT_HOGU_VOTE));
+        PostVoteCounts voteCounts = postVoteRepository.countByPostId(postId);
+        int yesVotes = Math.toIntExact(voteCounts.hoguVoteCount());
+        int noVotes = Math.toIntExact(voteCounts.notHoguVoteCount());
         String myVote = viewerUserId == null
                 ? NONE_VOTE
                 : postVoteRepository.findByPostIdAndUserId(postId, viewerUserId)

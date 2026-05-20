@@ -5,6 +5,7 @@ import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.post.domain.Post;
 import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
+import com.hogu.am_i_hogu.domain.user.service.WriterHoguStatService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class PostDeleteService {
     private final PostRepository postRepository;
+    private final WriterHoguStatService writerHoguStatService;
 
     /**
      * 게시물을 soft delete 처리한다.
@@ -27,7 +29,9 @@ public class PostDeleteService {
         Post post = getPostOrThrow(postId);
         validateDeletable(post, userId);
 
-        post.delete(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        post.delete(now);
+        writerHoguStatService.recalculate(post.getWriter().getId(), now);
     }
 
     /**
