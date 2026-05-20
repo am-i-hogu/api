@@ -67,6 +67,7 @@ public class CommentControllerTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
+        jdbcTemplate.update("DELETE FROM comment_helpful_marks");
         jdbcTemplate.update("DELETE FROM comments");
         jdbcTemplate.update("DELETE FROM posts");
         jdbcTemplate.update("DELETE FROM users");
@@ -1178,6 +1179,231 @@ public class CommentControllerTest {
                 .andExpect(status().isOk());
     }
 
+    /**
+     * 집단지성 조회 성공 테스트:
+     * 정렬 기준을 생략하고 비회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 부모 집단지성이 최신순으로 반환되는지 확인
+     * - (3) 자식 집단지성은 부모 아래에서 오래된 순으로 반환되는지 확인
+     */
+    @Test
+    void readReturns200WhenSortByIsOmitted() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+        insertUser(2L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 2L, null, 0, "parent 1", now.minusMinutes(3), false);
+        insertComment(1001L, 100L, 2L, null, 0, "parent 2", now.minusMinutes(1), false);
+        insertComment(1002L, 100L, 2L, 1001L, 1, "child 1", now.minusSeconds(50), false);
+        insertComment(1003L, 100L, 2L, 1001L, 1, "child 2", now.minusSeconds(40), false);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(4))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1001L))
+                .andExpect(jsonPath("$.comments[1].commentId").value(1002L))
+                .andExpect(jsonPath("$.comments[2].commentId").value(1003L))
+                .andExpect(jsonPath("$.comments[3].commentId").value(1000L));
+    }
+
+    /**
+     * 집단지성 조회 성공 테스트:
+     * 같은 생성 시각의 부모 집단지성들에 대해 최신순 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) commentId가 큰 순으로 반환되는지 확인
+     */
+    @Test
+    void readReturns200WhenSortByIsLatestAndCreatedAtIsSame() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+        insertUser(2L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 2L, null, 0, "parent 1", now, false);
+        insertComment(1001L, 100L, 2L, null, 0, "parent 2", now, false);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
+                        .param("sortBy", "LATEST"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(2))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1001L))
+                .andExpect(jsonPath("$.comments[1].commentId").value(1000L));
+    }
+
+    /**
+     * 집단지성 조회 성공 테스트:
+     * 부모 집단지성들의 유익해요 수가 다를 때 비회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 부모 집단지성이 유익해요 많은 순으로 반환되는지 확인
+     * - (3) 자식 집단지성은 부모 아래에서 오래된 순으로 반환되는지 확인
+     */
+    @Test
+    void readReturns200WhenSortByIsHelpful() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+        insertUser(2L, "comment writer", null);
+        insertUser(3L, "helpful user 1", null);
+        insertUser(4L, "helpful user 2", null);
+        insertUser(5L, "helpful user 3", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 2L, null, 0, "parent 1", now.minusMinutes(3), false);
+        insertComment(1001L, 100L, 2L, null, 0, "parent 2", now.minusMinutes(2), false);
+        insertComment(1002L, 100L, 2L, 1001L, 1, "child 1", now.minusMinutes(1), false);
+        insertComment(1003L, 100L, 2L, 1001L, 1, "child 2", now.minusSeconds(30), false);
+
+        insertCommentHelpfulMark(3L, 1000L, now);
+        insertCommentHelpfulMark(3L, 1001L, now);
+        insertCommentHelpfulMark(4L, 1001L, now);
+        insertCommentHelpfulMark(5L, 1001L, now);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
+                        .param("sortBy", "HELPFUL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(4))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1001L))
+                .andExpect(jsonPath("$.comments[0].totalHelpfulCount").value(3))
+                .andExpect(jsonPath("$.comments[1].commentId").value(1002L))
+                .andExpect(jsonPath("$.comments[2].commentId").value(1003L))
+                .andExpect(jsonPath("$.comments[3].commentId").value(1000L))
+                .andExpect(jsonPath("$.comments[3].totalHelpfulCount").value(1));
+    }
+
+    /**
+     * 집단지성 조회 성공 테스트:
+     * 부모 집단지성들의 유익해요 수가 같을 때 비회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) commentId가 큰 순으로 반환되는지 확인
+     */
+    @Test
+    void readReturns200WhenSortByIsHelpfulAndHelpfulCountIsSame() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+        insertUser(2L, "comment writer", null);
+        insertUser(3L, "helpful user", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 2L, null, 0, "parent 1", now.minusMinutes(2), false);
+        insertComment(1001L, 100L, 2L, null, 0, "parent 2", now.minusMinutes(1), false);
+
+        insertCommentHelpfulMark(3L, 1000L, now);
+        insertCommentHelpfulMark(3L, 1001L, now);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
+                        .param("sortBy", "HELPFUL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(2))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1001L))
+                .andExpect(jsonPath("$.comments[1].commentId").value(1000L));
+    }
+
+    /**
+     * 집단지성 조회 성공 테스트:
+     * 비회원이 유익해요 순으로 첫 페이지에서 받은 nextCursor로 두 번째 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 다음 페이지의 부모 집단지성만 반환되는지 확인
+     * - (3) hasNext가 false이고 nextCursor가 null인지 확인
+     */
+    @Test
+    void readReturns200WhenHelpfulCursorIsValidForNextPageRequest() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+        insertUser(2L, "comment writer", null);
+        insertUser(3L, "helpful user 1", null);
+        insertUser(4L, "helpful user 2", null);
+        insertUser(5L, "helpful user 3", null);
+        insertUser(6L, "helpful user 4", null);
+        insertUser(7L, "helpful user 5", null);
+        insertUser(8L, "helpful user 6", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 2L, null, 0, "parent 1", now.minusMinutes(6), false);
+        insertComment(1001L, 100L, 2L, null, 0, "parent 2", now.minusMinutes(5), false);
+        insertComment(1002L, 100L, 2L, null, 0, "parent 3", now.minusMinutes(4), false);
+        insertComment(1003L, 100L, 2L, null, 0, "parent 4", now.minusMinutes(3), false);
+        insertComment(1004L, 100L, 2L, null, 0, "parent 5", now.minusMinutes(2), false);
+        insertComment(1005L, 100L, 2L, null, 0, "parent 6", now.minusMinutes(1), false);
+
+        insertCommentHelpfulMark(3L, 1000L, now);
+        insertCommentHelpfulMark(3L, 1001L, now);
+        insertCommentHelpfulMark(4L, 1001L, now);
+        insertCommentHelpfulMark(3L, 1002L, now);
+        insertCommentHelpfulMark(4L, 1002L, now);
+        insertCommentHelpfulMark(5L, 1002L, now);
+        insertCommentHelpfulMark(3L, 1003L, now);
+        insertCommentHelpfulMark(4L, 1003L, now);
+        insertCommentHelpfulMark(5L, 1003L, now);
+        insertCommentHelpfulMark(6L, 1003L, now);
+        insertCommentHelpfulMark(3L, 1004L, now);
+        insertCommentHelpfulMark(4L, 1004L, now);
+        insertCommentHelpfulMark(5L, 1004L, now);
+        insertCommentHelpfulMark(6L, 1004L, now);
+        insertCommentHelpfulMark(7L, 1004L, now);
+        insertCommentHelpfulMark(3L, 1005L, now);
+        insertCommentHelpfulMark(4L, 1005L, now);
+        insertCommentHelpfulMark(5L, 1005L, now);
+        insertCommentHelpfulMark(6L, 1005L, now);
+        insertCommentHelpfulMark(7L, 1005L, now);
+        insertCommentHelpfulMark(8L, 1005L, now);
+
+        String responseBody = mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
+                        .param("sortBy", "HELPFUL"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String nextCursor = JsonPath.read(responseBody, "$.nextCursor");
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
+                        .param("sortBy", "HELPFUL")
+                        .param("cursor", nextCursor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(1))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1000L))
+                .andExpect(jsonPath("$.comments[0].totalHelpfulCount").value(1))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(nullValue()));
+    }
+
+    /**
+     * 집단지성 조회 성공 테스트:
+     * 회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 본인이 작성한 집단지성의 isMine이 true인지 확인
+     * - (3) 유익해요를 누른 집단지성의 isHelpful이 true인지 확인
+     */
+    @Test
+    void readReturns200WhenAuthenticatedUserRequestsComments() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+        insertUser(2L, "post writer", null);
+        insertUser(3L, "another writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 1L, null, 0, "my comment", now.minusMinutes(2), false);
+        insertComment(1001L, 100L, 3L, null, 0, "other comment", now.minusMinutes(1), false);
+        insertCommentHelpfulMark(1L, 1001L, now);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(2))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1001L))
+                .andExpect(jsonPath("$.comments[0].isMine").value(false))
+                .andExpect(jsonPath("$.comments[0].isHelpful").value(true))
+                .andExpect(jsonPath("$.comments[1].commentId").value(1000L))
+                .andExpect(jsonPath("$.comments[1].isMine").value(true))
+                .andExpect(jsonPath("$.comments[1].isHelpful").value(false));
+    }
+
     private void insertUser(Long id, String nickname, String profileImageUrl) {
         LocalDateTime now = LocalDateTime.now();
         jdbcTemplate.update(
@@ -1224,6 +1450,20 @@ public class CommentControllerTest {
                 isDeleted,
                 deletedAt,
                 createdAt,
+                createdAt
+        );
+    }
+
+    private void insertCommentHelpfulMark(Long userId, Long commentId, LocalDateTime createdAt) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO comment_helpful_marks
+                    (user_id, comment_id, created_at)
+                VALUES
+                    (?, ?, ?)
+                """,
+                userId,
+                commentId,
                 createdAt
         );
     }
