@@ -2,7 +2,7 @@ package com.hogu.am_i_hogu.domain.post.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.exception.ErrorResponse;
-import com.hogu.am_i_hogu.common.pagination.CursorCodec;
+import com.hogu.am_i_hogu.common.util.CursorCodec;
 import com.hogu.am_i_hogu.domain.post.dto.HomePostCursor;
 import com.hogu.am_i_hogu.domain.post.dto.HomePostSummary;
 import com.hogu.am_i_hogu.domain.post.dto.request.HomePostSearchRequest;

@@ -1,8 +1,7 @@
-package com.hogu.am_i_hogu.common.pagination;
+package com.hogu.am_i_hogu.common.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.hogu.am_i_hogu.common.util.CursorCodec;
 import com.hogu.am_i_hogu.domain.user.dto.MyPostCursor;
 import org.junit.jupiter.api.Test;
 
