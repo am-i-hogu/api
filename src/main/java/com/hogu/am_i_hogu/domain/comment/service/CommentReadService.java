@@ -198,19 +198,19 @@ public class CommentReadService {
         Long cursorCommentId = cursor == null ? null : cursor.commentId();
 
         return switch (sortBy) {
-            case OLDEST -> commentRepository.findCommentsByPostIdOrderByOldest(
+            case OLDEST -> commentRepository.findParentCommentsByPostIdOrderByOldest(
                     postId,
                     cursorCreatedAt,
                     cursorCommentId,
                     PageRequest.of(0, pageSize + 1)
             );
-            case LATEST -> commentRepository.findCommentsByPostIdOrderByLatest(
+            case LATEST -> commentRepository.findParentCommentsByPostIdOrderByLatest(
                     postId,
                     cursorCreatedAt,
                     cursorCommentId,
                     PageRequest.of(0, pageSize + 1)
             );
-            case HELPFUL -> commentRepository.findCommentsByPostIdOrderByHelpful(
+            case HELPFUL -> commentRepository.findParentCommentsByPostIdOrderByHelpful(
                     postId,
                     cursorHelpfulCount,
                     cursorCommentId,
