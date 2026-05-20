@@ -20,12 +20,12 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class CommentReadService {
 
     public enum SortBy {
-        OLDEST,
         LATEST,
         HELPFUL
     }
@@ -53,25 +53,34 @@ public class CommentReadService {
         this.postRepository = postRepository;
     }
 
-    public CommentReadResponse read(
-            Long userId, Long postId, CursorRequest request
-    ) {
+    public CommentReadResponse read(Long userId, Long postId, CursorRequest request) {
         validatePost(postId);
 
         int pageSize = normalizePageSize(request.pageSize());
         QueryOptions readOptions = resolveQueryOptions(request);
 
-        List<CommentInfo> queriedComments = getCommentsBySort(postId, readOptions.cursor, pageSize, readOptions.sortBy);
-        Slice<CommentInfo> pageResult = sliceComments(queriedComments, pageSize);
+        List<CommentInfo> queriedParents = getParentCommentsBySort(
+                postId,
+                readOptions.cursor(),
+                pageSize,
+                readOptions.sortBy()
+        );
+        Slice<CommentInfo> parentSlice = sliceComments(queriedParents, pageSize);
+        List<CommentInfo> parentComments = parentSlice.comments();
+
+        List<CommentInfo> childComments = getChildComments(parentComments);
+
+        List<CommentInfo> orderedComments = mergeParentAndChildren(parentComments, childComments);
 
         Set<Long> helpfulCommentIds = userId == null
                 ? Set.of()
-                : getHelpfulCommentIds(userId, pageResult.comments);
-        List<CommentItemResponse> items = toResponse(pageResult.comments, userId, helpfulCommentIds);
+                : getHelpfulCommentIds(userId, orderedComments);
 
-        String nextCursor = createNextCursor(pageResult.hasNext, pageResult.comments, readOptions.sortBy);
+        List<CommentItemResponse> comments = toResponse(orderedComments, userId, helpfulCommentIds);
 
-        return new CommentReadResponse(items, pageResult.hasNext, nextCursor);
+        String nextCursor = createNextCursor(parentSlice.hasNext(), parentComments, readOptions.sortBy());
+
+        return new CommentReadResponse(comments, parentSlice.hasNext(), nextCursor);
 
     }
 
@@ -91,7 +100,7 @@ public class CommentReadService {
         CommentCursor cursor = validateCursor(request.cursor(), sortBy, errors);
 
         if (!errors.isEmpty()) {
-            throw new CustomException(CommentErrorCode.INVALID_INPUT_VALUE, errors);
+            throw new CustomException(CommentErrorCode.INVALID_PARAM_VALUE, errors);
         }
 
         return new QueryOptions(sortBy, cursor);
@@ -111,7 +120,7 @@ public class CommentReadService {
 
     private SortBy resolveSortBy(String sortBy, List<ErrorResponse.ErrorDetail> errors) {
         if (sortBy == null || sortBy.isBlank()) {
-            return SortBy.OLDEST;
+            return SortBy.LATEST;
         }
         if (sortBy.contains(",")) {
             errors.add(new ErrorResponse.ErrorDetail("sortBy", "MULTIPLE_SORTING"));
@@ -119,7 +128,6 @@ public class CommentReadService {
         }
 
         return switch(sortBy) {
-            case "OLDEST" -> SortBy.OLDEST;
             case "LATEST" -> SortBy.LATEST;
             case "HELPFUL" -> SortBy.HELPFUL;
 
@@ -139,6 +147,30 @@ public class CommentReadService {
         return new Slice<>(comments, hasNext);
     }
 
+    private List<CommentInfo> getChildComments(List<CommentInfo> parentComments) {
+        List<Long> parentIds = parentComments.stream()
+                .map(CommentInfo::commentId)
+                .toList();
+        if (parentIds.isEmpty()) {
+            return List.of();
+        }
+
+        return commentRepository.findChildCommentsByParentIds(parentIds);
+    }
+
+    private List<CommentInfo> mergeParentAndChildren(List<CommentInfo> parentComments, List<CommentInfo> childComments) {
+        Map<Long, List<CommentInfo>> childrenByParentId = childComments.stream()
+                .collect(Collectors.groupingBy(CommentInfo::parentId));
+
+        List<CommentInfo> ordered = new ArrayList<>();
+        for (CommentInfo parent : parentComments) {
+            ordered.add(parent);
+            ordered.addAll(childrenByParentId.getOrDefault(parent.commentId(), List.of()));
+        }
+
+        return ordered;
+    }
+
     private CommentCursor validateCursor(String cursor, SortBy sortBy, List<ErrorResponse.ErrorDetail> errors) {
         CommentCursor decodedCursor = decodeCursor(cursor, errors);
         if (!errors.isEmpty()) {
@@ -149,11 +181,6 @@ public class CommentReadService {
         }
 
         switch (sortBy) {
-            case OLDEST -> {
-                if (decodedCursor.createdAt() == null || decodedCursor.commentId() == null) {
-                    errors.add(new ErrorResponse.ErrorDetail("cursor", "INVALID_CURSOR"));
-                }
-            }
             case LATEST -> {
                 if (decodedCursor.createdAt() == null || decodedCursor.commentId() == null) {
                     errors.add(new ErrorResponse.ErrorDetail("cursor", "INVALID_CURSOR"));
@@ -187,7 +214,7 @@ public class CommentReadService {
         }
     }
 
-    private List<CommentInfo> getCommentsBySort(
+    private List<CommentInfo> getParentCommentsBySort(
             Long postId,
             CommentCursor cursor,
             int pageSize,
@@ -198,12 +225,6 @@ public class CommentReadService {
         Long cursorCommentId = cursor == null ? null : cursor.commentId();
 
         return switch (sortBy) {
-            case OLDEST -> commentRepository.findParentCommentsByPostIdOrderByOldest(
-                    postId,
-                    cursorCreatedAt,
-                    cursorCommentId,
-                    PageRequest.of(0, pageSize + 1)
-            );
             case LATEST -> commentRepository.findParentCommentsByPostIdOrderByLatest(
                     postId,
                     cursorCreatedAt,
@@ -275,7 +296,6 @@ public class CommentReadService {
 
         CommentInfo last = comments.get(comments.size() - 1);
         return switch (sortBy) {
-            case OLDEST -> cursorCodec.encode(new CommentCursor(last.createdAt(), null, last.commentId()));
             case LATEST -> cursorCodec.encode(new CommentCursor(last.createdAt(), null, last.commentId()));
             case HELPFUL -> cursorCodec.encode(new CommentCursor(null, last.totalHelpfulCount(), last.commentId()));
         };

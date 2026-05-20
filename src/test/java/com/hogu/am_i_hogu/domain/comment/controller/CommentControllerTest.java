@@ -995,12 +995,12 @@ public class CommentControllerTest {
         mockMvc.perform(get("/api/posts/{postId}/comments", 100L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.comments.length()").value(3))
-                .andExpect(jsonPath("$.comments[0].commentId").value(1000L))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1002L))
                 .andExpect(jsonPath("$.comments[0].isMine").value(false))
                 .andExpect(jsonPath("$.comments[0].writer.isPostWriter").value(false))
                 .andExpect(jsonPath("$.comments[0].isHelpful").value(false))
                 .andExpect(jsonPath("$.comments[0].totalHelpfulCount").value(0))
-                .andExpect(jsonPath("$.comments[2].commentId").value(1002L))
+                .andExpect(jsonPath("$.comments[2].commentId").value(1000L))
                 .andExpect(jsonPath("$.hasNext").value(false))
                 .andExpect(jsonPath("$.nextCursor").value(nullValue()));
     }
@@ -1030,8 +1030,8 @@ public class CommentControllerTest {
         mockMvc.perform(get("/api/posts/{postId}/comments", 100L))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.comments.length()").value(5))
-                .andExpect(jsonPath("$.comments[0].commentId").value(1000L))
-                .andExpect(jsonPath("$.comments[4].commentId").value(1004L))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1005L))
+                .andExpect(jsonPath("$.comments[4].commentId").value(1001L))
                 .andExpect(jsonPath("$.hasNext").value(true))
                 .andExpect(jsonPath("$.nextCursor").isNotEmpty());
     }
@@ -1070,7 +1070,7 @@ public class CommentControllerTest {
                         .param("cursor", nextCursor))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.comments.length()").value(1))
-                .andExpect(jsonPath("$.comments[0].commentId").value(1005L))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1000L))
                 .andExpect(jsonPath("$.hasNext").value(false))
                 .andExpect(jsonPath("$.nextCursor").value(nullValue()));
     }
@@ -1128,7 +1128,7 @@ public class CommentControllerTest {
                         .param("sortBy", "INVALID")
                         .param("cursor", "invalid-cursor"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
                 .andExpect(jsonPath("$.errors[0].field").value("sortBy"))
                 .andExpect(jsonPath("$.errors[0].code").value("INVALID_SORTING"))
                 .andExpect(jsonPath("$.errors[1].field").value("cursor"))
@@ -1154,7 +1154,7 @@ public class CommentControllerTest {
                         .param("sortBy", "OLDEST,LATEST")
                         .param("cursor", "invalid-cursor"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
                 .andExpect(jsonPath("$.errors[0].field").value("sortBy"))
                 .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_SORTING"))
                 .andExpect(jsonPath("$.errors[1].field").value("cursor"))

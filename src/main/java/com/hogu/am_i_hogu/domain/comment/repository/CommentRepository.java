@@ -47,41 +47,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             WHERE p.id = :postId
                 AND (
                     :cursorCreatedAt IS NULL
-                    OR c.createdAt > :cursorCreatedAt
-                    OR (c.createdAt = :cursorCreatedAt AND c.id > :cursorCommentId)
-                )
-                AND c.depth = 0
-            GROUP BY c.id
-            ORDER BY c.createdAt ASC, c.id ASC
-            """)
-    List<CommentInfo> findParentCommentsByPostIdOrderByOldest(
-            @Param("postId") Long postId,
-            @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
-            @Param("cursorCommentId") Long cursorCommentId,
-            Pageable pageable
-    );
-
-    @Query("""
-            SELECT new com.hogu.am_i_hogu.domain.comment.dto.CommentInfo(
-                c.id,
-                c.content,
-                c.writer.id,
-                c.writer.nickname,
-                c.writer.profileImageUrl,
-                CASE WHEN c.writer.id = p.writer.id THEN true ELSE false END,
-                c.createdAt,
-                c.updatedAt,
-                c.isDeleted,
-                c.parentComment.id,
-                c.depth,
-                COUNT(chm)
-            )
-            FROM Comment c
-            JOIN c.post p
-            LEFT JOIN CommentHelpfulMark chm ON chm.id.commentId = c.id
-            WHERE p.id = :postId
-                AND (
-                    :cursorCreatedAt IS NULL
                     OR c.createdAt < :cursorCreatedAt
                     OR (c.createdAt = :cursorCreatedAt AND c.id < :cursorCommentId)
                 )
@@ -151,7 +116,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             GROUP BY c.id
             ORDER BY c.parentComment.id ASC, c.createdAt ASC, c.id ASC
             """)
-    List<CommentInfo> findChildCommentsByParentIds(@Param("parentIds") Long parentIds);
+    List<CommentInfo> findChildCommentsByParentIds(@Param("parentIds") List<Long> parentIds);
 
     @Query("""
             SELECT new com.hogu.am_i_hogu.domain.user.dto.MyCommentSummary(
