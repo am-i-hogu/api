@@ -53,10 +53,25 @@ public class CommentReadService {
         this.postRepository = postRepository;
     }
 
+    /**
+     * 집단지성 조회
+     *
+     * @param userId    조회 요청한 유저 id(필수 X)
+     * @param postId    집단지성이 포함된 게시물 id
+     * @param request   쿼리 파라미터(sortBy, pageSize, cursor)
+     * @return  조회된 집단지성 리스트
+     */
     public CommentReadResponse read(Long userId, Long postId, CursorRequest request) {
         validatePost(postId);
         QueryOptions readOptions = resolveQueryOptions(request);
 
+        /**
+         * 집단지성 정보 조회:
+         * - (1) pageSize만큼의 부모 집단지성을 조회
+         * - (2) 불러온 부모 집단지성과 연결된 자식 집단지성 모두 조회
+         * - (3) 부모 집단지성, 자식 집단지성 정렬 - 부모 집단지성은 sortBy에 따라 정렬하고, 자식 집단지성은 부모 집단지성 하위에 오래된 순으로 정렬
+         * - (4) 불러온 집단지성들의 유익해요 수 조회
+         */
         Slice<CommentInfo> parentComments = getParentCommentsBySort(postId, readOptions);
         List<CommentInfo> childComments = getChildComments(parentComments.comments());
         List<CommentInfo> orderedComments = mergeParentAndChildren(parentComments.comments(), childComments);
@@ -69,6 +84,7 @@ public class CommentReadService {
 
     }
 
+    // postId로 게시물 정보를 조회하고, 존재하지 않거나 삭제된 게시물이면 오류 코드 반환
     private void validatePost(Long postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new CustomException(PostErrorCode.POST_NOT_FOUND));
@@ -78,6 +94,15 @@ public class CommentReadService {
         }
     }
 
+    /**
+     * 쿼리 파라미터 처리 후 반환:
+     * - (1) pageSize 검증 및 조정
+     * - (2) sortBy 검증 및 결정
+     * - (3) cursor 검증 및 디코딩
+     *
+     * @param request 쿼리 파라미터
+     * @return 검증 및 확정된 쿼리 파라미터 정보
+     */
     private QueryOptions resolveQueryOptions(CursorRequest request) {
         int pageSize = normalizePageSize(request.pageSize());
 
@@ -92,7 +117,7 @@ public class CommentReadService {
         return new QueryOptions(sortBy, pageSize, cursor);
     }
 
-    // pageSize 검증하여 유효한 범위 내 값으로 조정
+    // pageSize 검증하여 유효한 범위 내 값으로 조정해 반환
     private int normalizePageSize(Integer pageSize) {
         if (pageSize == null) {
             return DEFAULT_PAGE_SIZE;
@@ -104,6 +129,7 @@ public class CommentReadService {
         return pageSize < MAX_PAGE_SIZE ? pageSize : MAX_PAGE_SIZE;
     }
 
+    // sortBy 검증하여 유효한 정렬 방식으로 확정해 반환
     private SortBy resolveSortBy(String sortBy, List<ErrorResponse.ErrorDetail> errors) {
         if (sortBy == null || sortBy.isBlank()) {
             return SortBy.LATEST;
@@ -124,6 +150,7 @@ public class CommentReadService {
         };
     }
 
+    // 다음 쿼리에 불러온 집단지성이 있는지 확인 후 Slice 정보 반환
     private Slice<CommentInfo> sliceComments(List<CommentInfo> queriedComments, int pageSize) {
         boolean hasNext = queriedComments.size() > pageSize;
         List<CommentInfo> comments = hasNext
@@ -133,6 +160,7 @@ public class CommentReadService {
         return new Slice<>(comments, hasNext);
     }
 
+    // 부모 집단지성 리스트 하위의 모든 자식 집단지성 리스트 조회해 반환
     private List<CommentInfo> getChildComments(List<CommentInfo> parentComments) {
         List<Long> parentIds = parentComments.stream()
                 .map(CommentInfo::commentId)
@@ -144,6 +172,7 @@ public class CommentReadService {
         return commentRepository.findChildCommentsByParentIds(parentIds);
     }
 
+    // 부모 집단지성과 자식 집단지성 그룹핑하여 정렬된 집단지성 리스트 반환
     private List<CommentInfo> mergeParentAndChildren(List<CommentInfo> parentComments, List<CommentInfo> childComments) {
         Map<Long, List<CommentInfo>> childrenByParentId = childComments.stream()
                 .collect(Collectors.groupingBy(CommentInfo::parentId));
@@ -157,6 +186,7 @@ public class CommentReadService {
         return ordered;
     }
 
+    // cursor 정보 디코딩 및 검증하여 디코딩된 cursor 또는 오류 코드 반환
     private CommentCursor validateCursor(String cursor, SortBy sortBy, List<ErrorResponse.ErrorDetail> errors) {
         CommentCursor decodedCursor = decodeCursor(cursor, errors);
         if (!errors.isEmpty()) {
@@ -200,6 +230,7 @@ public class CommentReadService {
         }
     }
 
+    // 요청으로 들어온 정렬 방식에 따라 부모 집단지성 조회해 반환
     private Slice<CommentInfo> getParentCommentsBySort(Long postId, QueryOptions readOptions) {
         SortBy sortBy = readOptions.sortBy();
         int pageSize = readOptions.pageSize();
@@ -227,6 +258,7 @@ public class CommentReadService {
         return sliceComments(queriedParents, pageSize);
     }
 
+    // 사용자가 유익해요를 누른 집단지성 id 반환
     private Set<Long> getHelpfulCommentIds(Long userId, List<CommentInfo> comments) {
         if (userId == null) {
             return Set.of();
@@ -239,6 +271,7 @@ public class CommentReadService {
         return commentHelpfulMarkRepository.findHelpfulCommentIdsByUserIdAndCommentIds(userId, commentIds);
     }
 
+    // 각 집단지성 정보 생성하여 반환
     private CommentItemResponse toCommentItemResponse(
             CommentInfo comment,
             Long userId,
@@ -269,6 +302,7 @@ public class CommentReadService {
         );
     }
 
+    // 서비스 응답 생성하여 반환
     private List<CommentItemResponse> toResponse(
             List<CommentInfo> comments,
             Long userId,

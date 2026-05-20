@@ -35,6 +35,15 @@ public class CommentUpdateService {
         this.commentHelpfulMarkRepository = commentHelpfulMarkRepository;
     }
 
+    /**
+     * 집단지성 수정
+     *
+     * @param userId    수정 요청한 유저 id
+     * @param postId    수정될 집단지성이 포함된 게시물 id
+     * @param commentId 수정될 집단지성 id
+     * @param request   집단지성 수정 정보
+     * @return 수정된 집단지성 정보
+     */
     @Transactional
     public CommentUpdateResponse update(Long userId, Long postId, Long commentId, CommentUpdateRequest request) {
         Post post = getPostOrThrow(postId);
@@ -50,6 +59,7 @@ public class CommentUpdateService {
         return toCommentUpdateResponse(post, comment);
     }
 
+    // post가 존재한다면 불러오고, 존재하지 않거나 삭제된 게시물이면 오류 코드 반환
     private Post getPostOrThrow(Long postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new CustomException(PostErrorCode.POST_NOT_FOUND));
@@ -61,6 +71,7 @@ public class CommentUpdateService {
         return post;
     }
 
+    // 집단지성이 존재한다면 불러오고, 존재하지 않거나 삭제된 집단지성이면 오류 코드 반환
     private Comment getCommentOrThrow(Long commentId) {
         Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new CustomException(CommentErrorCode.COMMENT_NOT_FOUND));
@@ -72,18 +83,21 @@ public class CommentUpdateService {
         return comment;
     }
 
+    // 게시물과 집단지성 관계 검증
     private void validateCommentBelongsToPost(Long postId, Comment comment) {
         if (!comment.getPost().getId().equals(postId)) {
             throw new CustomException(CommentErrorCode.COMMENT_NOT_FOUND);
         }
     }
 
+    // 요청 유저 정보와 작성자 정보가 일치하는지 검증
     private void validateWriter(Long requestedUserId, Long writerId) {
         if (!requestedUserId.equals(writerId)) {
             throw new CustomException(CommonErrorCode.FORBIDDEN_ACCESS);
         }
     }
 
+    // 요청 body(content) 검증
     private void validateRequest(CommentUpdateRequest request) {
         if (request == null) {
             throw new CustomException(CommentErrorCode.EMPTY_REQUEST_BODY);
@@ -98,11 +112,13 @@ public class CommentUpdateService {
         }
     }
 
+    // 집단지성 내용 수정 반영
     private void updateComment(Comment comment, String content) {
         LocalDateTime now = LocalDateTime.now();
         comment.update(content, now);
     }
 
+    // 서비스 응답 생성하여 반환
     private CommentUpdateResponse toCommentUpdateResponse(Post post, Comment comment) {
         User writer = comment.getWriter();
         boolean isPostWriter = writer.getId().equals(post.getWriter().getId());
@@ -129,6 +145,7 @@ public class CommentUpdateService {
         );
     }
 
+    // 집단지성의 유익해요 수 조회해 반환
     private long getHelpfulMarkCount(Long commentId) {
         return commentHelpfulMarkRepository.countById_CommentId(commentId);
     }

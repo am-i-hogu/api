@@ -46,6 +46,14 @@ public class CommentCreateService {
         this.commentHelpfulMarkRepository = commentHelpfulMarkRepository;
     }
 
+    /**
+     * 집단지성 생성
+     *
+     * @param userId    생성 시도한 유저 id
+     * @param postId    집단지성이 포함될 게시물 id
+     * @param request   집단지성 생성 정보(부모 집단지성 정보, 내용)
+     * @return  생성된 집단지성 정보
+     */
     @Transactional
     public CommentCreateResponse create(
             Long userId,
@@ -60,13 +68,13 @@ public class CommentCreateService {
         Comment parent = getParent(request);
         validateRequest(request, parent);
 
-        User writer = userRepository.findById(userId)
-                .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
+        User writer = getWriter(userId);
         Comment savedComment = createComment(post, writer, parent, request.content());
 
         return toCommentCreateResponse(post, writer, savedComment);
     }
 
+    // post가 존재한다면 불러오고, 존재하지 않거나 삭제된 게시물이면 오류 코드 반환
     private Post getPostOrThrow(Long postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new CustomException(PostErrorCode.POST_NOT_FOUND));
@@ -78,6 +86,7 @@ public class CommentCreateService {
         return post;
     }
 
+    // 부모 집단지성이 존재한다면 불러오고, 존재하지 않거나 삭제된 집단지성이면 오류 코드 반환
     private Comment getParent(CommentCreateRequest request) {
         if (request.parentId() == null) {
             return null;
@@ -93,6 +102,7 @@ public class CommentCreateService {
         return parent;
     }
 
+    // 요청 body(depth, content) 검증
     private void validateRequest(CommentCreateRequest request, Comment parent) {
         List<ErrorResponse.ErrorDetail> errors = new ArrayList<>();
 
@@ -112,6 +122,13 @@ public class CommentCreateService {
         }
     }
 
+    // 집단지성 생성을 요청한 유저가 존재한다면 불러오고, 존재하지 않는다면 오류 코드 반환
+    private User getWriter(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
+    }
+
+    // 집단지성 entity 생성
     private Comment createComment(
             Post post,
             User writer,
@@ -134,6 +151,7 @@ public class CommentCreateService {
         return commentRepository.save(comment);
     }
 
+    // 서비스 응답 생성하여 반환
     private CommentCreateResponse toCommentCreateResponse(
             Post post,
             User writer,
@@ -163,6 +181,7 @@ public class CommentCreateService {
         );
     }
 
+    // 집단지성의 유익해요 수 조회해 반환
     private long getHelpfulMarkCount(Long commentId) {
         return commentHelpfulMarkRepository.countById_CommentId(commentId);
     }
