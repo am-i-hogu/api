@@ -25,6 +25,10 @@ public interface PostVoteRepository extends JpaRepository<PostVote, PostVoteId> 
             VALUES
                 (:userId, :postId, :myVote, :now, :now)
             ON DUPLICATE KEY UPDATE
+                created_at = CASE
+                    WHEN my_vote = 'NONE' THEN VALUES(created_at)
+                    ELSE created_at
+                END,
                 my_vote = VALUES(my_vote),
                 updated_at = VALUES(updated_at)
             """, nativeQuery = true)
