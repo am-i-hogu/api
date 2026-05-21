@@ -124,7 +124,7 @@ public class CommentCreateService {
 
     // 집단지성 생성을 요청한 유저가 존재한다면 불러오고, 존재하지 않는다면 오류 코드 반환
     private User getWriter(Long userId) {
-        return userRepository.findById(userId)
+        return userRepository.findByIdAndIsDeletedFalse(userId)
                 .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
     }
 
