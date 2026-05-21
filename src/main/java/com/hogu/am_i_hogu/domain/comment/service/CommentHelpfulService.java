@@ -43,7 +43,7 @@ public class CommentHelpfulService {
 
     /**
      * 유익해요 등록
-     * 
+     *
      * @param userId    유익해요 등록 요청한 유저 id
      * @param postId    집단지성이 포함된 게시물 id
      * @param commentId 집단지성 id

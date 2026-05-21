@@ -1403,6 +1403,274 @@ public class CommentControllerTest {
                 .andExpect(jsonPath("$.code").value("WRONG_POSTID_TYPE"));
     }
 
+    /**
+     * 유익해요 등록 성공 테스트:
+     * 작성자가 아닌 유저가 집단지성에 유익해요 등록 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 총 유익해요 수와 선택 여부가 적절히 반환되는지 확인
+     * - (3) DB에 유익해요 row가 생성되었는지 확인
+     */
+    @Test
+    void createHelpfulReturns200WhenHelpfulIsCreated() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+        insertUser(2L, "post writer", null);
+        insertUser(3L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 3L, null, 0, "content", now, false);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalHelpfulCount").value(1))
+                .andExpect(jsonPath("$.isHelpful").value(true));
+
+        Long helpfulMarkCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM comment_helpful_marks WHERE user_id = ? AND comment_id = ?",
+                Long.class,
+                1L,
+                1000L
+        );
+        assertThat(helpfulMarkCount).isEqualTo(1);
+    }
+
+    /**
+     * 유익해요 등록 성공 테스트:
+     * 기존 유익해요가 있는 집단지성에 다른 유저가 등록 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 총 유익해요 수가 누적되어 반환되는지 확인
+     * - (3) DB에 유익해요 row가 추가 생성되었는지 확인
+     */
+    @Test
+    void createHelpfulReturns200WhenHelpfulCountAccumulates() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+        insertUser(2L, "post writer", null);
+        insertUser(3L, "comment writer", null);
+        insertUser(4L, "helpful user 1", null);
+        insertUser(5L, "helpful user 2", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 3L, null, 0, "content", now, false);
+        insertCommentHelpfulMark(4L, 1000L, now);
+        insertCommentHelpfulMark(5L, 1000L, now);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalHelpfulCount").value(3))
+                .andExpect(jsonPath("$.isHelpful").value(true));
+
+        Long helpfulMarkCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM comment_helpful_marks WHERE comment_id = ?",
+                Long.class,
+                1000L
+        );
+        assertThat(helpfulMarkCount).isEqualTo(3);
+    }
+
+    /**
+     * 유익해요 등록 실패 테스트:
+     * postId 타입이 잘못된 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) WRONG_POSTID_TYPE 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void createHelpfulReturns400WhenPostIdTypeIsWrong() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", "abc", 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WRONG_POSTID_TYPE"));
+    }
+
+    /**
+     * 유익해요 등록 실패 테스트:
+     * commentId 타입이 잘못된 요청을 보내고,
+     * - (1) 응답 status가 400 Bad Request인지 확인
+     * - (2) WRONG_COMMENTID_TYPE 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void createHelpfulReturns400WhenCommentIdTypeIsWrong() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", 100L, "abc")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WRONG_COMMENTID_TYPE"));
+    }
+
+    /**
+     * 유익해요 등록 실패 테스트:
+     * 본인 집단지성에 유익해요 등록 요청을 보내고,
+     * - (1) 응답 status가 403 Forbidden인지 확인
+     * - (2) FORBIDDEN_ACCESS 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void createHelpfulReturns403WhenUserIsCommentWriter() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+        insertUser(2L, "post writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 1L, null, 0, "content", now, false);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN_ACCESS"));
+    }
+
+    /**
+     * 유익해요 등록 실패 테스트:
+     * 삭제된 게시물의 집단지성에 유익해요 등록 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) POST_ALREADY_DELETED 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void createHelpfulReturns404WhenPostAlreadyDeleted() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+        insertUser(2L, "post writer", null);
+        insertUser(3L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title", "content", true, now);
+        insertComment(1000L, 100L, 3L, null, 0, "content", now, false);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_ALREADY_DELETED"));
+    }
+
+    /**
+     * 유익해요 등록 실패 테스트:
+     * 존재하지 않는 게시물의 집단지성에 유익해요 등록 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) POST_NOT_FOUND 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void createHelpfulReturns404WhenPostDoesNotExist() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
+    }
+
+    /**
+     * 유익해요 등록 실패 테스트:
+     * 삭제된 집단지성에 유익해요 등록 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) COMMENT_ALREADY_DELETED 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void createHelpfulReturns404WhenCommentAlreadyDeleted() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+        insertUser(2L, "post writer", null);
+        insertUser(3L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 3L, null, 0, "content", now, true);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMENT_ALREADY_DELETED"));
+    }
+
+    /**
+     * 유익해요 등록 실패 테스트:
+     * 존재하지 않는 집단지성에 유익해요 등록 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) COMMENT_NOT_FOUND 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void createHelpfulReturns404WhenCommentDoesNotExist() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+        insertUser(2L, "post writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title", "content", false, now);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMENT_NOT_FOUND"));
+    }
+
+    /**
+     * 유익해요 등록 실패 테스트:
+     * 다른 게시물에 속한 집단지성에 유익해요 등록 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) COMMENT_NOT_FOUND 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void createHelpfulReturns404WhenCommentDoesNotBelongToPost() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+        insertUser(2L, "post writer", null);
+        insertUser(3L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title 1", "content 1", false, now);
+        insertPost(101L, 2L, "USED_TRADE", "title 2", "content 2", false, now);
+        insertComment(1000L, 101L, 3L, null, 0, "content", now, false);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMMENT_NOT_FOUND"));
+    }
+
+    /**
+     * 유익해요 등록 실패 테스트:
+     * 이미 유익해요가 등록된 집단지성에 다시 요청을 보내고,
+     * - (1) 응답 status가 409 Conflict인지 확인
+     * - (2) DUPLICATE_REQUEST 오류 코드를 반환하는지 확인
+     */
+    @Test
+    void createHelpfulReturns409WhenHelpfulAlreadyExists() throws Exception {
+        stubAuthenticatedUser();
+        insertUser(1L, "request user", null);
+        insertUser(2L, "post writer", null);
+        insertUser(3L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 2L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 3L, null, 0, "content", now, false);
+        insertCommentHelpfulMark(1L, 1000L, now);
+
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", 100L, 1000L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DUPLICATE_REQUEST"));
+    }
+
+    /**
+     * 유익해요 등록 실패 테스트:
+     * access token 없이 요청을 보내고,
+     * 응답 status가 401 Unauthorized인지 확인
+     */
+    @Test
+    void createHelpfulReturns401WhenAccessTokenIsMissing() throws Exception {
+        mockMvc.perform(post("/api/posts/{postId}/comments/{commentId}/helpful", 100L, 1000L))
+                .andExpect(status().isUnauthorized());
+    }
+
     private void stubAuthenticatedUser() {
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
