@@ -94,12 +94,19 @@ public class CommentController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * [CI-004] 집단지성 삭제
+     *
+     * @param authentication    사용자 인증 정보
+     * @param postId            집단지성이 포함된 게시물 id
+     * @param commentId         삭제할 집단지성 id
+     * @return 삭제된 집단지성 정보
+     */
     @DeleteMapping("/{postId}/comments/{commentId}")
     public ResponseEntity<Void> delete(
             Authentication authentication,
             @PathVariable Long postId,
-            @PathVariable Long commentId,
-            @RequestBody(required = false)CommentUpdateRequest request
+            @PathVariable Long commentId
     ) {
         Long userId = Long.valueOf(authentication.getName());
         commentDeleteService.delete(userId, postId, commentId);
