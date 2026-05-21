@@ -1,8 +1,8 @@
 package com.hogu.am_i_hogu.domain.user.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
-import com.hogu.am_i_hogu.common.pagination.CursorCodec;
-import com.hogu.am_i_hogu.common.pagination.CursorRequest;
+import com.hogu.am_i_hogu.common.util.CursorCodec;
+import com.hogu.am_i_hogu.domain.user.dto.request.CursorRequest;
 import com.hogu.am_i_hogu.domain.comment.repository.CommentRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostBookmarkRepository;
 import com.hogu.am_i_hogu.domain.user.dto.MyBookmarkCursor;
