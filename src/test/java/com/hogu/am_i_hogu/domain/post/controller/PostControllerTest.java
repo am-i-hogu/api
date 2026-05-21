@@ -121,7 +121,8 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.posts[0].writer.nickname").value("hogu"))
                 .andExpect(jsonPath("$.posts[1].postId").value(100L))
                 .andExpect(jsonPath("$.hasNext").value(false))
-                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString())
+                        .contains("\"nextCursor\":null"));
     }
 
     // 정상 케이스: 로그인 사용자의 북마크 여부를 홈 게시물 목록에 반영한다.
@@ -247,7 +248,8 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.posts.length()").value(1))
                 .andExpect(jsonPath("$.posts[0].postId").value(100L))
                 .andExpect(jsonPath("$.hasNext").value(false))
-                .andExpect(jsonPath("$.nextCursor").doesNotExist());
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString())
+                        .contains("\"nextCursor\":null"));
     }
 
     // 실패 케이스: 잘못된 홈 조회 파라미터는 필드별 오류 코드를 반환한다.

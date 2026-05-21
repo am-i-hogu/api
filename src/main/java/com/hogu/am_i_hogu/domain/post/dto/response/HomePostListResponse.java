@@ -4,8 +4,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.List;
 
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public record HomePostListResponse(
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         Long totalPostCount,
         List<HomePostItemResponse> posts,
         boolean hasNext,
