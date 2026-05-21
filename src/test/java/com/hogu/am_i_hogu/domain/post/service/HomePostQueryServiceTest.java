@@ -59,6 +59,24 @@ class HomePostQueryServiceTest {
         verifyNoInteractions(homePostQueryRepository);
     }
 
+    // 실패 케이스: keyword와 cursor가 모두 잘못되면 두 필드 오류를 함께 반환하고 DB 조회를 수행하지 않는다.
+    @Test
+    void getHomePostsThrowsInvalidParamValueWithKeywordAndCursorErrorsTogether() {
+        when(cursorCodec.decode("invalid-cursor", HomePostCursor.class))
+                .thenThrow(new IllegalStateException("Failed to decode cursor"));
+        assertThatThrownBy(() -> homePostQueryService.getHomePosts(
+                null,
+                new HomePostSearchRequest("   ", null, null, 5, "invalid-cursor")
+        )).isInstanceOfSatisfying(CustomException.class, exception -> {
+            assertThat(exception.getErrorCode()).isEqualTo(PostErrorCode.INVALID_PARAM_VALUE);
+            assertThat(exception.getErrors().get(0).getField()).isEqualTo("keyword");
+            assertThat(exception.getErrors().get(0).getCode()).isEqualTo("EMPTY_KEYWORD");
+            assertThat(exception.getErrors().get(1).getField()).isEqualTo("cursor");
+            assertThat(exception.getErrors().get(1).getCode()).isEqualTo("INVALID_CURSOR");
+        });
+        verifyNoInteractions(homePostQueryRepository);
+    }
+
     // 실패 케이스: 존재하지 않는 category면 INVALID_CATEGORIES를 반환하고 DB 조회를 수행하지 않는다.
     @Test
     void getHomePostsThrowsInvalidParamValueWhenCategoryDoesNotExist() {
