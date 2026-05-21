@@ -50,13 +50,12 @@ public class HomePostQueryService {
         List<ErrorResponse.ErrorDetail> errors = new ArrayList<>();
         String keyword = normalizeKeyword(request.keyword(), errors);
         List<String> categoryCodes = normalizeCategories(request.categories(), errors);
+        int errorCountBeforeSortBy = errors.size();
         HomePostSortBy sortBy = normalizeSortBy(request.sortBy(), errors);
+        boolean sortByIsValid = errors.size() == errorCountBeforeSortBy;
         int pageSize = normalizePageSize(request.pageSize());
 
-        HomePostCursor cursor = null;
-        if (errors.isEmpty()) {
-            cursor = decodeCursor(request.cursor(), sortBy, errors);
-        }
+        HomePostCursor cursor = decodeCursor(request.cursor(), sortBy, sortByIsValid, errors);
         if (!errors.isEmpty()) {
             throw new CustomException(PostErrorCode.INVALID_PARAM_VALUE, errors);
         }
@@ -171,17 +170,28 @@ public class HomePostQueryService {
      * 요청 cursor를 디코딩하고 현재 정렬 기준과 호환되는지 검증한다.
      * cursor 형식이 잘못됐거나 정렬 기준이 다르면 cursor 필드 오류를 추가한다.
      */
-    private HomePostCursor decodeCursor(String rawCursor, HomePostSortBy sortBy, List<ErrorResponse.ErrorDetail> errors) {
+    private HomePostCursor decodeCursor(
+            String rawCursor,
+            HomePostSortBy sortBy,
+            boolean sortByIsValid,
+            List<ErrorResponse.ErrorDetail> errors
+    ) {
         if (rawCursor == null || rawCursor.isBlank()) {
             return null;
         }
         try {
             HomePostCursor cursor = cursorCodec.decode(rawCursor, HomePostCursor.class);
-            if (cursor.postId() == null || cursor.createdAt() == null || !sortBy.name().equals(cursor.sortBy())) {
+            if (cursor.postId() == null || cursor.createdAt() == null) {
                 errors.add(new ErrorResponse.ErrorDetail("cursor", "INVALID_CURSOR"));
                 return null;
             }
-            validateSortValue(sortBy, cursor, errors);
+            if (sortByIsValid && !sortBy.name().equals(cursor.sortBy())) {
+                errors.add(new ErrorResponse.ErrorDetail("cursor", "INVALID_CURSOR"));
+                return null;
+            }
+            if (sortByIsValid) {
+                validateSortValue(sortBy, cursor, errors);
+            }
             return errors.isEmpty() ? cursor : null;
         } catch (IllegalStateException e) {
             errors.add(new ErrorResponse.ErrorDetail("cursor", "INVALID_CURSOR"));
