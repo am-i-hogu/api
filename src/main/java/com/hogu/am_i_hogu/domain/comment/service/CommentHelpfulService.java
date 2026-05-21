@@ -51,7 +51,7 @@ public class CommentHelpfulService {
      */
     @Transactional
     public CommentHelpfulResponse createHelpful(Long userId, Long postId, Long commentId) {
-        validate(userId, postId, commentId);
+        validateCreateRequest(userId, postId, commentId);
         CommentHelpfulMarkId id = createHelpfulMarkId(userId, commentId);
 
         saveCommentHelpfulMark(id);
@@ -61,27 +61,42 @@ public class CommentHelpfulService {
 
     @Transactional
     public CommentHelpfulResponse deleteHelpful(Long userId, Long postId, Long commentId) {
-        validate(userId, postId, commentId);
+        validateDeleteRequest(userId, postId, commentId);
         deleteHelpfulMark(userId, commentId);
 
         return new CommentHelpfulResponse(getHelpfulMarkCount(commentId), false);
     }
 
     /**
-     * 요청 검증:
+     * 등록 요청 검증:
      * - (1) 존재하는 유저인지 검증
      * - (2) 존재하는 게시물인지 검증
      * - (3) 존재하는 집단지성인지 검증
      * - (4) 게시물-집단지성 관계 검증
      * - (5) 집단지성 작성자가 요청한 것 아닌지 검증
      */
-    private void validate(Long userId, Long postId, Long commentId) {
+    private void validateCreateRequest(Long userId, Long postId, Long commentId) {
         User user = validateUser(userId);
         validatePost(postId);
         Comment comment = validateComment(commentId);
 
         validateCommentBelongsToPost(postId, comment);
         validateNotCommentWriter(user.getId(), comment.getWriter().getId());
+    }
+
+    /**
+     * 삭제 요청 검증:
+     * - (1) 존재하는 유저인지 검증
+     * - (2) 존재하는 게시물인지 검증
+     * - (3) 존재하는 집단지성인지 검증
+     * - (4) 게시물-집단지성 관계 검증
+     */
+    private void validateDeleteRequest(Long userId, Long postId, Long commentId) {
+        validateUser(userId);
+        validatePost(postId);
+        Comment comment = validateComment(commentId);
+
+        validateCommentBelongsToPost(postId, comment);
     }
 
     // 유저가 존재한다면 불러오고, 존재하지 않거나 삭제된 유저면 오류 코드 반환
