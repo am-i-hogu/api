@@ -26,7 +26,10 @@ public class CommentController {
     public CommentController(
             CommentCreateService commentCreateService,
             CommentReadService commentReadService,
-            CommentUpdateService commentUpdateService, CommentDeleteService commentDeleteService, CommentHelpfulService commentHelpfulService) {
+            CommentUpdateService commentUpdateService,
+            CommentDeleteService commentDeleteService,
+            CommentHelpfulService commentHelpfulService
+    ) {
         this.commentCreateService = commentCreateService;
         this.commentReadService = commentReadService;
         this.commentUpdateService = commentUpdateService;
@@ -133,6 +136,18 @@ public class CommentController {
     ) {
         Long userId = Long.valueOf(authentication.getName());
         CommentHelpfulResponse response = commentHelpfulService.createHelpful(userId, postId, commentId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{postId}/comments/{commentId}/helpful")
+    public ResponseEntity<CommentHelpfulResponse> deleteHelpful(
+            Authentication authentication,
+            @PathVariable Long postId,
+            @PathVariable Long commentId
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        CommentHelpfulResponse response = commentHelpfulService.deleteHelpful(userId, postId, commentId);
 
         return ResponseEntity.ok(response);
     }
