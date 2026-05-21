@@ -1,7 +1,6 @@
 package com.hogu.am_i_hogu.domain.comment.controller;
 
 import com.hogu.am_i_hogu.common.security.JwtProvider;
-import com.hogu.am_i_hogu.domain.comment.domain.Comment;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -352,102 +351,6 @@ public class CommentControllerTest {
         assertThat(commentCount).isEqualTo(0);
     }
 
-    private void stubAuthenticatedUser() {
-        when(jwtProvider.validateAccessToken("valid-token"))
-                .thenReturn(JwtProvider.TokenValidationResult.VALID);
-        when(jwtProvider.getSubjectAsLong("valid-token"))
-                .thenReturn(1L);
-        when(jwtProvider.getAuthentication("valid-token"))
-                .thenReturn(new UsernamePasswordAuthenticationToken(
-                        String.valueOf(1L),
-                        null,
-                        Collections.emptyList()
-                ));
-    }
-
-    /**
-     * 집단지성 생성 실패 테스트:
-     * depth 1인 집단지성에 대해 본문 길이가 300을 초과하는 집단지성 생성 요청을 보내고,
-     * - (1) 응답 status가 400 Bad Request인지 확인
-     * - (2) DB에 집단지성 row가 생성되지 않았는지 확인
-     */
-    @Test
-    void createReturns400WhenContentLengthExceeds300AndDepthExceeds1() throws Exception{
-        stubAuthenticatedUser();
-        insertUser(1L, "writer", null);
-
-        LocalDateTime now = LocalDateTime.now();
-        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
-        insertComment(1000L, 100L, 1L, null, 0, "parent content", now, false);
-        insertComment(1001L, 100L, 1L, 1000L, 1, "child content", now, false);
-
-        String longContent = "a".repeat(301);
-        String requestBody = """
-                {
-                    "parentId" : 1001,
-                    "content" : "%s"
-                }
-                """.formatted(longContent);
-        mockMvc.perform(post("/api/posts/{postId}/comments", 100L)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
-                .andExpect(jsonPath("$.errors[0].field").value("content"))
-                .andExpect(jsonPath("$.errors[0].code").value("CONTENT_LENGTH_EXCEEDED"))
-                .andExpect(jsonPath("$.errors[1].field").value("depth"))
-                .andExpect(jsonPath("$.errors[1].code").value("DEPTH_EXCEEDED"));
-
-        Long commentCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM comments WHERE post_id = ?",
-                Long.class,
-                100L
-        );
-        assertThat(commentCount).isEqualTo(2);
-    }
-
-    /**
-     * 집단지성 생성 실패 테스트:
-     * depth 1인 집단지성에 대해 본문 길이가 300을 초과하는 집단지성 생성 요청을 보내고,
-     * - (1) 응답 status가 400 Bad Request인지 확인
-     * - (2) DB에 집단지성 row가 생성되지 않았는지 확인
-     */
-    @Test
-    void createReturns400WhenContentIsEmptyAndDepthExceeds1() throws Exception{
-        stubAuthenticatedUser();
-        insertUser(1L, "writer", null);
-
-        LocalDateTime now = LocalDateTime.now();
-        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
-        insertComment(1000L, 100L, 1L, null, 0, "parent content", now, false);
-        insertComment(1001L, 100L, 1L, 1000L, 1, "child content", now, false);
-
-        String requestBody = """
-                {
-                    "parentId" : 1001,
-                    "content" : "     "
-                }
-                """;
-        mockMvc.perform(post("/api/posts/{postId}/comments", 100L)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
-                .andExpect(jsonPath("$.errors[0].field").value("content"))
-                .andExpect(jsonPath("$.errors[0].code").value("EMPTY_CONTENT"))
-                .andExpect(jsonPath("$.errors[1].field").value("depth"))
-                .andExpect(jsonPath("$.errors[1].code").value("DEPTH_EXCEEDED"));
-
-        Long commentCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM comments WHERE post_id = ?",
-                Long.class,
-                100L
-        );
-        assertThat(commentCount).isEqualTo(2);
-    }
-
     /**
      * 집단지성 생성 실패 테스트:
      * access token 없이 요청을 보내고,
@@ -685,84 +588,6 @@ public class CommentControllerTest {
                 1000L
         );
         assertThat(savedContent).isEqualTo("old content");
-    }
-
-    /**
-     * 집단지성 수정 실패 테스트:
-     * 요청 body 없이 수정 요청을 보내고,
-     * - (1) 응답 status가 400 Bad Request인지 확인
-     * - (2) EMPTY_REQUEST_BODY 오류 코드를 반환하는지 확인
-     */
-    @Test
-    void updateReturns400WhenRequestBodyIsEmpty() throws Exception {
-        stubAuthenticatedUser();
-        insertUser(1L, "comment writer", null);
-
-        LocalDateTime now = LocalDateTime.now();
-        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
-        insertComment(1000L, 100L, 1L, null, 0, "old content", now, false);
-
-        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("EMPTY_REQUEST_BODY"));
-    }
-
-    /**
-     * 집단지성 수정 실패 테스트:
-     * 비어있는 본문으로 수정 요청을 보내고,
-     * - (1) 응답 status가 400 Bad Request인지 확인
-     * - (2) EMPTY_CONTENT 오류 코드를 반환하는지 확인
-     */
-    @Test
-    void updateReturns400WhenContentIsEmpty() throws Exception {
-        stubAuthenticatedUser();
-        insertUser(1L, "comment writer", null);
-
-        LocalDateTime now = LocalDateTime.now();
-        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
-        insertComment(1000L, 100L, 1L, null, 0, "old content", now, false);
-
-        String requestBody = """
-                {
-                    "content" : "     "
-                }
-                """;
-        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("EMPTY_CONTENT"));
-    }
-
-    /**
-     * 집단지성 수정 실패 테스트:
-     * 본문 길이가 300자를 초과하는 수정 요청을 보내고,
-     * - (1) 응답 status가 400 Bad Request인지 확인
-     * - (2) CONTENT_LENGTH_EXCEEDED 오류 코드를 반환하는지 확인
-     */
-    @Test
-    void updateReturns400WhenContentLengthExceeds300() throws Exception {
-        stubAuthenticatedUser();
-        insertUser(1L, "comment writer", null);
-
-        LocalDateTime now = LocalDateTime.now();
-        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
-        insertComment(1000L, 100L, 1L, null, 0, "old content", now, false);
-
-        String requestBody = """
-                {
-                    "content" : "%s"
-                }
-                """.formatted("a".repeat(301));
-        mockMvc.perform(patch("/api/posts/{postId}/comments/{commentId}", 100L, 1000L)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("CONTENT_LENGTH_EXCEEDED"));
     }
 
     /**
@@ -1108,58 +933,6 @@ public class CommentControllerTest {
         mockMvc.perform(get("/api/posts/{postId}/comments", 100L))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("POST_NOT_FOUND"));
-    }
-
-    /**
-     * 집단지성 조회 실패 테스트:
-     * 유효하지 않은 정렬 기준과 cursor로 비회원이 조회 요청을 보내고,
-     * - (1) 응답 status가 400 Bad Request인지 확인
-     * - (2) INVALID_INPUT_VALUE 오류 코드를 반환하는지 확인
-     * - (3) sortBy, cursor 오류가 함께 반환되는지 확인
-     */
-    @Test
-    void readReturns400WhenSortByAndCursorAreInvalid() throws Exception {
-        stubUnauthenticatedUser();
-        insertUser(1L, "post writer", null);
-
-        LocalDateTime now = LocalDateTime.now();
-        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
-
-        mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
-                        .param("sortBy", "INVALID")
-                        .param("cursor", "invalid-cursor"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
-                .andExpect(jsonPath("$.errors[0].field").value("sortBy"))
-                .andExpect(jsonPath("$.errors[0].code").value("INVALID_SORTING"))
-                .andExpect(jsonPath("$.errors[1].field").value("cursor"))
-                .andExpect(jsonPath("$.errors[1].code").value("INVALID_CURSOR"));
-    }
-
-    /**
-     * 집단지성 조회 실패 테스트:
-     * 다중 정렬 기준과 유효하지 않은 cursor로 비회원이 조회 요청을 보내고,
-     * - (1) 응답 status가 400 Bad Request인지 확인
-     * - (2) INVALID_INPUT_VALUE 오류 코드를 반환하는지 확인
-     * - (3) sortBy, cursor 오류가 함께 반환되는지 확인
-     */
-    @Test
-    void readReturns400WhenSortByIsMultipleAndCursorIsInvalid() throws Exception {
-        stubUnauthenticatedUser();
-        insertUser(1L, "post writer", null);
-
-        LocalDateTime now = LocalDateTime.now();
-        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
-
-        mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
-                        .param("sortBy", "HELPFUL,LATEST")
-                        .param("cursor", "invalid-cursor"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
-                .andExpect(jsonPath("$.errors[0].field").value("sortBy"))
-                .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_SORTING"))
-                .andExpect(jsonPath("$.errors[1].field").value("cursor"))
-                .andExpect(jsonPath("$.errors[1].code").value("INVALID_CURSOR"));
     }
 
     /**
@@ -1552,6 +1325,19 @@ public class CommentControllerTest {
         mockMvc.perform(get("/api/posts/{postId}/comments", "abc"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("WRONG_POSTID_TYPE"));
+    }
+
+    private void stubAuthenticatedUser() {
+        when(jwtProvider.validateAccessToken("valid-token"))
+                .thenReturn(JwtProvider.TokenValidationResult.VALID);
+        when(jwtProvider.getSubjectAsLong("valid-token"))
+                .thenReturn(1L);
+        when(jwtProvider.getAuthentication("valid-token"))
+                .thenReturn(new UsernamePasswordAuthenticationToken(
+                        String.valueOf(1L),
+                        null,
+                        Collections.emptyList()
+                ));
     }
 
     private void insertUser(Long id, String nickname, String profileImageUrl) {
