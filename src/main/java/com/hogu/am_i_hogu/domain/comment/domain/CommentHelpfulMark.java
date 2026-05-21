@@ -17,4 +17,12 @@ public class CommentHelpfulMark {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    public CommentHelpfulMark(
+            CommentHelpfulMarkId id,
+            LocalDateTime createdAt
+    ) {
+        this.id = id;
+        this.createdAt = createdAt;
+    }
 }
