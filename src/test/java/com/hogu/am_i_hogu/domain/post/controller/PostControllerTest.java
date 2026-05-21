@@ -260,7 +260,8 @@ class PostControllerTest {
         mockMvc.perform(get("/api/posts")
                         .param("keyword", "   ")
                         .param("categories", "UNKNOWN")
-                        .param("sortBy", "LATEST,MOST_VIEWED"))
+                        .param("sortBy", "LATEST,MOST_VIEWED")
+                        .param("cursor", "invalid-cursor"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
                 .andExpect(jsonPath("$.errors[0].field").value("keyword"))
@@ -268,7 +269,9 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errors[1].field").value("categories"))
                 .andExpect(jsonPath("$.errors[1].code").value("INVALID_CATEGORIES"))
                 .andExpect(jsonPath("$.errors[2].field").value("sortBy"))
-                .andExpect(jsonPath("$.errors[2].code").value("MULTIPLE_SORTING"));
+                .andExpect(jsonPath("$.errors[2].code").value("MULTIPLE_SORTING"))
+                .andExpect(jsonPath("$.errors[3].field").value("cursor"))
+                .andExpect(jsonPath("$.errors[3].code").value("INVALID_CURSOR"));
     }
 
     // 실패 케이스: 존재하지 않는 정렬 기준과 해석 불가능한 cursor는 필드별 오류 코드를 반환한다.
