@@ -4,13 +4,11 @@ import com.hogu.am_i_hogu.domain.comment.dto.request.CommentCreateRequest;
 import com.hogu.am_i_hogu.domain.comment.dto.request.CommentUpdateRequest;
 import com.hogu.am_i_hogu.domain.comment.dto.request.CursorRequest;
 import com.hogu.am_i_hogu.domain.comment.dto.response.CommentCreateResponse;
+import com.hogu.am_i_hogu.domain.comment.dto.response.CommentHelpfulResponse;
 import com.hogu.am_i_hogu.domain.comment.dto.response.CommentReadResponse;
 import com.hogu.am_i_hogu.domain.comment.dto.response.CommentUpdateResponse;
-import com.hogu.am_i_hogu.domain.comment.service.CommentCreateService;
-import com.hogu.am_i_hogu.domain.comment.service.CommentDeleteService;
-import com.hogu.am_i_hogu.domain.comment.service.CommentReadService;
-import com.hogu.am_i_hogu.domain.comment.service.CommentUpdateService;
 import org.springframework.http.HttpStatus;
+import com.hogu.am_i_hogu.domain.comment.service.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -23,15 +21,17 @@ public class CommentController {
     private final CommentReadService commentReadService;
     private final CommentUpdateService commentUpdateService;
     private final CommentDeleteService commentDeleteService;
+    private final CommentHelpfulService commentHelpfulService;
 
     public CommentController(
             CommentCreateService commentCreateService,
             CommentReadService commentReadService,
-            CommentUpdateService commentUpdateService, CommentDeleteService commentDeleteService) {
+            CommentUpdateService commentUpdateService, CommentDeleteService commentDeleteService, CommentHelpfulService commentHelpfulService) {
         this.commentCreateService = commentCreateService;
         this.commentReadService = commentReadService;
         this.commentUpdateService = commentUpdateService;
         this.commentDeleteService = commentDeleteService;
+        this.commentHelpfulService = commentHelpfulService;
     }
 
     /**
@@ -115,5 +115,25 @@ public class CommentController {
         commentDeleteService.delete(userId, postId, commentId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * [CI-005] 유익해요 등록
+     *
+     * @param authentication    사용자 인증 정보
+     * @param postId            유익해요 등록될 집단지성이 포함된 게시물 id
+     * @param commentId         유익해요 등록될 집단지성 id
+     * @return 집단지성의 총 유익해요 수 및 유익해요 등록 결과
+     */
+    @PostMapping("/{postId}/comments/{commentId}/helpful")
+    public ResponseEntity<CommentHelpfulResponse> createHelpful(
+            Authentication authentication,
+            @PathVariable Long postId,
+            @PathVariable Long commentId
+    ) {
+        Long userId = Long.valueOf(authentication.getName());
+        CommentHelpfulResponse response = commentHelpfulService.createHelpful(userId, postId, commentId);
+
+        return ResponseEntity.ok(response);
     }
 }

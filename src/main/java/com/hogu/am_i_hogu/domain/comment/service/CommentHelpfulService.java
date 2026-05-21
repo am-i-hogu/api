@@ -43,13 +43,14 @@ public class CommentHelpfulService {
 
     /**
      * 유익해요 등록
+     * 
      * @param userId    유익해요 등록 요청한 유저 id
      * @param postId    집단지성이 포함된 게시물 id
      * @param commentId 집단지성 id
      * @return 집단지성의 총 유익해요 수 및 유익해요 등록 결과
      */
     @Transactional
-    public CommentHelpfulResponse create(Long userId, Long postId, Long commentId) {
+    public CommentHelpfulResponse createHelpful(Long userId, Long postId, Long commentId) {
         validate(userId, postId, commentId);
         CommentHelpfulMarkId id = createHelpfulMarkId(userId, commentId);
 
