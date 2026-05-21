@@ -59,6 +59,14 @@ public class CommentHelpfulService {
         return new CommentHelpfulResponse(getHelpfulMarkCount(commentId), true);
     }
 
+    @Transactional
+    public CommentHelpfulResponse deleteHelpful(Long userId, Long postId, Long commentId) {
+        validate(userId, postId, commentId);
+        deleteHelpfulMark(userId, commentId);
+
+        return new CommentHelpfulResponse(getHelpfulMarkCount(commentId), false);
+    }
+
     /**
      * 요청 검증:
      * - (1) 존재하는 유저인지 검증
@@ -129,6 +137,14 @@ public class CommentHelpfulService {
         }
 
         return id;
+    }
+
+    private void deleteHelpfulMark(Long userId, Long commentId) {
+        CommentHelpfulMarkId id = new CommentHelpfulMarkId(userId, commentId);
+
+        if (commentHelpfulMarkRepository.existsById(id)) {
+            commentHelpfulMarkRepository.deleteById(id);
+        }
     }
 
     // 유익해요 저장
