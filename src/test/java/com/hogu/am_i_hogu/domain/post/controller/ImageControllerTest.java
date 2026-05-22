@@ -55,7 +55,7 @@ class ImageControllerTest {
     @MockitoBean
     private S3StorageService s3StorageService;
 
-    // 정상 케이스: jpg 이미지 파일을 업로드하면 200 OK와 S3 imageUrl을 반환한다.
+    // 정상 케이스: jpg 이미지 파일을 업로드하면 200 OK와 CloudFront imageUrl을 반환한다.
     @Test
     void uploadImageReturnsS3ImageUrl() throws Exception {
         when(jwtProvider.validateAccessToken("valid-token"))
@@ -71,7 +71,7 @@ class ImageControllerTest {
                 Collections.emptyList()
         ));
         when(s3StorageService.upload(org.mockito.ArgumentMatchers.startsWith("images/posts/"), any()))
-                .thenReturn("https://am-i-hogu-images.s3.ap-northeast-2.amazonaws.com/images/posts/1.jpg");
+                .thenReturn("https://d111111abcdef8.cloudfront.net/images/posts/1.jpg");
 
         MockMultipartFile image = new MockMultipartFile(
                 "image",
@@ -84,7 +84,7 @@ class ImageControllerTest {
                         .file(image)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.imageUrl", startsWith("https://am-i-hogu-images.s3.ap-northeast-2.amazonaws.com/images/posts/")));
+                .andExpect(jsonPath("$.imageUrl", startsWith("https://d111111abcdef8.cloudfront.net/images/posts/")));
     }
 
     // 실패 케이스: multipart 요청에 image 파일이 없으면 400 Bad Request와 EMPTY_IMAGE_FILE을 반환한다.
