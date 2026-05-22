@@ -16,13 +16,16 @@ public class S3StorageService {
 
     private final AmazonS3 amazonS3;
     private final String bucket;
+    private final String cloudFrontDomain;
 
     public S3StorageService(
             AmazonS3 amazonS3,
-            @Value("${cloud.aws.s3.bucket}") String bucket
+            @Value("${cloud.aws.s3.bucket}") String bucket,
+            @Value("${cloud.aws.cloudfront.domain}") String cloudFrontDomain
     ) {
         this.amazonS3 = amazonS3;
         this.bucket = bucket;
+        this.cloudFrontDomain = removeTrailingSlash(cloudFrontDomain);
     }
 
     public String upload(String key, MultipartFile file) {
@@ -32,9 +35,16 @@ public class S3StorageService {
 
         try (InputStream inputStream = file.getInputStream()) {
             amazonS3.putObject(bucket, key, inputStream, metadata);
-            return amazonS3.getUrl(bucket, key).toString();
+            return "%s/%s".formatted(cloudFrontDomain, key);
         } catch (IOException e) {
             throw new CustomException(CommonErrorCode.SERVER_ERROR);
         }
+    }
+
+    private String removeTrailingSlash(String value) {
+        if (value.endsWith("/")) {
+            return value.substring(0, value.length() - 1);
+        }
+        return value;
     }
 }
