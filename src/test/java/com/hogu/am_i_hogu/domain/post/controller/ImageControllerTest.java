@@ -5,6 +5,7 @@ import com.hogu.am_i_hogu.common.security.JwtAuthenticationFilter;
 import com.hogu.am_i_hogu.common.security.JwtAccessDeniedHandler;
 import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.SecurityConfig;
+import com.hogu.am_i_hogu.common.storage.S3StorageService;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.post.service.ImageUploadService;
 import com.hogu.am_i_hogu.domain.user.domain.User;
@@ -24,6 +25,7 @@ import java.util.Collections;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -50,9 +52,12 @@ class ImageControllerTest {
     @MockitoBean
     private UserRepository userRepository;
 
-    // 정상 케이스: jpg 이미지 파일을 업로드하면 200 OK와 임시 imageUrl을 반환한다.
+    @MockitoBean
+    private S3StorageService s3StorageService;
+
+    // 정상 케이스: jpg 이미지 파일을 업로드하면 200 OK와 S3 imageUrl을 반환한다.
     @Test
-    void uploadImageReturnsTemporaryImageUrl() throws Exception {
+    void uploadImageReturnsS3ImageUrl() throws Exception {
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getSubjectAsLong("valid-token"))
@@ -62,9 +67,11 @@ class ImageControllerTest {
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",
-                        null,
-                        Collections.emptyList()
-                ));
+                null,
+                Collections.emptyList()
+        ));
+        when(s3StorageService.upload(org.mockito.ArgumentMatchers.startsWith("images/posts/"), any()))
+                .thenReturn("https://am-i-hogu-images.s3.ap-northeast-2.amazonaws.com/images/posts/1.jpg");
 
         MockMultipartFile image = new MockMultipartFile(
                 "image",
@@ -77,7 +84,7 @@ class ImageControllerTest {
                         .file(image)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.imageUrl", startsWith("http://localhost/temporary/images/")));
+                .andExpect(jsonPath("$.imageUrl", startsWith("https://am-i-hogu-images.s3.ap-northeast-2.amazonaws.com/images/posts/")));
     }
 
     // 실패 케이스: multipart 요청에 image 파일이 없으면 400 Bad Request와 EMPTY_IMAGE_FILE을 반환한다.
