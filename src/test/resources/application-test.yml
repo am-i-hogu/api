@@ -36,6 +36,8 @@ cloud:
   aws:
     s3:
       bucket: test-bucket
+    cloudfront:
+      domain: https://test-cloudfront.example.com
     credentials:
       access-key: test-access-key
       secret-key: test-secret-key
