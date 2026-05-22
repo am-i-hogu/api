@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @RestController
 @RequiredArgsConstructor
@@ -23,11 +22,7 @@ public class ImageController {
     public ResponseEntity<ImageUploadResponse> uploadImage(
             @RequestPart(value = "image", required = false) MultipartFile image
     ) {
-        String baseUrl = ServletUriComponentsBuilder
-                .fromCurrentContextPath() // 개발시에는 http://localhost:8080
-                .build()
-                .toUriString();
-        String imageUrl = imageUploadService.upload(image, baseUrl);
+        String imageUrl = imageUploadService.upload(image);
 
         return ResponseEntity.ok(new ImageUploadResponse(imageUrl));
     }
