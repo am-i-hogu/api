@@ -318,6 +318,44 @@ public class CommentControllerTest {
 
     /**
      * 집단지성 생성 실패 테스트:
+     * 다른 게시물에 속한 부모 집단지성 하위에 집단지성 생성 요청을 보내고,
+     * - (1) 응답 status가 404 Not Found인지 확인
+     * - (2) PARENT_NOT_FOUND 오류 코드를 반환하는지 확인
+     * - (3) DB에 집단지성 row가 생성되지 않았는지 확인
+     */
+    @Test
+    void createReturns404WhenParentDoesNotBelongToPost() throws Exception{
+        stubAuthenticatedUser();
+        insertUser(1L, "comment writer", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title 1", "content 1", false, now);
+        insertPost(101L, 1L, "USED_TRADE", "title 2", "content 2", false, now);
+        insertComment(1000L, 101L, 1L, null, 0, "parent content", now, false);
+
+        String requestBody = """
+                {
+                    "parentId" : 1000,
+                    "content" : "content"
+                }
+                """;
+        mockMvc.perform(post("/api/posts/{postId}/comments", 100L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PARENT_NOT_FOUND"));
+
+        Long commentCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM comments WHERE post_id = ?",
+                Long.class,
+                100L
+        );
+        assertThat(commentCount).isEqualTo(0);
+    }
+
+    /**
+     * 집단지성 생성 실패 테스트:
      * 삭제된 부모 집단지성 하위에 집단지성 생성 요청을 보내고,
      * - (1) 응답 status가 404 Not Found인지 확인
      * - (2) DB에 집단지성 row가 생성되지 않았는지 확인

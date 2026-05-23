@@ -65,7 +65,7 @@ public class CommentCreateService {
         if (request == null) {
             throw new CustomException(CommentErrorCode.EMPTY_REQUEST_BODY);
         }
-        Comment parent = getParent(request);
+        Comment parent = getParent(request, postId);
         validateRequest(request, parent);
 
         User writer = getWriter(userId);
@@ -86,8 +86,8 @@ public class CommentCreateService {
         return post;
     }
 
-    // 부모 집단지성이 존재한다면 불러오고, 존재하지 않거나 삭제된 집단지성이면 오류 코드 반환
-    private Comment getParent(CommentCreateRequest request) {
+    // 부모 집단지성이 존재한다면 불러오고, 존재하지 않거나, 게시물에 포함되지 않거나, 삭제된 집단지성이면 오류 코드 반환
+    private Comment getParent(CommentCreateRequest request, Long postId) {
         if (request.parentId() == null) {
             return null;
         }
@@ -97,6 +97,9 @@ public class CommentCreateService {
 
         if (parent.isDeleted()) {
             throw new CustomException(CommentErrorCode.PARENT_ALREADY_DELETED);
+        }
+        if (!parent.getPost().getId().equals(postId)) {
+            throw new CustomException(CommentErrorCode.PARENT_NOT_FOUND);
         }
 
         return parent;
