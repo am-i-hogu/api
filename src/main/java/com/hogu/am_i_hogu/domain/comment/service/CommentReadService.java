@@ -281,7 +281,7 @@ public class CommentReadService {
         String content = isDeleted ? null : comment.content();
         boolean isMine = !isDeleted && userId != null && userId.equals(comment.writerId());
         boolean isHelpful = !isDeleted && helpfulCommentIds.contains(comment.commentId());
-        long totalHelpfulCount = isDeleted ? 0 : comment.totalHelpfulCount();
+        long totalHelpfulCount = comment.totalHelpfulCount();
 
         return new CommentItemResponse(
                 comment.commentId(),

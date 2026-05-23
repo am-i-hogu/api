@@ -1115,6 +1115,44 @@ public class CommentControllerTest {
 
     /**
      * 집단지성 조회 성공 테스트:
+     * 삭제된 부모 집단지성이 유익해요를 받은 상태에서 비회원이 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 삭제된 집단지성도 실제 유익해요 수 기준으로 정렬되는지 확인
+     * - (3) 삭제된 집단지성의 totalHelpfulCount가 노출되는지 확인
+     */
+    @Test
+    void readReturns200WhenDeletedCommentExists() throws Exception {
+        stubUnauthenticatedUser();
+        insertUser(1L, "post writer", null);
+        insertUser(2L, "comment writer", null);
+        insertUser(3L, "helpful user 1", null);
+        insertUser(4L, "helpful user 2", null);
+        insertUser(5L, "helpful user 3", null);
+
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(100L, 1L, "USED_TRADE", "title", "content", false, now);
+        insertComment(1000L, 100L, 2L, null, 0, "normal parent", now.minusMinutes(2), false);
+        insertComment(1001L, 100L, 2L, null, 0, "deleted parent", now.minusMinutes(1), true);
+
+        insertCommentHelpfulMark(3L, 1000L, now);
+        insertCommentHelpfulMark(3L, 1001L, now);
+        insertCommentHelpfulMark(4L, 1001L, now);
+        insertCommentHelpfulMark(5L, 1001L, now);
+
+        mockMvc.perform(get("/api/posts/{postId}/comments", 100L)
+                        .param("sortBy", "HELPFUL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.length()").value(2))
+                .andExpect(jsonPath("$.comments[0].commentId").value(1001L))
+                .andExpect(jsonPath("$.comments[0].isDeleted").value(true))
+                .andExpect(jsonPath("$.comments[0].content").value(nullValue()))
+                .andExpect(jsonPath("$.comments[0].totalHelpfulCount").value(3))
+                .andExpect(jsonPath("$.comments[1].commentId").value(1000L))
+                .andExpect(jsonPath("$.comments[1].totalHelpfulCount").value(1));
+    }
+
+    /**
+     * 집단지성 조회 성공 테스트:
      * 비회원이 유익해요 순으로 첫 페이지에서 받은 nextCursor로 두 번째 조회 요청을 보내고,
      * - (1) 응답 status가 200 OK인지 확인
      * - (2) 다음 페이지의 부모 집단지성만 반환되는지 확인
