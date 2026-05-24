@@ -30,7 +30,7 @@ public class Comment {
     private Comment parentComment;
 
     @Column(nullable = false)
-    private Integer depth;
+    private int depth;
 
     @Column(length = 300)
     private String content;
@@ -45,4 +45,36 @@ public class Comment {
 
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    public Comment(
+            Long id,
+            Post post,
+            User writer,
+            Comment parentComment,
+            int depth,
+            String content,
+            LocalDateTime createdAt
+    ) {
+        this.id = id;
+        this.post = post;
+        this.writer = writer;
+        this.parentComment = parentComment;
+        this.depth = depth;
+        this.content = content;
+        this.isDeleted = false;
+        this.deletedAt = null;
+        this.createdAt = createdAt;
+        this.updatedAt = createdAt;
+    }
+
+    public void update(String content, LocalDateTime updatedAt) {
+        this.content = content;
+        this.updatedAt = updatedAt;
+    }
+
+    public void delete(LocalDateTime deletedAt) {
+        this.isDeleted = true;
+        this.deletedAt = deletedAt;
+        this.updatedAt = deletedAt;
+    }
 }
