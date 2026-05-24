@@ -10,6 +10,7 @@ import com.hogu.am_i_hogu.domain.comment.service.CommentCreateService;
 import com.hogu.am_i_hogu.domain.comment.service.CommentDeleteService;
 import com.hogu.am_i_hogu.domain.comment.service.CommentReadService;
 import com.hogu.am_i_hogu.domain.comment.service.CommentUpdateService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -70,7 +71,9 @@ public class CommentController {
         Long userId = Long.valueOf(authentication.getName());
         CommentCreateResponse response = commentCreateService.create(userId, postId, request);
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 
     /**

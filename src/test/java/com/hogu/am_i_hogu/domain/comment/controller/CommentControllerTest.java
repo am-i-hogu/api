@@ -76,7 +76,7 @@ public class CommentControllerTest {
     /**
      * 집단지성 생성 성공 테스트:
      * 게시물 작성자가 아닌 유저가 게시물에 첫 집단지성 생성 요청을 보내고,
-     * - (1) 응답 status가 200 OK인지 확인
+     * - (1) 응답 status가 201 Created인지 확인
      * - (2) 작성된 집단지성 정보가 적절히 반환되는지 확인
      * - (3) 게시물과 댓글이 연결되었는지 확인
      */
@@ -99,7 +99,7 @@ public class CommentControllerTest {
                     .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(requestBody))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.commentId").isNumber())
                 .andExpect(jsonPath("$.content").value("content"))
                 .andExpect(jsonPath("$.isMine").value(true))
@@ -124,7 +124,7 @@ public class CommentControllerTest {
     /**
      * 집단지성 생성 성공 테스트:
      * 게시물 작성자가 아닌 유저가 게시물에 depth 1 집단지성 생성 요청을 보내고,
-     * - (1) 응답 status가 200 OK인지 확인
+     * - (1) 응답 status가 201 Created인지 확인
      * - (2) 작성된 집단지성 정보가 적절히 반환되는지 확인
      * - (3) 게시물과 댓글이 연결되었는지 확인
      */
@@ -148,7 +148,7 @@ public class CommentControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.commentId").isNumber())
                 .andExpect(jsonPath("$.content").value("child content"))
                 .andExpect(jsonPath("$.isMine").value(true))
@@ -173,7 +173,7 @@ public class CommentControllerTest {
     /**
      * 집단지성 생성 성공 테스트:
      * 게시물 작성자인 유저가 게시물에 첫 집단지성 생성 요청을 보내고,
-     * - (1) 응답 status가 200 OK인지 확인
+     * - (1) 응답 status가 201 Created인지 확인
      * - (2) 작성된 집단지성 정보가 적절히 반환되는지 확인
      * - (3) 게시물과 댓글이 연결되었는지 확인
      */
@@ -195,7 +195,7 @@ public class CommentControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.commentId").isNumber())
                 .andExpect(jsonPath("$.content").value("content"))
                 .andExpect(jsonPath("$.isMine").value(true))
