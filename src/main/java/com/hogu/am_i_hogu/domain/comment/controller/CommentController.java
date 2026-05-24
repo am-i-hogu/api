@@ -43,7 +43,7 @@ public class CommentController {
      * @param authentication    사용자 인증 정보(필수 X)
      * @param postId            집단지성이 포함된 게시물 id
      * @param cursorRequest     cursor 정보(sortBy, pageSize, cursor)
-     * @return
+     * @return  조회된 집단지성 정보
      */
     @GetMapping("/{postId}/comments")
     public ResponseEntity<CommentReadResponse> read(
@@ -140,6 +140,14 @@ public class CommentController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * [CI-006] 유익해요 취소
+     *
+     * @param authentication    사용자 인증 정보
+     * @param postId            유익해요 취소할 집단지성이 포함된 게시물 id
+     * @param commentId         유익해요 취소할 집단지성 id
+     * @return  집단지성의 총 유익해요 수 및 유익해요 취소 결과
+     */
     @DeleteMapping("/{postId}/comments/{commentId}/helpful")
     public ResponseEntity<CommentHelpfulResponse> deleteHelpful(
             Authentication authentication,
