@@ -5,13 +5,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
-@Schema(name = "CommentReadResponse", description = "댓글 목록 응답")
+@Schema(name = "CommentReadResponse", description = "집단지성 목록 응답")
 public record CommentReadResponse(
-        @ArraySchema(arraySchema = @Schema(description = "댓글 목록"))
+        @ArraySchema(arraySchema = @Schema(description = "집단지성 목록"))
         List<CommentItemResponse> comments,
         @Schema(description = "다음 페이지 존재 여부")
         boolean hasNext,
-        @Schema(description = "다음 페이지 커서", nullable = true)
+        @Schema(description = "다음 페이지 커서. hasNext가 false이면 null", nullable = true)
         String nextCursor
 ) {
 }

@@ -4,13 +4,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
 
-@Schema(name = "CommentItemResponse", description = "댓글 항목")
+@Schema(name = "CommentItemResponse", description = "집단지성 항목")
 public record CommentItemResponse(
-        @Schema(description = "댓글 ID")
+        @Schema(description = "집단지성 ID")
         Long commentId,
-        @Schema(description = "댓글 내용")
+        @Schema(description = "집단지성 내용")
         String content,
-        @Schema(description = "내 댓글 여부")
+        @Schema(description = "내가 작성한 집단지성 여부")
         boolean isMine,
         @Schema(description = "작성자 정보")
         CommentWriterResponse writer,
@@ -20,13 +20,13 @@ public record CommentItemResponse(
         LocalDateTime updatedAt,
         @Schema(description = "삭제 여부")
         boolean isDeleted,
-        @Schema(description = "유익해요 선택 여부")
+        @Schema(description = "현재 사용자의 유익해요 선택 여부")
         boolean isHelpful,
         @Schema(description = "총 유익해요 수")
         long totalHelpfulCount,
-        @Schema(description = "부모 댓글 ID", nullable = true)
+        @Schema(description = "부모 집단지성 ID. 최상위 집단지성인 경우 null", nullable = true)
         Long parentId,
-        @Schema(description = "댓글 깊이")
+        @Schema(description = "집단지성 깊이. 최상위는 0, 대댓글은 1")
         int depth
 ) {
 }
