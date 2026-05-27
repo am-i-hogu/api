@@ -21,6 +21,8 @@ server:
 serverName: blue_server
 
 app:
+  openapi:
+    server-uri: http://43.201.237.252
   redirect:
     # 프론트 배포 전 임시값. 프론트 배포 후 FRONTEND_URL을 실제 주소로 설정한다.
     onboarding-uri: ${FRONTEND_URL:http://localhost:3000}/onboarding
