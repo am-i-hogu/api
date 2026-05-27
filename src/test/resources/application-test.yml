@@ -11,6 +11,10 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+springdoc:
+  api-docs:
+    version: OPENAPI_3_0
+
 server:
   env: test
   port: 8080
@@ -25,6 +29,10 @@ jwt:
 app:
   cookie:
     secure: true
+  openapi:
+    title: am-i-hogu API
+    version: v1
+    server-uri: http://localhost:8080
   token-encryption:
     secret: 0SYHAlsZfTy7E4sI59brKOlP3PpK6WC8jvBdjNw8xOo=
   redirect:

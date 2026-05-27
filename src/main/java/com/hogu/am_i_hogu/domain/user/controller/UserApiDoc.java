@@ -505,7 +505,6 @@ public interface UserApiDoc {
                     responseCode = "400",
                     description = """
                         잘못된 요청으로 인해 실패한다. 다음 오류 코드가 발생할 수 있다:
-                        
                         * `INVALID_CURSOR`: 유효하지 않은 cursor 값인 경우
                         """,
                     content = @Content(
