@@ -1,0 +1,152 @@
+package com.hogu.am_i_hogu.domain.comment.service;
+
+import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
+import com.hogu.am_i_hogu.common.exception.CustomException;
+import com.hogu.am_i_hogu.domain.comment.domain.Comment;
+import com.hogu.am_i_hogu.domain.comment.dto.request.CommentUpdateRequest;
+import com.hogu.am_i_hogu.domain.comment.dto.response.CommentUpdateResponse;
+import com.hogu.am_i_hogu.domain.comment.dto.response.CommentWriterResponse;
+import com.hogu.am_i_hogu.domain.comment.exception.CommentErrorCode;
+import com.hogu.am_i_hogu.domain.comment.repository.CommentHelpfulMarkRepository;
+import com.hogu.am_i_hogu.domain.comment.repository.CommentRepository;
+import com.hogu.am_i_hogu.domain.post.domain.Post;
+import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
+import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
+import com.hogu.am_i_hogu.domain.user.domain.User;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+
+@Service
+public class CommentUpdateService {
+
+    private final PostRepository postRepository;
+    private final CommentRepository commentRepository;
+    private final CommentHelpfulMarkRepository commentHelpfulMarkRepository;
+
+    public CommentUpdateService(
+            PostRepository postRepository,
+            CommentRepository commentRepository,
+            CommentHelpfulMarkRepository commentHelpfulMarkRepository
+    ) {
+        this.postRepository = postRepository;
+        this.commentRepository = commentRepository;
+        this.commentHelpfulMarkRepository = commentHelpfulMarkRepository;
+    }
+
+    /**
+     * 집단지성 수정
+     *
+     * @param userId    수정 요청한 유저 id
+     * @param postId    수정될 집단지성이 포함된 게시물 id
+     * @param commentId 수정될 집단지성 id
+     * @param request   집단지성 수정 정보
+     * @return 수정된 집단지성 정보
+     */
+    @Transactional
+    public CommentUpdateResponse update(Long userId, Long postId, Long commentId, CommentUpdateRequest request) {
+        Post post = getPostOrThrow(postId);
+        Comment comment = getCommentOrThrow(commentId);
+
+        validateCommentBelongsToPost(postId, comment);
+
+        validateWriter(userId, comment.getWriter().getId());
+        validateRequest(request);
+
+        updateComment(comment, request.content());
+
+        return toCommentUpdateResponse(post, comment);
+    }
+
+    // post가 존재한다면 불러오고, 존재하지 않거나 삭제된 게시물이면 오류 코드 반환
+    private Post getPostOrThrow(Long postId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new CustomException(PostErrorCode.POST_NOT_FOUND));
+
+        if (post.isDeleted()) {
+            throw new CustomException(PostErrorCode.POST_ALREADY_DELETED);
+        }
+
+        return post;
+    }
+
+    // 집단지성이 존재한다면 불러오고, 존재하지 않거나 삭제된 집단지성이면 오류 코드 반환
+    private Comment getCommentOrThrow(Long commentId) {
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new CustomException(CommentErrorCode.COMMENT_NOT_FOUND));
+
+        if (comment.isDeleted()) {
+            throw new CustomException(CommentErrorCode.COMMENT_ALREADY_DELETED);
+        }
+
+        return comment;
+    }
+
+    // 게시물과 집단지성 관계 검증
+    private void validateCommentBelongsToPost(Long postId, Comment comment) {
+        if (!comment.getPost().getId().equals(postId)) {
+            throw new CustomException(CommentErrorCode.COMMENT_NOT_FOUND);
+        }
+    }
+
+    // 요청 유저 정보와 작성자 정보가 일치하는지 검증
+    private void validateWriter(Long requestedUserId, Long writerId) {
+        if (!requestedUserId.equals(writerId)) {
+            throw new CustomException(CommonErrorCode.FORBIDDEN_ACCESS);
+        }
+    }
+
+    // 요청 body(content) 검증
+    private void validateRequest(CommentUpdateRequest request) {
+        if (request == null) {
+            throw new CustomException(CommentErrorCode.EMPTY_REQUEST_BODY);
+        }
+
+        String content = request.content();
+        if (content == null || content.isBlank()) {
+            throw new CustomException(CommentErrorCode.EMPTY_CONTENT);
+        }
+        if (content.length() > 300) {
+            throw new CustomException(CommentErrorCode.CONTENT_LENGTH_EXCEEDED);
+        }
+    }
+
+    // 집단지성 내용 수정 반영
+    private void updateComment(Comment comment, String content) {
+        LocalDateTime now = LocalDateTime.now();
+        comment.update(content, now);
+    }
+
+    // 서비스 응답 생성하여 반환
+    private CommentUpdateResponse toCommentUpdateResponse(Post post, Comment comment) {
+        User writer = comment.getWriter();
+        boolean isPostWriter = writer.getId().equals(post.getWriter().getId());
+        long helpfulMarkCount = getHelpfulMarkCount(comment.getId());
+        Long parentId = comment.getParentComment() == null
+                ? null
+                : comment.getParentComment().getId();
+
+        return new CommentUpdateResponse(
+                comment.getId(),
+                comment.getContent(),
+                true,
+                new CommentWriterResponse(
+                    comment.getWriter().getNickname(),
+                    comment.getWriter().getProfileImageUrl(),
+                    isPostWriter
+                ),
+                comment.getCreatedAt(),
+                comment.getUpdatedAt(),
+                false,
+                helpfulMarkCount,
+                parentId,
+                comment.getDepth()
+        );
+    }
+
+    // 집단지성의 유익해요 수 조회해 반환
+    private long getHelpfulMarkCount(Long commentId) {
+        return commentHelpfulMarkRepository.countById_CommentId(commentId);
+    }
+}

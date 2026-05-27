@@ -1,4 +1,4 @@
-package com.hogu.am_i_hogu.common.pagination;
+package com.hogu.am_i_hogu.common.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;

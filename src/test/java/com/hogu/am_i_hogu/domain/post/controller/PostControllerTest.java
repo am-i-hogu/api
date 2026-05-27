@@ -29,6 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -71,6 +72,7 @@ class PostControllerTest {
         jdbcTemplate.update("DELETE FROM post_bookmarks");
         jdbcTemplate.update("DELETE FROM post_votes");
         jdbcTemplate.update("DELETE FROM image_assets");
+        jdbcTemplate.update("DELETE FROM comments");
         jdbcTemplate.update("DELETE FROM posts");
         jdbcTemplate.update("DELETE FROM user_hogu_stats");
         jdbcTemplate.update("DELETE FROM users");
@@ -91,6 +93,204 @@ class PostControllerTest {
                 now,
                 now
         );
+    }
+
+    // 정상 케이스: 비회원도 홈 게시물 목록을 조회할 수 있고, 삭제된 글은 제외된다.
+    @Test
+    void getHomePostsAsGuestReturnsVisiblePostsOnly() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        LocalDateTime older = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        LocalDateTime newer = LocalDateTime.of(2026, 5, 1, 11, 0, 0);
+        insertPost(100L, TEST_USER_ID, "USED_TRADE", "오래된 글", "오래된 본문입니다", false, older);
+        insertPost(101L, TEST_USER_ID, "CONTRACT", "최신 글", "최신 본문입니다", false, newer);
+        insertPost(102L, TEST_USER_ID, "USED_TRADE", "삭제된 글", "삭제된 본문입니다", true, newer);
+        insertImage(1001L, 101L, "https://example.com/thumbnail.jpg", true, 0, newer);
+        mockMvc.perform(get("/api/posts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPostCount").doesNotExist())
+                .andExpect(jsonPath("$.posts.length()").value(2))
+                .andExpect(jsonPath("$.posts[0].postId").value(101L))
+                .andExpect(jsonPath("$.posts[0].isBookmarked").value(false))
+                .andExpect(jsonPath("$.posts[0].categories[0]").value("CONTRACT"))
+                .andExpect(jsonPath("$.posts[0].title").value("최신 글"))
+                .andExpect(jsonPath("$.posts[0].contentPreview").value("최신 본문입니다"))
+                .andExpect(jsonPath("$.posts[0].thumbnailUrl").value("https://example.com/thumbnail.jpg"))
+                .andExpect(jsonPath("$.posts[0].totalVoteCount").value(0))
+                .andExpect(jsonPath("$.posts[0].commentCount").value(0))
+                .andExpect(jsonPath("$.posts[0].writer.nickname").value("hogu"))
+                .andExpect(jsonPath("$.posts[1].postId").value(100L))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString())
+                        .contains("\"nextCursor\":null"));
+    }
+
+    // 정상 케이스: 로그인 사용자의 북마크 여부를 홈 게시물 목록에 반영한다.
+    @Test
+    void getHomePostsAsAuthenticatedUserReturnsBookmarkStatus() throws Exception {
+        stubAuthenticatedUser();
+        Long otherUserId = 2L;
+        LocalDateTime now = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        insertUser(otherUserId, "other-hogu", now);
+        insertPost(100L, otherUserId, "USED_TRADE", "북마크한 글", "본문입니다", false, now);
+        insertPost(101L, otherUserId, "USED_TRADE", "북마크 안 한 글", "본문입니다", false, now.plusMinutes(1));
+        insertPostBookmark(TEST_USER_ID, 100L, now);
+        mockMvc.perform(get("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts[0].postId").value(101L))
+                .andExpect(jsonPath("$.posts[0].isBookmarked").value(false))
+                .andExpect(jsonPath("$.posts[1].postId").value(100L))
+                .andExpect(jsonPath("$.posts[1].isBookmarked").value(true));
+    }
+
+    // 정상 케이스: keyword와 categories로 필터링하고 카테고리 필터가 있으면 totalPostCount를 반환한다.
+    @Test
+    void getHomePostsFiltersByKeywordAndCategories() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        LocalDateTime now = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        insertPost(100L, TEST_USER_ID, "USED_TRADE", "아이폰 거래", "본문입니다", false, now);
+        insertPost(101L, TEST_USER_ID, "PURCHASE", "아이폰 구매", "본문입니다", false, now.plusMinutes(1));
+        insertPost(102L, TEST_USER_ID, "WORK", "아이폰 업무", "본문입니다", false, now.plusMinutes(2));
+        mockMvc.perform(get("/api/posts")
+                        .param("keyword", "아이폰")
+                        .param("categories", "USED_TRADE,PURCHASE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPostCount").value(2))
+                .andExpect(jsonPath("$.posts.length()").value(2))
+                .andExpect(jsonPath("$.posts[0].postId").value(101L))
+                .andExpect(jsonPath("$.posts[1].postId").value(100L));
+    }
+
+    // 정상 케이스: 댓글 수와 투표 참여 수 기준 정렬을 지원한다.
+    @Test
+    void getHomePostsSortsByCommentCountAndVoteParticipation() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        LocalDateTime now = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        insertUser(2L, "commenter", now);
+        insertUser(3L, "voter", now);
+        insertPost(100L, TEST_USER_ID, "USED_TRADE", "댓글 적은 글", "본문입니다", false, now);
+        insertPost(101L, TEST_USER_ID, "USED_TRADE", "댓글 많은 글", "본문입니다", false, now.plusMinutes(1));
+        insertPost(102L, TEST_USER_ID, "USED_TRADE", "투표 많은 글", "본문입니다", false, now.plusMinutes(2));
+        insertComment(1000L, 101L, 2L, "댓글 1", now);
+        insertComment(1001L, 101L, 2L, "댓글 2", now.plusSeconds(1));
+        insertPostVote(2L, 102L, "HOGU", now);
+        insertPostVote(3L, 102L, "NOT_HOGU", now.plusSeconds(1));
+        insertPostVote(TEST_USER_ID, 100L, "NONE", now.plusSeconds(2));
+        mockMvc.perform(get("/api/posts")
+                        .param("sortBy", "MOST_COMMENTED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts[0].postId").value(101L))
+                .andExpect(jsonPath("$.posts[0].commentCount").value(2));
+        mockMvc.perform(get("/api/posts")
+                        .param("sortBy", "MOST_PARTICIPATED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts[0].postId").value(102L))
+                .andExpect(jsonPath("$.posts[0].totalVoteCount").value(2));
+    }
+
+    // 정상 케이스: 조회수 기준 정렬을 지원하고 동점이면 postId 내림차순으로 정렬한다.
+    @Test
+    void getHomePostsSortsByViewCount() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        LocalDateTime now = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        insertPost(100L, TEST_USER_ID, "USED_TRADE", "조회수 낮은 글", "본문입니다", false, now);
+        insertPost(101L, TEST_USER_ID, "USED_TRADE", "조회수 높은 글", "본문입니다", false, now.plusMinutes(1));
+        insertPost(102L, TEST_USER_ID, "USED_TRADE", "조회수 동점 글", "본문입니다", false, now.plusMinutes(2));
+        jdbcTemplate.update("UPDATE posts SET view_count = ? WHERE id = ?", 1, 100L);
+        jdbcTemplate.update("UPDATE posts SET view_count = ? WHERE id = ?", 10, 101L);
+        jdbcTemplate.update("UPDATE posts SET view_count = ? WHERE id = ?", 10, 102L);
+        mockMvc.perform(get("/api/posts")
+                        .param("sortBy", "MOST_VIEWED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts[0].postId").value(102L))
+                .andExpect(jsonPath("$.posts[1].postId").value(101L))
+                .andExpect(jsonPath("$.posts[2].postId").value(100L));
+    }
+
+    // 정상 케이스: pageSize와 nextCursor로 다음 페이지를 중복 없이 조회한다.
+    @Test
+    void getHomePostsReturnsNextPageWithCursor() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        LocalDateTime base = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        for (long postId = 100L; postId <= 105L; postId++) {
+            insertPost(
+                    postId,
+                    TEST_USER_ID,
+                    "USED_TRADE",
+                    "글 " + postId,
+                    "본문입니다",
+                    false,
+                    base.plusMinutes(postId - 100L)
+            );
+        }
+        String response = mockMvc.perform(get("/api/posts")
+                        .param("pageSize", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts.length()").value(5))
+                .andExpect(jsonPath("$.posts[0].postId").value(105L))
+                .andExpect(jsonPath("$.posts[4].postId").value(101L))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.nextCursor").isString())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        String nextCursor = com.jayway.jsonpath.JsonPath.read(response, "$.nextCursor");
+        mockMvc.perform(get("/api/posts")
+                        .param("pageSize", "5")
+                        .param("cursor", nextCursor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posts.length()").value(1))
+                .andExpect(jsonPath("$.posts[0].postId").value(100L))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString())
+                        .contains("\"nextCursor\":null"));
+    }
+
+    // 실패 케이스: 잘못된 홈 조회 파라미터는 필드별 오류 코드를 반환한다.
+    @Test
+    void getHomePostsRejectsInvalidQueryParams() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        mockMvc.perform(get("/api/posts")
+                        .param("keyword", "   ")
+                        .param("categories", "UNKNOWN")
+                        .param("sortBy", "LATEST,MOST_VIEWED")
+                        .param("cursor", "invalid-cursor"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("keyword"))
+                .andExpect(jsonPath("$.errors[0].code").value("EMPTY_KEYWORD"))
+                .andExpect(jsonPath("$.errors[1].field").value("categories"))
+                .andExpect(jsonPath("$.errors[1].code").value("INVALID_CATEGORIES"))
+                .andExpect(jsonPath("$.errors[2].field").value("sortBy"))
+                .andExpect(jsonPath("$.errors[2].code").value("MULTIPLE_SORTING"))
+                .andExpect(jsonPath("$.errors[3].field").value("cursor"))
+                .andExpect(jsonPath("$.errors[3].code").value("INVALID_CURSOR"));
+    }
+
+    // 실패 케이스: 존재하지 않는 정렬 기준과 해석 불가능한 cursor는 필드별 오류 코드를 반환한다.
+    @Test
+    void getHomePostsRejectsInvalidSortByAndCursor() throws Exception {
+        when(jwtProvider.validateAccessToken(null))
+                .thenReturn(JwtProvider.TokenValidationResult.EMPTY);
+        mockMvc.perform(get("/api/posts")
+                        .param("sortBy", "UNKNOWN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("sortBy"))
+                .andExpect(jsonPath("$.errors[0].code").value("INVALID_SORTING"));
+        mockMvc.perform(get("/api/posts")
+                        .param("cursor", "invalid-cursor"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PARAM_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("cursor"))
+                .andExpect(jsonPath("$.errors[0].code").value("INVALID_CURSOR"));
     }
 
     // 정상 케이스: 인증된 사용자가 필수 값과 이미지 정보를 보내면 게시물이 생성되고 postId를 반환한다.
@@ -865,6 +1065,7 @@ class PostControllerTest {
 
         Long postId = 1234L;
         LocalDateTime now = LocalDateTime.now();
+        insertUserHoguStat(TEST_USER_ID, now);
         insertPost(postId, TEST_USER_ID, "USED_TRADE", "삭제할 글", "본문입니다", false, now);
 
         mockMvc.perform(delete("/api/posts/{postId}", postId)
@@ -884,6 +1085,38 @@ class PostControllerTest {
 
         assertThat(isDeleted).isTrue();
         assertThat(deletedAt).isNotNull();
+    }
+
+    // 정상 케이스: 투표가 있는 게시물을 삭제하면 해당 투표는 작성자 호구 통계에서 제외한다.
+    @Test
+    void deletePostRecalculatesWriterStatsExcludingDeletedPostVotes() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        Long voterId = 2L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(voterId, "voter", now);
+        insertUserHoguStat(TEST_USER_ID, now);
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "투표 있는 삭제 글", "본문입니다", false, now);
+        insertPostVote(voterId, postId, "HOGU", now);
+        jdbcTemplate.update(
+                """
+                UPDATE user_hogu_stats
+                SET voted_post_count = ?, hogu_vote_count = ?, total_vote_count = ?, hogu_index = ?
+                WHERE user_id = ?
+                """,
+                1,
+                1,
+                1,
+                100,
+                TEST_USER_ID
+        );
+
+        mockMvc.perform(delete("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNoContent());
+
+        assertWriterHoguStat(TEST_USER_ID, 0, 0, 0, 0);
     }
 
     // 실패 케이스: 존재하지 않는 게시물을 삭제하면 404 Not Found와 POST_NOT_FOUND를 반환한다.
@@ -1078,6 +1311,245 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.code").value("POST_ALREADY_DELETED"));
     }
 
+    // 정상 케이스: 인증된 사용자가 게시물에 HOGU 투표하면 post_votes와 작성자 호구 통계를 갱신한다.
+    @Test
+    void voteOnPostCreatesVoteUpdatesWriterStatsAndReturnsSummary() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(writerUserId, "writer", now);
+        insertUserHoguStat(writerUserId, now);
+        insertPost(postId, writerUserId, "USED_TRADE", "투표할 글", "본문입니다", false, now);
+
+        String requestBody = """
+                {
+                  "myVote": "HOGU"
+                }
+                """;
+
+        mockMvc.perform(put("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalVotes").value(1))
+                .andExpect(jsonPath("$.yesVotes").value(1))
+                .andExpect(jsonPath("$.noVotes").value(0))
+                .andExpect(jsonPath("$.myVote").value("HOGU"));
+
+        String savedVote = jdbcTemplate.queryForObject(
+                "SELECT my_vote FROM post_votes WHERE user_id = ? AND post_id = ?",
+                String.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(savedVote).isEqualTo("HOGU");
+        assertWriterHoguStat(writerUserId, 1, 1, 1, 100);
+    }
+
+    // 정상 케이스: 이미 투표한 사용자가 다른 선택지로 다시 투표하면 기존 row를 갱신한다.
+    @Test
+    void voteOnPostUpdatesExistingVoteAndRecalculatesWriterStats() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long otherVoterId = 3L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime existingVoteCreatedAt = now.minusDays(1);
+        insertUser(writerUserId, "writer", now);
+        insertUser(otherVoterId, "other-voter", now);
+        insertUserHoguStat(writerUserId, now);
+        insertPost(postId, writerUserId, "USED_TRADE", "투표 변경할 글", "본문입니다", false, now);
+        insertPostVote(TEST_USER_ID, postId, "NOT_HOGU", existingVoteCreatedAt);
+        insertPostVote(otherVoterId, postId, "HOGU", now);
+
+        String requestBody = """
+                {
+                  "myVote": "HOGU"
+                }
+                """;
+
+        mockMvc.perform(put("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalVotes").value(2))
+                .andExpect(jsonPath("$.yesVotes").value(2))
+                .andExpect(jsonPath("$.noVotes").value(0))
+                .andExpect(jsonPath("$.myVote").value("HOGU"));
+
+        Integer voteRowCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM post_votes WHERE user_id = ? AND post_id = ?",
+                Integer.class,
+                TEST_USER_ID,
+                postId
+        );
+        String savedVote = jdbcTemplate.queryForObject(
+                "SELECT my_vote FROM post_votes WHERE user_id = ? AND post_id = ?",
+                String.class,
+                TEST_USER_ID,
+                postId
+        );
+        LocalDateTime savedCreatedAt = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM post_votes WHERE user_id = ? AND post_id = ?",
+                LocalDateTime.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(voteRowCount).isEqualTo(1);
+        assertThat(savedVote).isEqualTo("HOGU");
+        assertThat(savedCreatedAt).isBefore(now.minusHours(1));
+        assertWriterHoguStat(writerUserId, 1, 2, 2, 100);
+    }
+
+    // 정상 케이스: 투표 취소는 row 삭제가 아니라 my_vote=NONE으로 갱신하고 집계에서 제외한다.
+    @Test
+    void cancelVoteMarksNoneUpdatesWriterStatsAndReturnsSummary() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long otherVoterId = 3L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(writerUserId, "writer", now);
+        insertUser(otherVoterId, "other-voter", now);
+        insertUserHoguStat(writerUserId, now);
+        insertPost(postId, writerUserId, "USED_TRADE", "투표 취소할 글", "본문입니다", false, now);
+        insertPostVote(TEST_USER_ID, postId, "HOGU", now);
+        insertPostVote(otherVoterId, postId, "NOT_HOGU", now);
+
+        mockMvc.perform(delete("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalVotes").value(1))
+                .andExpect(jsonPath("$.yesVotes").value(0))
+                .andExpect(jsonPath("$.noVotes").value(1))
+                .andExpect(jsonPath("$.myVote").value("NONE"));
+
+        String savedVote = jdbcTemplate.queryForObject(
+                "SELECT my_vote FROM post_votes WHERE user_id = ? AND post_id = ?",
+                String.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(savedVote).isEqualTo("NONE");
+        assertWriterHoguStat(writerUserId, 1, 0, 1, 0);
+    }
+
+    // 정상 케이스: 마지막 유효 투표를 취소하면 투표 참여 게시물 수도 0으로 재집계한다.
+    @Test
+    void cancelLastVoteUpdatesWriterVotedPostCountToZero() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(writerUserId, "writer", now);
+        insertUserHoguStat(writerUserId, now);
+        insertPost(postId, writerUserId, "USED_TRADE", "마지막 투표 취소할 글", "본문입니다", false, now);
+        insertPostVote(TEST_USER_ID, postId, "HOGU", now);
+
+        mockMvc.perform(delete("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalVotes").value(0))
+                .andExpect(jsonPath("$.yesVotes").value(0))
+                .andExpect(jsonPath("$.noVotes").value(0))
+                .andExpect(jsonPath("$.myVote").value("NONE"));
+
+        assertWriterHoguStat(writerUserId, 0, 0, 0, 0);
+    }
+
+    // 정상 케이스: 취소 상태(NONE)에서 다시 투표하면 created_at을 새 투표 시점으로 갱신한다.
+    @Test
+    void voteOnPostUpdatesCreatedAtWhenRevotingAfterCancel() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime canceledVoteCreatedAt = now.minusDays(1);
+        LocalDateTime revoteRequestStartedAt = LocalDateTime.now().minusMinutes(1);
+        insertUser(writerUserId, "writer", now);
+        insertUserHoguStat(writerUserId, now);
+        insertPost(postId, writerUserId, "USED_TRADE", "재투표할 글", "본문입니다", false, now);
+        insertPostVote(TEST_USER_ID, postId, "NONE", canceledVoteCreatedAt);
+
+        String requestBody = """
+                {
+                  "myVote": "HOGU"
+                }
+                """;
+
+        mockMvc.perform(put("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.myVote").value("HOGU"));
+
+        LocalDateTime savedCreatedAt = jdbcTemplate.queryForObject(
+                "SELECT created_at FROM post_votes WHERE user_id = ? AND post_id = ?",
+                LocalDateTime.class,
+                TEST_USER_ID,
+                postId
+        );
+        assertThat(savedCreatedAt).isAfter(canceledVoteCreatedAt);
+        assertThat(savedCreatedAt).isAfter(revoteRequestStartedAt);
+    }
+
+    // 실패 케이스: 게시물 작성자는 자기 게시물에 투표할 수 없다.
+    @Test
+    void voteOnPostRejectsWriterVote() throws Exception {
+        stubAuthenticatedUser();
+
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(postId, TEST_USER_ID, "USED_TRADE", "내 글", "본문입니다", false, now);
+
+        String requestBody = """
+                {
+                  "myVote": "HOGU"
+                }
+                """;
+
+        mockMvc.perform(put("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN_ACCESS"));
+    }
+
+    // 실패 케이스: myVote가 HOGU/NOT_HOGU가 아니면 INVALID_MYVOTE를 반환한다.
+    @Test
+    void voteOnPostRejectsInvalidMyVote() throws Exception {
+        stubAuthenticatedUser();
+
+        Long writerUserId = 2L;
+        Long postId = 1234L;
+        LocalDateTime now = LocalDateTime.now();
+        insertUser(writerUserId, "writer", now);
+        insertPost(postId, writerUserId, "USED_TRADE", "투표할 글", "본문입니다", false, now);
+
+        String requestBody = """
+                {
+                  "myVote": "NONE"
+                }
+                """;
+
+        mockMvc.perform(put("/api/posts/{postId}/votes", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_MYVOTE"));
+    }
+
     private void insertUser(Long userId, String nickname, LocalDateTime now) {
         jdbcTemplate.update(
                 """
@@ -1168,6 +1640,43 @@ class PostControllerTest {
         );
     }
 
+    private void insertComment(Long commentId, Long postId, Long writerUserId, String content, LocalDateTime now) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO comments
+                    (id, post_id, writer_user_id, parent_comment_id, depth, content, is_deleted, deleted_at, created_at, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                commentId,
+                postId,
+                writerUserId,
+                null,
+                0,
+                content,
+                false,
+                null,
+                now,
+                now
+        );
+    }
+
+    private void insertUserHoguStat(Long userId, LocalDateTime now) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO user_hogu_stats
+                    (user_id, hogu_vote_count, total_vote_count, hogu_index, updated_at)
+                VALUES
+                    (?, ?, ?, ?, ?)
+                """,
+                userId,
+                0,
+                0,
+                0,
+                now
+        );
+    }
+
     private void insertPostBookmark(Long userId, Long postId, LocalDateTime now) {
         jdbcTemplate.update(
                 """
@@ -1188,6 +1697,40 @@ class PostControllerTest {
                 Integer.class,
                 postId
         );
+    }
+
+    private void assertWriterHoguStat(
+            Long writerUserId,
+            int votedPostCount,
+            int hoguVoteCount,
+            int totalVoteCount,
+            int hoguIndex
+    ) {
+        Integer savedVotedPostCount = jdbcTemplate.queryForObject(
+                "SELECT voted_post_count FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                writerUserId
+        );
+        Integer savedHoguVoteCount = jdbcTemplate.queryForObject(
+                "SELECT hogu_vote_count FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                writerUserId
+        );
+        Integer savedTotalVoteCount = jdbcTemplate.queryForObject(
+                "SELECT total_vote_count FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                writerUserId
+        );
+        Integer savedHoguIndex = jdbcTemplate.queryForObject(
+                "SELECT hogu_index FROM user_hogu_stats WHERE user_id = ?",
+                Integer.class,
+                writerUserId
+        );
+
+        assertThat(savedVotedPostCount).isEqualTo(votedPostCount);
+        assertThat(savedHoguVoteCount).isEqualTo(hoguVoteCount);
+        assertThat(savedTotalVoteCount).isEqualTo(totalVoteCount);
+        assertThat(savedHoguIndex).isEqualTo(hoguIndex);
     }
 
     /**

@@ -32,6 +32,21 @@ app:
     login-success-uri: http://localhost:8080/oauth/callback?status=LOGIN_SUCCESS
     login-failure-uri: http://localhost:3000/oauth/callback?status=LOGIN_FAILED
 
+cloud:
+  aws:
+    s3:
+      bucket: test-bucket
+    cloudfront:
+      domain: https://test-cloudfront.example.com
+    credentials:
+      access-key: test-access-key
+      secret-key: test-secret-key
+    region:
+      static: ap-northeast-2
+      auto: false
+    stack:
+      auto: false
+
 oauth:
   google:
     client-id: test-client-id

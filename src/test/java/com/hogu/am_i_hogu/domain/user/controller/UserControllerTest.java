@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -479,6 +480,201 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.errors[0].code").value("SPECIAL_CHAR_NICKNAME"))
                 .andExpect(jsonPath("$.errors[1].field").value("nickname"))
                 .andExpect(jsonPath("$.errors[1].code").value("NICKNAME_LENGTH_EXCEEDED"));
+    }
+
+    /**
+     * 마이페이지 조회 성공 테스트:
+     * 투표 참여된 게시물 수가 5개가 넘는 유저가 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 유저 프로필 정보, 레벨 정보가 적절히 반환되는지 확인
+     */
+    @Test
+    void getMyPageReturns200WhenVotedPostExceeds5() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+
+        stubAuthenticatedUser();
+        insertUser(1L, "nickname", null);
+        insertUserHoguStat(1L, 72, 10, now);
+
+        mockMvc.perform(get("/api/users/me")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nickname").value("nickname"))
+                .andExpect(jsonPath("$.profileImageUrl").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.hoguIndex").value(72))
+                .andExpect(jsonPath("$.hoguLevel").value("RISKY"))
+                .andExpect(jsonPath("$.hoguShortDescription").value("거절보다 양보가 앞서는 타입"));
+    }
+
+    /**
+     * 마이페이지 조회 성공 테스트:
+     * 투표 참여된 게시물 수가 5개 미만인 유저가 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 유저 프로필 정보가 적절히 반환되는지 확인
+     * - (3) 유저 호구 레벨 및 레벨 설명이 적절히 반환되는지 확인
+     */
+    @Test
+    void getMyPageReturns200WhenVotedPostIsLessThan5() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+
+        stubAuthenticatedUser();
+        insertUser(1L, "nickname", null);
+        insertUserHoguStat(1L, 72, 3, now);
+
+        mockMvc.perform(get("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nickname").value("nickname"))
+                .andExpect(jsonPath("$.profileImageUrl").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.hoguIndex").value(72))
+                .andExpect(jsonPath("$.hoguLevel").value("NONE"))
+                .andExpect(jsonPath("$.hoguShortDescription").value("레벨을 집계할 수 없습니다."));
+    }
+
+    /**
+     * 마이페이지 조회 성공 테스트:
+     * hoguIndex가 경계값(59)인 유저가 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 유저 프로필 정보, 레벨 정보가 적절히 반환되는지 확인
+     */
+    @Test
+    void getMyPageReturns200WhenHoguIndexIsBoundaryValue() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+
+        stubAuthenticatedUser();
+        insertUser(1L, "nickname", null);
+        insertUserHoguStat(1L, 59, 12, now);
+
+        mockMvc.perform(get("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nickname").value("nickname"))
+                .andExpect(jsonPath("$.profileImageUrl").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.hoguIndex").value(59))
+                .andExpect(jsonPath("$.hoguLevel").value("WARNING"))
+                .andExpect(jsonPath("$.hoguShortDescription").value("가끔 손해를 감수하는 타입"));
+    }
+
+    /**
+     * 마이페이지 조회 실패 테스트:
+     * access token 없이 요청을 보내고,
+     * 응답 status가 401 Unauthorized인지 확인
+     */
+    @Test
+    void getMyPageReturns401WhenAccessTokenIsMissing() throws Exception {
+        mockMvc.perform(get("/api/users/me"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * 호구 보고서 조회 성공 테스트:
+     * 투표 참여된 게시물 수가 5개 미만인 유저가 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 유저 프로필 정보가 적절히 반환되는지 확인
+     * - (3) 유저 호구 레벨 및 레벨 설명이 적절히 반환되는지 확인
+     * - (4) 카테고리별 분석이 적절히 반환되는지 확인
+     */
+    @Test
+    void getHoguReportReturns200WhenVotedPostIsLessThan5() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+
+        stubAuthenticatedUser();
+        insertUser(1L, "nickname 1", null);
+        insertUser(2L, "nickname 2", null);
+        insertUser(3L, "nickname 3", null);
+        insertUserHoguStat(1L, 72, 2, now);
+
+        insertPost(100L, 1L, "DATING", "title 1", "content 1", false, now);
+        insertPost(101L, 1L, "USED_TRADE", "title 2", "content 2", false, now);
+
+        insertPostVote(2L, 100L, "HOGU", now);
+        insertPostVote(3L, 100L, "NOT_HOGU", now);
+
+        insertPostVote(2L, 101L, "HOGU", now);
+
+        mockMvc.perform(get("/api/users/me/report")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nickname").value("nickname 1"))
+                .andExpect(jsonPath("$.profileImageUrl").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.hoguIndex").value(72))
+                .andExpect(jsonPath("$.hoguLevel").value("NONE"))
+                .andExpect(jsonPath("$.hoguShortDescription").value("레벨을 집계할 수 없습니다."))
+                .andExpect(jsonPath("$.hoguDescription").value("레벨을 집계할 수 없습니다."))
+                .andExpect(jsonPath("$.categoryAnalysis.length()").value(0))
+                .andExpect(jsonPath("$.totalPostCount").value(2))
+                .andExpect(jsonPath("$.hoguPostCount").value(1))
+                .andExpect(jsonPath("$.notHoguPostCount").value(0));
+    }
+
+    /**
+     * 호구 보고서 조회 성공 테스트:
+     * 투표 참여된 게시물 수가 5개 이상이며 작성된 게시물의 카테고리가 2가지 이상인 유저가 조회 요청을 보내고,
+     * - (1) 응답 status가 200 OK인지 확인
+     * - (2) 유저 프로필 정보가 적절히 반환되는지 확인
+     * - (3) 유저 호구 레벨 및 레벨 설명이 적절히 반환되는지 확인
+     * - (4) 카테고리별 분석이 적절히 반환되는지 확인
+     */
+    @Test
+    void getHoguReportReturns200WhenVotedPostIsEqualTo5AndHasTwoCategories() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+
+        stubAuthenticatedUser();
+        insertUser(1L, "nickname 1", null);
+        insertUser(2L, "nickname 2", null);
+        insertUser(3L, "nickname 3", null);
+        insertUserHoguStat(1L, 72, 5, now);
+
+        insertPost(100L, 1L, "DATING", "title 1", "content 1", false, now);
+        insertPost(101L, 1L, "USED_TRADE", "title 2", "content 2", false, now);
+        insertPost(102L, 1L, "USED_TRADE", "title 3", "content 3", false, now);
+        insertPost(103L, 1L, "USED_TRADE", "title 4", "content 4", false, now);
+        insertPost(104L, 1L, "USED_TRADE", "title 5", "content 5", false, now);
+        insertPost(105L, 1L, "DATING", "title 6", "content 6", false, now);
+
+        insertPostVote(2L, 100L, "HOGU", now);
+        insertPostVote(3L, 100L, "NOT_HOGU", now);
+
+        insertPostVote(2L, 101L, "HOGU", now);
+        insertPostVote(3L, 101L, "NOT_HOGU", now);
+
+        insertPostVote(3L, 102L, "NOT_HOGU", now);
+
+        insertPostVote(3L, 103L, "NOT_HOGU", now);
+
+        insertPostVote(2L, 104L, "HOGU", now);
+        insertPostVote(3L, 104L, "NOT_HOGU", now);
+
+        mockMvc.perform(get("/api/users/me/report")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nickname").value("nickname 1"))
+                .andExpect(jsonPath("$.profileImageUrl").value(Matchers.nullValue()))
+                .andExpect(jsonPath("$.hoguIndex").value(72))
+                .andExpect(jsonPath("$.hoguLevel").value("RISKY"))
+                .andExpect(jsonPath("$.hoguShortDescription").value("거절보다 양보가 앞서는 타입"))
+                .andExpect(jsonPath("$.hoguDescription", startsWith("상대를 배려하다가")))
+                .andExpect(jsonPath("$.categoryAnalysis.length()").value(2))
+                .andExpect(jsonPath("$.categoryAnalysis[0].category").value("DATING"))
+                .andExpect(jsonPath("$.categoryAnalysis[0].hoguIndex").value(50))
+                .andExpect(jsonPath("$.categoryAnalysis[0].hoguLevel").value("WARNING"))
+                .andExpect(jsonPath("$.categoryAnalysis[1].category").value("USED_TRADE"))
+                .andExpect(jsonPath("$.categoryAnalysis[1].hoguIndex").value(33))
+                .andExpect(jsonPath("$.categoryAnalysis[1].hoguLevel").value("CAUTIOUS"))
+                .andExpect(jsonPath("$.totalPostCount").value(6))
+                .andExpect(jsonPath("$.hoguPostCount").value(0))
+                .andExpect(jsonPath("$.notHoguPostCount").value(2));
+    }
+
+    /**
+     * 호구 보고서 조회 실패 테스트:
+     * access token 없이 요청을 보내고,
+     * 응답 status가 401 Unauthorized인지 확인
+     */
+    @Test
+    void getHoguReportReturns401WhenAccessTokenIsMissing() throws Exception {
+        mockMvc.perform(get("/api/users/me/report"))
+                .andExpect(status().isUnauthorized());
     }
 
     /**
@@ -1088,6 +1284,34 @@ public class UserControllerTest {
 
     /**
      * 참여한 투표 리스트 조회 성공 테스트:
+     * 취소된 투표(myVote=NONE)는 참여한 투표 목록에서 제외되는지 확인
+     */
+    @Test
+    void getMyVotesExcludesCanceledVotes() throws Exception {
+        stubAuthenticatedUser();
+
+        insertUser(1L, "nickname", null);
+        insertUser(2L, "writer", null);
+
+        LocalDateTime olderCreatedAt = LocalDateTime.of(2026, 5, 1, 9, 0, 0);
+        LocalDateTime newerCreatedAt = LocalDateTime.of(2026, 5, 1, 10, 0, 0);
+        insertPost(100L, 2L, "USED_TRADE", "유효한 투표 글", "content", false, olderCreatedAt);
+        insertPost(101L, 2L, "USED_TRADE", "취소된 투표 글", "content", false, newerCreatedAt);
+        insertPostVote(1L, 100L, "HOGU", olderCreatedAt);
+        insertPostVote(1L, 101L, "NONE", newerCreatedAt);
+
+        mockMvc.perform(get("/api/users/me/votes")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.votes.length()").value(1))
+                .andExpect(jsonPath("$.votes[0].myVote").value("HOGU"))
+                .andExpect(jsonPath("$.votes[0].post.postId").value(100L))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.nextCursor").value(Matchers.nullValue()));
+    }
+
+    /**
+     * 참여한 투표 리스트 조회 성공 테스트:
      * 인증된 사용자가 삭제된 게시물에 투표한 상태에서 요청을 보내고,
      * - (1) 응답 status가 200 OK인지 확인
      * - (2) 삭제된 게시물의 투표도 포함되는지 확인
@@ -1299,6 +1523,28 @@ public class UserControllerTest {
                 userId,
                 postId,
                 createdAt
+        );
+    }
+
+    private void insertUserHoguStat(
+            Long userId,
+            int hoguIndex,
+            int votedPostCount,
+            LocalDateTime now
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO user_hogu_stats
+                    (user_id, hogu_vote_count, total_vote_count, hogu_index, updated_at, voted_post_count)
+                VALUES
+                    (?, ?, ?, ?, ?, ?)
+                """,
+                userId,
+                0,
+                0,
+                hoguIndex,
+                now,
+                votedPostCount
         );
     }
 }

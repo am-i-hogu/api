@@ -1,7 +1,9 @@
 package com.hogu.am_i_hogu.domain.post.repository;
 
 import com.hogu.am_i_hogu.domain.post.domain.Post;
+import com.hogu.am_i_hogu.domain.user.dto.CategoryAnalysisSummary;
 import com.hogu.am_i_hogu.domain.user.dto.MyPostSummary;
+import com.hogu.am_i_hogu.domain.user.dto.PostVoteSummary;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -32,6 +34,36 @@ public interface PostRepository extends JpaRepository<Post, Long> {
             WHERE p.id = :postId
             """)
     Optional<Integer> findViewCountById(@Param("postId") Long postId);
+
+    @Query("""
+            SELECT new com.hogu.am_i_hogu.domain.user.dto.PostVoteSummary(
+                p.id,
+                SUM(CASE WHEN pv.myVote = 'HOGU' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN pv.myVote = 'NOT_HOGU' THEN 1 ELSE 0 END)
+            )
+            FROM Post p
+            LEFT JOIN PostVote pv ON pv.id.postId = p.id
+            WHERE p.writer.id = :userId
+                AND p.isDeleted = false
+            GROUP BY p.id
+            """)
+    List<PostVoteSummary> findPostAnalysisByUserId(@Param("userId") Long userId);
+
+    @Query("""
+            SELECT new com.hogu.am_i_hogu.domain.user.dto.CategoryAnalysisSummary(
+                p.category.code,
+                SUM(CASE WHEN pv.myVote = 'HOGU' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN pv.myVote IN ('HOGU', 'NOT_HOGU') THEN 1 ELSE 0 END)
+            )
+            FROM Post p
+            JOIN PostVote pv ON pv.id.postId = p.id
+            WHERE p.writer.id = :userId
+                AND p.isDeleted = false
+                AND pv.myVote IN ('HOGU', 'NOT_HOGU')
+            GROUP BY p.category.code
+            ORDER BY p.category.code
+            """)
+    List<CategoryAnalysisSummary> findCategoryAnalysisByUserId(@Param("userId") Long userId);
 
     @Query("""
             SELECT new com.hogu.am_i_hogu.domain.user.dto.MyPostSummary(
