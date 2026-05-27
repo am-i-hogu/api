@@ -47,7 +47,16 @@ public interface AuthApiDoc {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "닉네임 유효성 검사 실패",
+                    description = """
+                            잘못된 요청으로 인해 실패한다. 다음 오류 코드가 발생할 수 있다:
+                            * 상위 오류 코드: `INVALID_PARAM_VALUE`
+                            * field: `nickname`
+                            * 하위 오류 코드:
+                                * 필드가 `nickname`:
+                                    * `EMPTY_NICKNAME`: 닉네임이 공백으로만 이루어져 있거나 비어있는 경우
+                                    * `SPECIAL_CHAR_NICKNAME`: 닉네임에 특수문자가 포함되어 있는 경우
+                                    * `NICKNAME_LENGTH_EXCEEDED`: 닉네임 길이가 부족하거나 초과된 경우
+                            """,
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class),
@@ -89,7 +98,12 @@ public interface AuthApiDoc {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "임시 토큰이 없거나 만료되었거나 유효하지 않음",
+                    description = """
+                            register token 관련 오류로 실패한다. 다음 오류 코드가 발생할 수 있다:
+                            * `REGISTER_TOKEN_EXPIRED`: register token이 만료된 경우
+                            * `EMPTY_REGISTER_TOKEN`: register token이 없는 경우
+                            * `INVALID_REGISTER_TOKEN`: register token이 유효하지 않은 경우
+                            """,
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class),
@@ -102,11 +116,28 @@ public interface AuthApiDoc {
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "닉네임 중복",
+                    description = """
+                        충돌로 인해 실패한다. 다음 오류 코드가 발생할 수 있다:
+                        * `DUPLICATE_NICKNAME`: 이미 존재하는 닉네임인 경우
+                        """,
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = @ExampleObject(value = "{\"code\":\"DUPLICATE_NICKNAME\"}")
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = """
+                    서버 오류로 실패한다. 다음 오류 코드가 발생할 수 있다:
+                    * `SERVER_ERROR`: 서버 오류
+                    """,
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = {
+                                    @ExampleObject(name = "SERVER_ERROR", value = "{\"code\":\"SERVER_ERROR\"}"),
+                            }
                     )
             )
     })
@@ -149,7 +180,13 @@ public interface AuthApiDoc {
             ),
             @ApiResponse(
                     responseCode = "401",
-                    description = "인증 실패 (Refresh Token 누락, 만료, 변조, 또는 재사용 됨)",
+                    description = """
+                            refresh token 관련 오류로 실패한다. 다음 오류 코드가 발생할 수 있다:
+                            * `EMPTY_REFRESH_TOKEN`: refresh token이 없는 경우
+                            * `REFRESH_TOKEN_EXPIRED`: refresh token이 만료된 경우
+                            * `INVALID_REFRESH_TOKEN`: refresh token이 유효하지 않은 경우
+                            * `REFRESH_TOKEN_REUSED`: refresh token이 재사용된 경우
+                            """,
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class),
@@ -158,6 +195,20 @@ public interface AuthApiDoc {
                                     @ExampleObject(name = "REFRESH_TOKEN_EXPIRED", value = "{\"code\":\"REFRESH_TOKEN_EXPIRED\"}"),
                                     @ExampleObject(name = "INVALID_REFRESH_TOKEN", value = "{\"code\":\"INVALID_REFRESH_TOKEN\"}"),
                                     @ExampleObject(name = "REFRESH_TOKEN_REUSED", value = "{\"code\":\"REFRESH_TOKEN_REUSED\"}")
+                            }
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = """
+                    서버 오류로 실패한다. 다음 오류 코드가 발생할 수 있다:
+                    * `SERVER_ERROR`: 서버 오류
+                    """,
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = {
+                                    @ExampleObject(name = "SERVER_ERROR", value = "{\"code\":\"SERVER_ERROR\"}"),
                             }
                     )
             )
@@ -189,12 +240,15 @@ public interface AuthApiDoc {
             ),
             @ApiResponse(
                     responseCode = "500",
-                    description = "서버 오류",
+                    description = """
+                    서버 오류로 실패한다. 다음 오류 코드가 발생할 수 있다:
+                    * `SERVER_ERROR`: 서버 오류
+                    """,
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class),
                             examples = {
-                                    @ExampleObject(name = "EMPTY_REFRESH_TOKEN", value = "{\"code\":\"SERVER_ERROR\"}"),
+                                    @ExampleObject(name = "SERVER_ERROR", value = "{\"code\":\"SERVER_ERROR\"}"),
                             }
                     )
             )
