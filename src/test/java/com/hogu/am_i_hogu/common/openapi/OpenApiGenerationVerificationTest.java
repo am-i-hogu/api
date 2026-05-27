@@ -41,12 +41,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springdoc.core.configuration.SpringDocConfiguration;
 import org.springdoc.core.configuration.SpringDocSecurityConfiguration;
@@ -90,35 +91,36 @@ class OpenApiGenerationVerificationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean private PostCreateService postCreateService;
-    @MockBean private PostDetailService postDetailService;
-    @MockBean private PostUpdateService postUpdateService;
-    @MockBean private PostDeleteService postDeleteService;
-    @MockBean private PostBookmarkService postBookmarkService;
-    @MockBean private PostVoteService postVoteService;
-    @MockBean private HomePostQueryService homePostQueryService;
-    @MockBean private CommentCreateService commentCreateService;
-    @MockBean private CommentReadService commentReadService;
-    @MockBean private CommentUpdateService commentUpdateService;
-    @MockBean private CommentDeleteService commentDeleteService;
-    @MockBean private CommentHelpfulService commentHelpfulService;
-    @MockBean private OnboardingService onboardingService;
-    @MockBean private ReissueService reissueService;
-    @MockBean private LogoutService logoutService;
-    @MockBean private OAuthService oauthService;
-    @MockBean private UserDeletionService userDeletionService;
-    @MockBean private JwtProvider jwtProvider;
-    @MockBean private UserRepository userRepository;
-    @MockBean private AuthenticationEntryPoint authenticationEntryPoint;
-    @MockBean private AccessDeniedHandler accessDeniedHandler;
-    @MockBean private NicknameCheckService nicknameCheckService;
-    @MockBean private ProfileUpdateService profileUpdateService;
-    @MockBean private MyPostQueryService myPostQueryService;
-    @MockBean private MyCommentQueryService myCommentQueryService;
-    @MockBean private MyBookmarkQueryService myBookmarkQueryService;
-    @MockBean private MyVoteQueryService myVoteQueryService;
-    @MockBean private MyPageService myPageService;
-    @MockBean private HoguReportService hoguReportService;
+    @MockitoBean
+    private PostCreateService postCreateService;
+    @MockitoBean private PostDetailService postDetailService;
+    @MockitoBean private PostUpdateService postUpdateService;
+    @MockitoBean private PostDeleteService postDeleteService;
+    @MockitoBean private PostBookmarkService postBookmarkService;
+    @MockitoBean private PostVoteService postVoteService;
+    @MockitoBean private HomePostQueryService homePostQueryService;
+    @MockitoBean private CommentCreateService commentCreateService;
+    @MockitoBean private CommentReadService commentReadService;
+    @MockitoBean private CommentUpdateService commentUpdateService;
+    @MockitoBean private CommentDeleteService commentDeleteService;
+    @MockitoBean private CommentHelpfulService commentHelpfulService;
+    @MockitoBean private OnboardingService onboardingService;
+    @MockitoBean private ReissueService reissueService;
+    @MockitoBean private LogoutService logoutService;
+    @MockitoBean private OAuthService oauthService;
+    @MockitoBean private UserDeletionService userDeletionService;
+    @MockitoBean private JwtProvider jwtProvider;
+    @MockitoBean private UserRepository userRepository;
+    @MockitoBean private AuthenticationEntryPoint authenticationEntryPoint;
+    @MockitoBean private AccessDeniedHandler accessDeniedHandler;
+    @MockitoBean private NicknameCheckService nicknameCheckService;
+    @MockitoBean private ProfileUpdateService profileUpdateService;
+    @MockitoBean private MyPostQueryService myPostQueryService;
+    @MockitoBean private MyCommentQueryService myCommentQueryService;
+    @MockitoBean private MyBookmarkQueryService myBookmarkQueryService;
+    @MockitoBean private MyVoteQueryService myVoteQueryService;
+    @MockitoBean private MyPageService myPageService;
+    @MockitoBean private HoguReportService hoguReportService;
 
     @Test
     void apiDocs_and_typescriptFetch_generation_are_valid(@TempDir Path tempDir) throws Exception {
@@ -143,13 +145,11 @@ class OpenApiGenerationVerificationTest {
         Files.createDirectories(outputDir);
 
         Process process = new ProcessBuilder(List.of(
-                "docker", "run", "--rm",
-                "-v", tempDir.toAbsolutePath() + ":/local",
-                "openapitools/openapi-generator-cli:v7.13.0",
-                "generate",
-                "-i", "/local/api-docs.json",
-                "-g", "typescript-fetch",
-                "-o", "/local/typescript-fetch"
+                "sh", "-c",
+                String.format(
+                        "docker run --rm -u $(id -u):$(id -g) -v %s:/local openapitools/openapi-generator-cli:v7.13.0 generate -i /local/api-docs.json -g typescript-fetch -o /local/typescript-fetch",
+                        tempDir.toAbsolutePath()
+                )
         )).redirectErrorStream(true).start();
 
         String generatorOutput = new String(process.getInputStream().readAllBytes());
