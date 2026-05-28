@@ -11,7 +11,9 @@ public record PostUpdateRequest(
         String title,
 
         @ArraySchema(
-                arraySchema = @Schema(description = "카테고리 코드 목록"),
+                minItems = 1,
+                maxItems = 1,
+                arraySchema = @Schema(description = "변경할 카테고리 코드 목록. 1개만 허용"),
                 schema = @Schema(
                         type = "string",
                         allowableValues = {"USED_TRADE", "WORK", "PURCHASE", "CONTRACT", "DATING", "ETC"}
