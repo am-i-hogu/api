@@ -3,12 +3,17 @@ package com.hogu.am_i_hogu.common.config;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
+import org.springdoc.core.customizers.OperationCustomizer;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
+import java.util.Set;
 
 @Configuration
 @EnableConfigurationProperties(OpenApiConfig.OpenApiProperties.class)
@@ -32,6 +37,26 @@ public class OpenApiConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                 ));
+    }
+
+    @Bean
+    public OperationCustomizer optionalBearerAuthCustomizer() {
+        Set<String> optionalBearerOperationIds = Set.of(
+                "getHomePosts",
+                "getPostDetail",
+                "getComments"
+        );
+
+        return (operation,handlerMethod) -> {
+            if (optionalBearerOperationIds.contains(operation.getOperationId())) {
+                operation.setSecurity(List.of(
+                        new SecurityRequirement(),
+                        new SecurityRequirement().addList("bearerAuth")
+                ));
+            }
+
+            return operation;
+        };
     }
 
     @ConfigurationProperties(prefix = "app.openapi")
