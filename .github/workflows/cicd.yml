@@ -125,13 +125,20 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script_stop: true
           script: |
-            set -eux
+            set -e
 
-            if [ "${{ env.TARGET_UPSTREAM }}" = "blue" ]; then
-              TARGET_SERVICE_URL="blue:8080"
-            else
-              TARGET_SERVICE_URL="green:8081"
-            fi
+            case "${{ env.TARGET_UPSTREAM }}" in
+              blue)
+                TARGET_SERVICE_URL="blue:8080"
+                ;;
+              green)
+                TARGET_SERVICE_URL="green:8081"
+                ;;
+              *)
+                echo "Invalid TARGET_UPSTREAM: ${{ env.TARGET_UPSTREAM }}"
+                exit 1
+                ;;
+            esac
 
             echo "TARGET_SERVICE_URL=$TARGET_SERVICE_URL"
 
@@ -140,7 +147,7 @@ jobs:
             sudo cat /home/ubuntu/nginx-conf/service-env.inc
             sudo docker exec nginx-server nginx -t
             sudo docker exec nginx-server nginx -s reload
-            
+
       - name: Check production server
         run: |
           for i in 1 2 3 4 5; do
