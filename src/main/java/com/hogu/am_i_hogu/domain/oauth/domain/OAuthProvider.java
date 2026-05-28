@@ -2,7 +2,9 @@ package com.hogu.am_i_hogu.domain.oauth.domain;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.oauth.exception.OAuthErrorCode;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(name = "OAuthProvider", description = "소셜 로그인 제공자")
 public enum OAuthProvider {
     GOOGLE,
     KAKAO;

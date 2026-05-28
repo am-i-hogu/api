@@ -28,8 +28,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -59,6 +62,10 @@ public class PostCreateService {
         User writer = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
         Category category = categoryRepository.findById(request.categories().get(0)).orElseThrow();
+        List<PostImageRequest> images = request.images() == null
+                ? Collections.emptyList()
+                : request.images();
+        List<ImageAsset> imageAssets = findAttachableImageAssets(userId, images);
 
         // posts.id는 TSID로 생성한다.
         Post post = Post.builder()
@@ -72,13 +79,14 @@ public class PostCreateService {
                 .build();
         Post savedPost = postRepository.save(post);
 
-        // 이미지가 전달된 경우 생성된 게시물에 연결해 image_assets에 저장한다. 빈 배열이면 저장하지 않는다.
-        List<PostImageRequest> images = request.images() == null
-                ? Collections.emptyList()
-                : request.images();
-        List<ImageAsset> imageAssets = images.stream()
-                .map(image -> createImageAsset(writer, savedPost, image, now))
-                .toList();
+        for (int index = 0; index < images.size(); index++) {
+            PostImageRequest image = images.get(index);
+            imageAssets.get(index).attachTo(
+                    savedPost,
+                    Boolean.TRUE.equals(image.isThumbnail()),
+                    image.order()
+            );
+        }
         imageAssetRepository.saveAll(imageAssets);
 
         return new PostCreateResponse(savedPost.getId());
@@ -229,48 +237,44 @@ public class PostCreateService {
     }
 
     /**
-     * 게시물 생성 요청의 이미지 정보를 image_assets 엔티티로 변환한다.
+     * 게시물에 연결할 업로드 image asset을 URL 순서로 잠금 조회한 뒤 요청 순서로 반환한다.
      *
-     * @param writer 이미지를 업로드한 사용자
-     * @param post 이미지가 연결될 게시물
-     * @param image 요청으로 전달된 이미지 정보
-     * @param now 이미지 생성 시각
-     * @return 저장할 ImageAsset 엔티티
+     * @param userId 게시물을 작성하는 인증 사용자 id
+     * @param images 게시물에 연결할 이미지 요청 목록
+     * @return 요청 목록 순서와 동일한 연결 가능 image asset 목록
+     * @throws CustomException 업로드되지 않았거나 다른 사용자 또는 다른 게시물에 속한 이미지가 포함된 경우
      */
-    private ImageAsset createImageAsset(
-            User writer,
-            Post post,
-            PostImageRequest image,
-            LocalDateTime now
-    ) {
-        return ImageAsset.builder()
-                .id(tsidGenerator.nextId())
-                .uploadedByUser(writer)
-                .post(post)
-                .url(image.imageUrl())
-                .contentType(resolveContentType(image.imageUrl()))
-                .isThumbnail(Boolean.TRUE.equals(image.isThumbnail()))
-                .sortOrder(image.order())
-                .createdAt(now)
-                .build();
-    }
-
-    /**
-     * 이미지 URL 확장자를 기준으로 저장할 MIME 타입을 추론한다.
-     *
-     * @param imageUrl 이미지 URL
-     * @return 추론한 MIME 타입
-     */
-    private String resolveContentType(String imageUrl) {
-        // POST 생성 요청에는 contentType이 없으므로 임시로 URL 확장자에서 MIME 타입을 추론한다.
-        String lowerImageUrl = imageUrl.toLowerCase(Locale.ROOT);
-        if (lowerImageUrl.endsWith(".png")) {
-            return "image/png";
-        }
-        if (lowerImageUrl.endsWith(".webp")) {
-            return "image/webp";
+    private List<ImageAsset> findAttachableImageAssets(Long userId, List<PostImageRequest> images) {
+        if (images.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        return "image/jpeg";
+        List<ErrorResponse.ErrorDetail> errors = new ArrayList<>();
+        List<ImageAsset> imageAssets = new ArrayList<>();
+        List<String> sortedImageUrls = images.stream()
+                .map(PostImageRequest::imageUrl)
+                .sorted()
+                .toList();
+        Map<String, ImageAsset> imageAssetsByUrl = imageAssetRepository
+                .findAllWithLockByUrlInOrderByUrlAsc(sortedImageUrls)
+                .stream()
+                .collect(Collectors.toMap(ImageAsset::getUrl, Function.identity()));
+
+        for (PostImageRequest image : images) {
+            ImageAsset imageAsset = imageAssetsByUrl.get(image.imageUrl());
+            if (imageAsset == null
+                    || !Objects.equals(imageAsset.getUploadedByUser().getId(), userId)
+                    || imageAsset.getPost() != null) {
+                errors.add(new ErrorResponse.ErrorDetail("images", "INVALID_IMAGE_URL"));
+                continue;
+            }
+            imageAssets.add(imageAsset);
+        }
+
+        if (!errors.isEmpty()) {
+            throw new CustomException(PostErrorCode.INVALID_INPUT_VALUE, errors);
+        }
+
+        return imageAssets;
     }
 }

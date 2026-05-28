@@ -17,6 +17,8 @@ import com.hogu.am_i_hogu.domain.post.service.PostDeleteService;
 import com.hogu.am_i_hogu.domain.post.service.PostDetailService;
 import com.hogu.am_i_hogu.domain.post.service.PostUpdateService;
 import com.hogu.am_i_hogu.domain.post.service.PostVoteService;
+import io.swagger.v3.oas.annotations.Parameter;
+import org.springdoc.core.annotations.ParameterObject;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,7 +28,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/posts")
-public class PostController {
+public class PostController implements PostApiDoc {
     private final PostCreateService postCreateService;
     private final PostDetailService postDetailService;
     private final PostUpdateService postUpdateService;
@@ -38,7 +40,7 @@ public class PostController {
     @GetMapping
     public ResponseEntity<HomePostListResponse> getHomePosts(
             Authentication authentication,
-            @ModelAttribute HomePostSearchRequest request
+            @ParameterObject @ModelAttribute HomePostSearchRequest request
     ) {
         Long viewerUserId = authentication == null ? null : Long.valueOf(authentication.getName());
         HomePostListResponse response = homePostQueryService.getHomePosts(viewerUserId, request);

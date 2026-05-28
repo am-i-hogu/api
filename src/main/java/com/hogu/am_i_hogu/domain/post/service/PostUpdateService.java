@@ -3,7 +3,6 @@ package com.hogu.am_i_hogu.domain.post.service;
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.exception.ErrorResponse;
-import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.post.domain.Category;
 import com.hogu.am_i_hogu.domain.post.domain.ImageAsset;
 import com.hogu.am_i_hogu.domain.post.domain.Post;
@@ -14,7 +13,6 @@ import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
 import com.hogu.am_i_hogu.domain.post.repository.CategoryRepository;
 import com.hogu.am_i_hogu.domain.post.repository.ImageAssetRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
-import com.hogu.am_i_hogu.domain.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,26 +21,38 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class PostUpdateService {
-    private final TsidGenerator tsidGenerator;
     private final CategoryRepository categoryRepository;
     private final PostRepository postRepository;
     private final ImageAssetRepository imageAssetRepository;
 
+    /**
+     * 게시물 수정 요청을 검증하고, 요청된 이미지가 있으면 업로드 image asset 연결을 교체한다.
+     *
+     * @param postId 수정할 게시물 id
+     * @param userId 수정을 요청하는 인증 사용자 id
+     * @param request 게시물 수정 요청 본문
+     * @return 수정된 게시물 id를 담은 응답 DTO
+     * @throws CustomException 요청 검증에 실패하거나 수정 권한 또는 대상 게시물 조건을 만족하지 못한 경우
+     */
     @Transactional
     public PostUpdateResponse update(Long postId, Long userId, PostUpdateRequest request) {
         // 요청 본문과 필드 유효성을 먼저 검증해 DB 변경 전에 명세의 오류 응답을 확정한다.
         validate(request);
 
         // 삭제된 게시물인지 조회한다.
-        Post post = postRepository.findById(postId)
+        Post post = postRepository.findByIdWithLock(postId)
                 .orElseThrow(() -> new CustomException(PostErrorCode.POST_NOT_FOUND));
 
         // 삭제된 게시물이라면 POST_ALREADY_DELETED 에러를 반환한다.
@@ -65,21 +75,33 @@ public class PostUpdateService {
 
         post.update(request.title(), category, request.content(), now);
 
-        // 수정된 이미지가 있다면, 해당 게시물과 연결된 이미지를 모두 지우고 덮어씌운다.
+        // 수정된 이미지가 있다면 기존 연결을 해제하고 업로드된 image asset을 요청 순서대로 다시 연결한다.
         if (request.images() != null) {
-            imageAssetRepository.deleteByPost_Id(postId);
+            List<ImageAsset> imageAssets = findAttachableImageAssets(postId, userId, request.images());
+            List<ImageAsset> previousImageAssets = imageAssetRepository.findByPost_IdOrderBySortOrderAsc(postId);
+            previousImageAssets.forEach(ImageAsset::detach);
             imageAssetRepository.flush();
 
-            List<ImageAsset> imageAssets = request.images().stream()
-                    .map(image -> createImageAsset(post.getWriter(), post, image, now))
-                    .toList();
-
+            for (int index = 0; index < request.images().size(); index++) {
+                PostImageRequest image = request.images().get(index);
+                imageAssets.get(index).attachTo(
+                        post,
+                        Boolean.TRUE.equals(image.isThumbnail()),
+                        image.order()
+                );
+            }
             imageAssetRepository.saveAll(imageAssets);
         }
 
         return new PostUpdateResponse(post.getId());
     }
 
+    /**
+     * 게시물 수정 요청 body와 전달된 필드의 유효성을 검증한다.
+     *
+     * @param request 게시물 수정 요청 본문
+     * @throws CustomException body가 없거나 전달된 필드의 유효성 검사에 실패한 경우
+     */
     private void validate(PostUpdateRequest request) {
         // body 자체가 없으면 필드별 오류보다 EMPTY_REQUEST_BODY를 우선 반환한다.
         if (request == null) {
@@ -235,48 +257,49 @@ public class PostUpdateService {
     }
 
     /**
-     * 게시물 수정 요청의 이미지 정보를 image_assets 엔티티로 변환한다.
+     * 게시물에 연결할 업로드 image asset을 URL 순서로 잠금 조회한 뒤 요청 순서로 반환한다.
      *
-     * @param writer 이미지를 업로드한 사용자
-     * @param post 이미지를 수정할 게시물
-     * @param image 요청으로 전달된 이미지 정보
-     * @param now 이미지 생성 시각
-     * @return 저장할 ImageAsset 엔티티
+     * @param postId 이미지를 수정할 게시물 id
+     * @param userId 수정을 요청하는 인증 사용자 id
+     * @param images 게시물에 연결할 이미지 요청 목록
+     * @return 요청 목록 순서와 동일한 연결 가능 image asset 목록
+     * @throws CustomException 업로드되지 않았거나 다른 사용자 또는 다른 게시물에 속한 이미지가 포함된 경우
      */
-    private ImageAsset createImageAsset(
-            User writer,
-            Post post,
-            PostImageRequest image,
-            LocalDateTime now
+    private List<ImageAsset> findAttachableImageAssets(
+            Long postId,
+            Long userId,
+            List<PostImageRequest> images
     ) {
-        return ImageAsset.builder()
-                .id(tsidGenerator.nextId())
-                .uploadedByUser(writer)
-                .post(post)
-                .url(image.imageUrl())
-                .contentType(resolveContentType(image.imageUrl()))
-                .isThumbnail(Boolean.TRUE.equals(image.isThumbnail()))
-                .sortOrder(image.order())
-                .createdAt(now)
-                .build();
-    }
-
-    /**
-     * 이미지 URL 확장자를 기준으로 저장할 MIME 타입을 추론한다.
-     *
-     * @param imageUrl 이미지 URL
-     * @return 추론한 MIME 타입
-     */
-    private String resolveContentType(String imageUrl) {
-        // 게시물 이미지 요청에는 contentType이 없으므로 임시로 URL 확장자에서 MIME 타입을 추론한다.
-        String lowerImageUrl = imageUrl.toLowerCase(Locale.ROOT);
-        if (lowerImageUrl.endsWith(".png")) {
-            return "image/png";
-        }
-        if (lowerImageUrl.endsWith(".webp")) {
-            return "image/webp";
+        if (images.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        return "image/jpeg";
+        List<ErrorResponse.ErrorDetail> errors = new ArrayList<>();
+        List<ImageAsset> imageAssets = new ArrayList<>();
+        List<String> sortedImageUrls = images.stream()
+                .map(PostImageRequest::imageUrl)
+                .sorted()
+                .toList();
+        Map<String, ImageAsset> imageAssetsByUrl = imageAssetRepository
+                .findAllWithLockByUrlInOrderByUrlAsc(sortedImageUrls)
+                .stream()
+                .collect(Collectors.toMap(ImageAsset::getUrl, Function.identity()));
+
+        for (PostImageRequest image : images) {
+            ImageAsset imageAsset = imageAssetsByUrl.get(image.imageUrl());
+            if (imageAsset == null
+                    || !Objects.equals(imageAsset.getUploadedByUser().getId(), userId)
+                    || (imageAsset.getPost() != null && !Objects.equals(imageAsset.getPost().getId(), postId))) {
+                errors.add(new ErrorResponse.ErrorDetail("images", "INVALID_IMAGE_URL"));
+                continue;
+            }
+            imageAssets.add(imageAsset);
+        }
+
+        if (!errors.isEmpty()) {
+            throw new CustomException(PostErrorCode.INVALID_INPUT_VALUE, errors);
+        }
+
+        return imageAssets;
     }
 }

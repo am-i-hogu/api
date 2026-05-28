@@ -1,32 +1,38 @@
 package com.hogu.am_i_hogu.domain.post.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
-import com.hogu.am_i_hogu.common.util.TsidGenerator;
+import com.hogu.am_i_hogu.domain.post.domain.Category;
+import com.hogu.am_i_hogu.domain.post.domain.ImageAsset;
+import com.hogu.am_i_hogu.domain.post.domain.Post;
 import com.hogu.am_i_hogu.domain.post.dto.request.PostImageRequest;
 import com.hogu.am_i_hogu.domain.post.dto.request.PostUpdateRequest;
 import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
 import com.hogu.am_i_hogu.domain.post.repository.CategoryRepository;
 import com.hogu.am_i_hogu.domain.post.repository.ImageAssetRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
+import com.hogu.am_i_hogu.domain.user.domain.User;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
 class PostUpdateServiceTest {
 
-    private final TsidGenerator tsidGenerator = mock(TsidGenerator.class);
     private final CategoryRepository categoryRepository = mock(CategoryRepository.class);
     private final PostRepository postRepository = mock(PostRepository.class);
     private final ImageAssetRepository imageAssetRepository = mock(ImageAssetRepository.class);
     private final PostUpdateService postUpdateService = new PostUpdateService(
-            tsidGenerator,
             categoryRepository,
             postRepository,
             imageAssetRepository
@@ -107,5 +113,68 @@ class PostUpdateServiceTest {
         verifyNoInteractions(categoryRepository);
         verifyNoInteractions(postRepository);
         verifyNoInteractions(imageAssetRepository);
+    }
+
+    // 정상 케이스: 게시물 수정 시 이미지 자산은 URL 순서로 잠금 조회하고 요청 순서대로 다시 연결한다.
+    @Test
+    void updateLocksUploadedImagesInStableOrderAndAttachesInRequestOrder() {
+        LocalDateTime now = LocalDateTime.now();
+        User writer = new User(1L, "hogu", false, now);
+        Post post = Post.builder()
+                .id(11L)
+                .writer(writer)
+                .category(mock(Category.class))
+                .title("old title")
+                .content("old content")
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        ImageAsset firstByUrl = uploadedImage(101L, writer, "https://cdn.example.com/a.jpg", now);
+        ImageAsset secondByUrl = uploadedImage(102L, writer, "https://cdn.example.com/b.jpg", now);
+
+        when(postRepository.findByIdWithLock(11L)).thenReturn(Optional.of(post));
+        when(imageAssetRepository.findAllWithLockByUrlInOrderByUrlAsc(List.of(
+                "https://cdn.example.com/a.jpg",
+                "https://cdn.example.com/b.jpg"
+        ))).thenReturn(List.of(firstByUrl, secondByUrl));
+        when(imageAssetRepository.findByPost_IdOrderBySortOrderAsc(11L)).thenReturn(List.of());
+
+        PostUpdateRequest request = new PostUpdateRequest(
+                null,
+                null,
+                null,
+                List.of(
+                        new PostImageRequest("https://cdn.example.com/b.jpg", 0, true),
+                        new PostImageRequest("https://cdn.example.com/a.jpg", 1, false)
+                )
+        );
+
+        postUpdateService.update(11L, 1L, request);
+
+        InOrder inOrder = inOrder(postRepository, imageAssetRepository);
+        inOrder.verify(postRepository).findByIdWithLock(11L);
+        inOrder.verify(imageAssetRepository).findAllWithLockByUrlInOrderByUrlAsc(List.of(
+                "https://cdn.example.com/a.jpg",
+                "https://cdn.example.com/b.jpg"
+        ));
+        assertThat(secondByUrl.getPost()).isSameAs(post);
+        assertThat(secondByUrl.isThumbnail()).isTrue();
+        assertThat(secondByUrl.getSortOrder()).isZero();
+        assertThat(firstByUrl.getPost()).isSameAs(post);
+        assertThat(firstByUrl.isThumbnail()).isFalse();
+        assertThat(firstByUrl.getSortOrder()).isEqualTo(1);
+    }
+
+    private ImageAsset uploadedImage(Long id, User uploader, String url, LocalDateTime now) {
+        return ImageAsset.builder()
+                .id(id)
+                .uploadedByUser(uploader)
+                .url(url)
+                .contentType("image/jpeg")
+                .sizeBytes(10L)
+                .isThumbnail(false)
+                .sortOrder(0)
+                .createdAt(now)
+                .build();
     }
 }

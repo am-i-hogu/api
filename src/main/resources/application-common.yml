@@ -25,9 +25,16 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+springdoc:
+  api-docs:
+    version: OPENAPI_3_0
+
 app:
   cookie:
     secure: true
+  openapi:
+    title: am-i-hogu API
+    version: v1
 
 # aws s3 bucket
 cloud:

@@ -1,14 +1,20 @@
 package com.hogu.am_i_hogu.common.exception;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 
 import java.util.List;
 
 @Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@Schema(description = "공통 에러 응답")
 public class ErrorResponse {
+
+    @Schema(description = "에러 코드", example = "INVALID_PARAM_VALUE")
     private String code;
+
+    @Schema(description = "상세 에러(없을 경우 생략)", nullable = true)
     private List<ErrorDetail> errors;
 
     // 상세 오류 리스트가 없는 에러 응답을 위한 생성자
@@ -35,8 +41,12 @@ public class ErrorResponse {
 
     // 상세 오류 리스트 클래스
     @Getter
+    @Schema(description = "필드별 에러 상세")
     public static class ErrorDetail {
+        @Schema(description = "에러 발생한 필드명", example = "nickname")
         private String field;
+
+        @Schema(description = "해당 필드의 상세 에러 코드", example = "SPECIAL_CHAR_NICKNAME")
         private String code;
 
         public ErrorDetail(String field, String code) {

@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class PolicyController {
+public class PolicyController implements PolicyApiDoc {
 
     private final PrivacyService privacyService;
 
