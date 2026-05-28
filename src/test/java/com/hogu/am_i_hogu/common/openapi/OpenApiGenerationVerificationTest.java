@@ -17,6 +17,8 @@ import com.hogu.am_i_hogu.domain.comment.service.CommentUpdateService;
 import com.hogu.am_i_hogu.domain.oauth.controller.OAuthController;
 import com.hogu.am_i_hogu.domain.oauth.service.OAuthService;
 import com.hogu.am_i_hogu.domain.oauth.service.UserDeletionService;
+import com.hogu.am_i_hogu.domain.policy.controller.PolicyController;
+import com.hogu.am_i_hogu.domain.policy.service.PrivacyService;
 import com.hogu.am_i_hogu.domain.post.controller.PostController;
 import com.hogu.am_i_hogu.domain.post.service.HomePostQueryService;
 import com.hogu.am_i_hogu.domain.post.service.PostBookmarkService;
@@ -68,7 +70,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         CommentController.class,
         AuthController.class,
         OAuthController.class,
-        UserController.class
+        UserController.class,
+        PolicyController.class
 })
 @AutoConfigureMockMvc(addFilters = false)
 @Import({
@@ -121,6 +124,7 @@ class OpenApiGenerationVerificationTest {
     @MockitoBean private MyVoteQueryService myVoteQueryService;
     @MockitoBean private MyPageService myPageService;
     @MockitoBean private HoguReportService hoguReportService;
+    @MockitoBean private PrivacyService privacyService;
 
     @Test
     void apiDocs_and_typescriptFetch_generation_are_valid(@TempDir Path tempDir) throws Exception {
@@ -136,6 +140,17 @@ class OpenApiGenerationVerificationTest {
         assertThat(root.get("paths").get("/api/posts/{postId}").get("get").get("operationId").asText()).isEqualTo("getPostDetail");
         assertThat(root.get("paths").get("/api/posts/{postId}/comments").get("post").get("operationId").asText()).isEqualTo("createComment");
         assertThat(root.get("paths").get("/api/auth/login/{provider}").get("get").get("operationId").asText()).isEqualTo("login");
+        assertThat(root.get("paths").get("/api/auth/callback/{provider}").get("get").get("operationId").asText()).isEqualTo("handleOAuthCallback");
+        assertThat(root.get("paths").get("/api/users/me").get("delete").get("operationId").asText()).isEqualTo("deleteUser");
+        assertThat(root.get("paths").get("/api/users/me").get("patch").get("operationId").asText()).isEqualTo("updateProfile");
+        assertThat(root.get("paths").get("/api/users/check-nickname").get("get").get("operationId").asText()).isEqualTo("checkNickname");
+        assertThat(root.get("paths").get("/api/users/me").get("get").get("operationId").asText()).isEqualTo("getMyPage");
+        assertThat(root.get("paths").get("/api/users/me/report").get("get").get("operationId").asText()).isEqualTo("getHoguReport");
+        assertThat(root.get("paths").get("/api/users/me/posts").get("get").get("operationId").asText()).isEqualTo("getMyPosts");
+        assertThat(root.get("paths").get("/api/users/me/comments").get("get").get("operationId").asText()).isEqualTo("getMyComments");
+        assertThat(root.get("paths").get("/api/users/me/bookmarks").get("get").get("operationId").asText()).isEqualTo("getMyBookmarks");
+        assertThat(root.get("paths").get("/api/users/me/votes").get("get").get("operationId").asText()).isEqualTo("getMyVotes");
+        assertThat(root.get("paths").get("/api/policies/privacy").get("get").get("operationId").asText()).isEqualTo("getPrivacyPolicy");
         assertThat(root.at("/components/securitySchemes/bearerAuth/type").asText()).isEqualTo("http");
 
         Path specFile = tempDir.resolve("api-docs.json");
@@ -162,27 +177,41 @@ class OpenApiGenerationVerificationTest {
         Path oauthApi = outputDir.resolve("apis/OAuthApi.ts");
         Path postApi = outputDir.resolve("apis/PostApi.ts");
         Path commentApi = outputDir.resolve("apis/CommentApi.ts");
+        Path userApi = outputDir.resolve("apis/UserApi.ts");
+        Path policyApi = outputDir.resolve("apis/PolicyApi.ts");
         Path postVoteRequest = outputDir.resolve("models/PostVoteRequest.ts");
         Path homePostListResponse = outputDir.resolve("models/HomePostListResponse.ts");
+        Path policyResponse = outputDir.resolve("models/PolicyResponse.ts");
+        Path updateProfileResponse = outputDir.resolve("models/UpdateProfileResponse.ts");
 
         assertThat(authApi).exists();
         assertThat(oauthApi).exists();
         assertThat(postApi).exists();
         assertThat(commentApi).exists();
+        assertThat(userApi).exists();
+        assertThat(policyApi).exists();
         assertThat(postVoteRequest).exists();
         assertThat(homePostListResponse).exists();
+        assertThat(policyResponse).exists();
+        assertThat(updateProfileResponse).exists();
 
         String authApiContent = Files.readString(authApi);
         String oauthApiContent = Files.readString(oauthApi);
         String postApiContent = Files.readString(postApi);
         String commentApiContent = Files.readString(commentApi);
+        String userApiContent = Files.readString(userApi);
+        String policyApiContent = Files.readString(policyApi);
         String postVoteRequestContent = Files.readString(postVoteRequest);
         String homePostListResponseContent = Files.readString(homePostListResponse);
+        String policyResponseContent = Files.readString(policyResponse);
+        String updateProfileResponseContent = Files.readString(updateProfileResponse);
 
         assertThat(authApiContent).contains("async createUser(");
         assertThat(authApiContent).contains("async refreshAccessToken(");
         assertThat(authApiContent).contains("async logout(");
         assertThat(oauthApiContent).contains("async login(");
+        assertThat(oauthApiContent).contains("async handleOAuthCallback(");
+        assertThat(oauthApiContent).contains("async deleteUser(");
 
         assertThat(postApiContent).contains("async getHomePosts(");
         assertThat(postApiContent).contains("async getPostDetail(");
@@ -192,9 +221,26 @@ class OpenApiGenerationVerificationTest {
 
         assertThat(commentApiContent).contains("async createComment(");
         assertThat(commentApiContent).contains("async getComments(");
+        assertThat(commentApiContent).contains("async updateComment(");
+        assertThat(commentApiContent).contains("async deleteComment(");
+        assertThat(commentApiContent).contains("async createCommentHelpful(");
+        assertThat(commentApiContent).contains("async deleteCommentHelpful(");
+
+        assertThat(userApiContent).contains("async updateProfile(");
+        assertThat(userApiContent).contains("async checkNickname(");
+        assertThat(userApiContent).contains("async getMyPage(");
+        assertThat(userApiContent).contains("async getHoguReport(");
+        assertThat(userApiContent).contains("async getMyPosts(");
+        assertThat(userApiContent).contains("async getMyComments(");
+        assertThat(userApiContent).contains("async getMyBookmarks(");
+        assertThat(userApiContent).contains("async getMyVotes(");
+
+        assertThat(policyApiContent).contains("async getPrivacyPolicy(");
 
         assertThat(postVoteRequestContent).contains("Hogu: 'HOGU'");
         assertThat(postVoteRequestContent).contains("NotHogu: 'NOT_HOGU'");
         assertThat(homePostListResponseContent).contains("HomePostListResponse");
+        assertThat(policyResponseContent).contains("PolicyResponse");
+        assertThat(updateProfileResponseContent).contains("UpdateProfileResponse");
     }
 }
