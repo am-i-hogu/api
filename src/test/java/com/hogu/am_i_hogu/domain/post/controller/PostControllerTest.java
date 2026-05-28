@@ -297,6 +297,8 @@ class PostControllerTest {
     @Test
     void createPostReturnsPostIdAndPersistsPost() throws Exception {
         stubAuthenticatedUser();
+        LocalDateTime now = LocalDateTime.now();
+        insertUploadedImage(1001L, "http://localhost/temporary/images/1/post-image.jpg", now);
 
         String requestBody = """
                 {
@@ -333,6 +335,103 @@ class PostControllerTest {
                 postId
         );
         assertThat(imageCount).isEqualTo(1);
+    }
+
+    // 실패 케이스: 이미지 업로드 API로 생성되지 않은 URL은 게시물 이미지로 연결할 수 없다.
+    @Test
+    void createPostRejectsImageThatWasNotUploaded() throws Exception {
+        stubAuthenticatedUser();
+
+        String requestBody = """
+                {
+                  "title": "제목입니다",
+                  "categories": ["USED_TRADE"],
+                  "content": "본문입니다",
+                  "images": [
+                    {
+                      "imageUrl": "https://external.example.com/not-uploaded.jpg",
+                      "order": 0,
+                      "isThumbnail": true
+                    }
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("images"))
+                .andExpect(jsonPath("$.errors[0].code").value("INVALID_IMAGE_URL"));
+    }
+
+    // 실패 케이스: 다른 사용자가 업로드한 이미지는 게시물 이미지로 연결할 수 없다.
+    @Test
+    void createPostRejectsImageUploadedByAnotherUser() throws Exception {
+        stubAuthenticatedUser();
+        LocalDateTime now = LocalDateTime.now();
+        Long otherUserId = 2L;
+        insertUser(otherUserId, "other-hogu", now);
+        insertUploadedImage(1001L, otherUserId, "https://cdn.example.com/another-user.jpg", now);
+
+        String requestBody = """
+                {
+                  "title": "제목입니다",
+                  "categories": ["USED_TRADE"],
+                  "content": "본문입니다",
+                  "images": [
+                    {
+                      "imageUrl": "https://cdn.example.com/another-user.jpg",
+                      "order": 0,
+                      "isThumbnail": true
+                    }
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("images"))
+                .andExpect(jsonPath("$.errors[0].code").value("INVALID_IMAGE_URL"));
+    }
+
+    // 실패 케이스: 이미 다른 게시물에 연결된 이미지는 새 게시물에서 재사용할 수 없다.
+    @Test
+    void createPostRejectsImageAlreadyAttachedToPost() throws Exception {
+        stubAuthenticatedUser();
+        LocalDateTime now = LocalDateTime.now();
+        insertPost(1234L, TEST_USER_ID, "USED_TRADE", "기존 글", "기존 본문", false, now);
+        insertImage(1001L, 1234L, "https://cdn.example.com/attached.jpg", true, 0, now);
+
+        String requestBody = """
+                {
+                  "title": "새 글",
+                  "categories": ["USED_TRADE"],
+                  "content": "본문입니다",
+                  "images": [
+                    {
+                      "imageUrl": "https://cdn.example.com/attached.jpg",
+                      "order": 0,
+                      "isThumbnail": true
+                    }
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("images"))
+                .andExpect(jsonPath("$.errors[0].code").value("INVALID_IMAGE_URL"));
     }
 
     // 정상 케이스: images가 빈 배열이면 이미지 없이 게시물을 생성하고 postId를 반환한다.
@@ -565,6 +664,8 @@ class PostControllerTest {
         insertPost(postId, TEST_USER_ID, "USED_TRADE", "기존 제목", "기존 본문", false, now);
         insertImage(1001L, postId, "https://example.com/old-thumbnail.jpg", true, 0, now);
         insertImage(1002L, postId, "https://example.com/old-image.jpg", false, 1, now);
+        insertUploadedImage(1003L, "https://example.com/new-thumbnail.png", now);
+        insertUploadedImage(1004L, "https://example.com/new-image.webp", now);
 
         String requestBody = """
                 {
@@ -615,6 +716,11 @@ class PostControllerTest {
                 postId,
                 "https://example.com/old-%"
         );
+        Integer detachedOldImageCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM image_assets WHERE post_id IS NULL AND url LIKE ?",
+                Integer.class,
+                "https://example.com/old-%"
+        );
         String thumbnailUrl = jdbcTemplate.queryForObject(
                 "SELECT url FROM image_assets WHERE post_id = ? AND is_thumbnail = TRUE",
                 String.class,
@@ -626,6 +732,7 @@ class PostControllerTest {
         assertThat(updatedContent).isEqualTo("수정 본문");
         assertThat(imageCount).isEqualTo(2);
         assertThat(oldImageCount).isZero();
+        assertThat(detachedOldImageCount).isEqualTo(2);
         assertThat(thumbnailUrl).isEqualTo("https://example.com/new-thumbnail.png");
     }
 
@@ -1620,6 +1727,29 @@ class PostControllerTest {
                 0L,
                 isThumbnail,
                 sortOrder,
+                now
+        );
+    }
+
+    private void insertUploadedImage(Long imageId, String imageUrl, LocalDateTime now) {
+        insertUploadedImage(imageId, TEST_USER_ID, imageUrl, now);
+    }
+
+    private void insertUploadedImage(Long imageId, Long uploadedByUserId, String imageUrl, LocalDateTime now) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO image_assets
+                    (id, uploaded_by_user_id, post_id, url, content_type, size_bytes, is_thumbnail, sort_order, created_at)
+                VALUES
+                    (?, ?, NULL, ?, ?, ?, ?, ?, ?)
+                """,
+                imageId,
+                uploadedByUserId,
+                imageUrl,
+                "image/jpeg",
+                0L,
+                false,
+                0,
                 now
         );
     }

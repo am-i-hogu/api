@@ -53,4 +53,16 @@ public class ImageAsset {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    public void attachTo(Post post, boolean isThumbnail, Integer sortOrder) {
+        this.post = post;
+        this.isThumbnail = isThumbnail;
+        this.sortOrder = sortOrder;
+    }
+
+    public void detach() {
+        this.post = null;
+        this.isThumbnail = false;
+        this.sortOrder = 0;
+    }
 }
