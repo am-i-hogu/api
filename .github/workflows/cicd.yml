@@ -125,18 +125,19 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script_stop: true
           script: |
-            set -e
-      
+            set -eux
+
             if [ "${{ env.TARGET_UPSTREAM }}" = "blue" ]; then
               TARGET_SERVICE_URL="blue:8080"
             else
               TARGET_SERVICE_URL="green:8081"
             fi
-      
+
             echo "TARGET_SERVICE_URL=$TARGET_SERVICE_URL"
-      
-            sudo docker exec -i nginx-server sh -c "echo 'set \$service_url $TARGET_SERVICE_URL;' > /etc/nginx/conf.d/service-env.inc"
-            sudo docker exec nginx-server cat /etc/nginx/conf.d/service-env.inc
+
+            echo "set \$service_url $TARGET_SERVICE_URL;" | sudo tee /home/ubuntu/nginx-conf/service-env.inc
+
+            sudo cat /home/ubuntu/nginx-conf/service-env.inc
             sudo docker exec nginx-server nginx -t
             sudo docker exec nginx-server nginx -s reload
             
