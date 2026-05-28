@@ -59,7 +59,7 @@ jobs:
     steps:
       - name: Set target server
         run: |
-          HEALTH_URL="http://${{ secrets.AM_I_HOGU_SERVER_IP }}/api/health"
+          HEALTH_URL="${{ secrets.API_BASE_URL }}/api/health"
 
           if curl -fsS "$HEALTH_URL" > health.json; then
             CURRENT_UPSTREAM=$(python3 -c 'import json; print(json.load(open("health.json"))["env"])')
@@ -95,11 +95,27 @@ jobs:
             sudo docker compose -p am-i-hogu-${{ env.TARGET_UPSTREAM }} -f docker-compose-${{ env.TARGET_UPSTREAM }}.yml up -d
 
       - name: Check target server
-        uses: jtalk/url-health-check-action@v3
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          url: http://${{ secrets.AM_I_HOGU_SERVER_IP }}:${{ env.TARGET_PORT }}/api/health
-          max-attempts: 5
-          retry-delay: 10s
+          username: ubuntu
+          host: ${{ secrets.AM_I_HOGU_SERVER_IP }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+
+            for i in 1 2 3 4 5; do
+              if curl -fsS http://localhost:${{ env.TARGET_PORT }}/api/health; then
+                echo "Target server is healthy"
+                exit 0
+              fi
+
+              echo "Health check failed. Retrying..."
+              sleep 10
+            done
+
+            echo "Target server health check failed"
+            exit 1
 
       - name: Change nginx upstream
         uses: appleboy/ssh-action@v1.0.3
@@ -124,6 +140,21 @@ jobs:
             sudo docker exec nginx-server nginx -t
             sudo docker exec nginx-server nginx -s reload
             
+      - name: Check production server
+        run: |
+          for i in 1 2 3 4 5; do
+            if curl -fsS "${{ secrets.API_BASE_URL }}/api/health"; then
+              echo "Production server is healthy"
+              exit 0
+            fi
+
+            echo "Production health check failed. Retrying..."
+            sleep 10
+          done
+
+          echo "Production server health check failed"
+          exit 1
+
       - name: Stop previous container
         uses: appleboy/ssh-action@v1.0.3
         with:
