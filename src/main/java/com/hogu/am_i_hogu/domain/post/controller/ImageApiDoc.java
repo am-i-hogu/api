@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Post", description = "게시물 API")
@@ -101,6 +102,8 @@ public interface ImageApiDoc {
             )
     })
     ResponseEntity<ImageUploadResponse> uploadImage(
+            @Parameter(hidden = true)
+            Authentication authentication,
             @Parameter(
                     description = "업로드 할 이미지 파일",
                     required = true

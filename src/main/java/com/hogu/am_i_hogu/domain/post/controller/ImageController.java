@@ -20,6 +20,7 @@ public class ImageController implements ImageApiDoc {
     private final ImageUploadService imageUploadService;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Override
     public ResponseEntity<ImageUploadResponse> uploadImage(
             Authentication authentication,
             @RequestPart(value = "image", required = false) MultipartFile image
