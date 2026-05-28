@@ -12,6 +12,7 @@ import com.hogu.am_i_hogu.domain.post.repository.ImageAssetRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
 import com.hogu.am_i_hogu.domain.user.domain.User;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -23,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.when;
 
 class PostUpdateServiceTest {
@@ -130,7 +132,7 @@ class PostUpdateServiceTest {
         ImageAsset firstByUrl = uploadedImage(101L, writer, "https://cdn.example.com/a.jpg", now);
         ImageAsset secondByUrl = uploadedImage(102L, writer, "https://cdn.example.com/b.jpg", now);
 
-        when(postRepository.findById(11L)).thenReturn(Optional.of(post));
+        when(postRepository.findByIdWithLock(11L)).thenReturn(Optional.of(post));
         when(imageAssetRepository.findAllWithLockByUrlInOrderByUrlAsc(List.of(
                 "https://cdn.example.com/a.jpg",
                 "https://cdn.example.com/b.jpg"
@@ -149,7 +151,9 @@ class PostUpdateServiceTest {
 
         postUpdateService.update(11L, 1L, request);
 
-        verify(imageAssetRepository).findAllWithLockByUrlInOrderByUrlAsc(List.of(
+        InOrder inOrder = inOrder(postRepository, imageAssetRepository);
+        inOrder.verify(postRepository).findByIdWithLock(11L);
+        inOrder.verify(imageAssetRepository).findAllWithLockByUrlInOrderByUrlAsc(List.of(
                 "https://cdn.example.com/a.jpg",
                 "https://cdn.example.com/b.jpg"
         ));

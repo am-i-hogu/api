@@ -52,7 +52,7 @@ public class PostUpdateService {
         validate(request);
 
         // 삭제된 게시물인지 조회한다.
-        Post post = postRepository.findById(postId)
+        Post post = postRepository.findByIdWithLock(postId)
                 .orElseThrow(() -> new CustomException(PostErrorCode.POST_NOT_FOUND));
 
         // 삭제된 게시물이라면 POST_ALREADY_DELETED 에러를 반환한다.
