@@ -73,10 +73,12 @@ jobs:
             echo "CURRENT_PORT=8080" >> $GITHUB_ENV
             echo "TARGET_PORT=8081" >> $GITHUB_ENV
             echo "TARGET_UPSTREAM=green" >> $GITHUB_ENV
+            echo "TARGET_SERVICE_URL=green:8081" >> $GITHUB_ENV
           elif [ "$CURRENT_UPSTREAM" = "green" ]; then
             echo "CURRENT_PORT=8081" >> $GITHUB_ENV
             echo "TARGET_PORT=8080" >> $GITHUB_ENV
             echo "TARGET_UPSTREAM=blue" >> $GITHUB_ENV
+            echo "TARGET_SERVICE_URL=blue:8080" >> $GITHUB_ENV
           else
             echo "Invalid upstream: $CURRENT_UPSTREAM"
             exit 1
@@ -127,22 +129,9 @@ jobs:
           script: |
             set -e
 
-            case "${{ env.TARGET_UPSTREAM }}" in
-              blue)
-                TARGET_SERVICE_URL="blue:8080"
-                ;;
-              green)
-                TARGET_SERVICE_URL="green:8081"
-                ;;
-              *)
-                echo "Invalid TARGET_UPSTREAM: ${{ env.TARGET_UPSTREAM }}"
-                exit 1
-                ;;
-            esac
+            echo "TARGET_SERVICE_URL=${{ env.TARGET_SERVICE_URL }}"
 
-            echo "TARGET_SERVICE_URL=$TARGET_SERVICE_URL"
-
-            echo "set \$service_url $TARGET_SERVICE_URL;" | sudo tee /home/ubuntu/nginx-conf/service-env.inc
+            echo "set \$service_url ${{ env.TARGET_SERVICE_URL }};" | sudo tee /home/ubuntu/nginx-conf/service-env.inc
 
             sudo cat /home/ubuntu/nginx-conf/service-env.inc
             sudo docker exec nginx-server nginx -t
