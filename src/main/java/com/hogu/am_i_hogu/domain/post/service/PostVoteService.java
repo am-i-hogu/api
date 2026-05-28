@@ -48,7 +48,6 @@ public class PostVoteService {
     public PostVoteResponse cancel(Long userId, Long postId) {
         Post post = getPostOrThrow(postId);
         validateNotDeleted(post);
-        validateNotWriter(post, userId);
 
         LocalDateTime now = LocalDateTime.now();
         postVoteRepository.findById(new PostVoteId(userId, postId))
