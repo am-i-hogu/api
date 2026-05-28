@@ -4,6 +4,7 @@ import com.hogu.am_i_hogu.domain.user.dto.request.CursorRequest;
 import com.hogu.am_i_hogu.domain.user.dto.request.UpdateProfileRequest;
 import com.hogu.am_i_hogu.domain.user.dto.response.*;
 import com.hogu.am_i_hogu.domain.user.service.*;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -11,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/users")
-public class UserController {
+public class UserController implements UserApiDoc {
     private final NicknameCheckService nicknameCheckService;
     private final ProfileUpdateService profileUpdateService;
     private final MyPostQueryService myPostQueryService;
@@ -114,7 +115,7 @@ public class UserController {
     @GetMapping("/me/posts")
     public ResponseEntity<MyPostListResponse> getMyPosts(
             Authentication authentication,
-            @ModelAttribute CursorRequest cursorRequest
+            @ParameterObject @ModelAttribute CursorRequest cursorRequest
     ) {
         Long userId = Long.valueOf(authentication.getName());
         MyPostListResponse response = myPostQueryService.getMyPosts(userId, cursorRequest);
@@ -132,7 +133,7 @@ public class UserController {
     @GetMapping("/me/comments")
     public ResponseEntity<MyCommentListResponse> getMyComments(
             Authentication authentication,
-            @ModelAttribute CursorRequest cursorRequest
+            @ParameterObject @ModelAttribute CursorRequest cursorRequest
     ) {
         Long userId = Long.valueOf(authentication.getName());
         MyCommentListResponse response = myCommentQueryService.getMyComments(userId, cursorRequest);
@@ -150,7 +151,7 @@ public class UserController {
     @GetMapping("/me/bookmarks")
     public ResponseEntity<MyBookmarkListResponse> getMyBookmarks(
             Authentication authentication,
-            @ModelAttribute CursorRequest cursorRequest
+            @ParameterObject @ModelAttribute CursorRequest cursorRequest
     ) {
         Long userId = Long.valueOf(authentication.getName());
         MyBookmarkListResponse response = myBookmarkQueryService.getMyBookmarks(userId, cursorRequest);
@@ -168,7 +169,7 @@ public class UserController {
     @GetMapping("/me/votes")
     public ResponseEntity<MyVoteListResponse> getMyVotes(
             Authentication authentication,
-            @ModelAttribute CursorRequest cursorRequest
+            @ParameterObject @ModelAttribute CursorRequest cursorRequest
     ) {
         Long userId = Long.valueOf(authentication.getName());
         MyVoteListResponse response = myVoteQueryService.getMyVotes(userId, cursorRequest);

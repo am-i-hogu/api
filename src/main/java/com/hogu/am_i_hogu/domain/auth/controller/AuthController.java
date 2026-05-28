@@ -11,11 +11,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-public class AuthController {
+public class AuthController implements AuthApiDoc {
     private final OnboardingService onboardingService;
     private final ReissueService reissueService;
     private final LogoutService logoutService;

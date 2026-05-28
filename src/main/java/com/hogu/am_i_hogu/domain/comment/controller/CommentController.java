@@ -7,6 +7,7 @@ import com.hogu.am_i_hogu.domain.comment.dto.response.CommentCreateResponse;
 import com.hogu.am_i_hogu.domain.comment.dto.response.CommentHelpfulResponse;
 import com.hogu.am_i_hogu.domain.comment.dto.response.CommentReadResponse;
 import com.hogu.am_i_hogu.domain.comment.dto.response.CommentUpdateResponse;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import com.hogu.am_i_hogu.domain.comment.service.*;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/posts")
-public class CommentController {
+public class CommentController implements CommentApiDoc {
 
     private final CommentCreateService commentCreateService;
     private final CommentReadService commentReadService;
@@ -49,7 +50,7 @@ public class CommentController {
     public ResponseEntity<CommentReadResponse> read(
             Authentication authentication,
             @PathVariable Long postId,
-            @ModelAttribute CursorRequest cursorRequest
+            @ParameterObject @ModelAttribute CursorRequest cursorRequest
     ) {
         Long userId = authentication == null ? null : Long.valueOf(authentication.getName());
         CommentReadResponse response = commentReadService.read(userId, postId, cursorRequest);

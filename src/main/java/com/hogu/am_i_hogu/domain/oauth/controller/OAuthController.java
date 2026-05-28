@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.net.URI;
 
 @RestController
-public class OAuthController {
+public class OAuthController implements OAuthApiDoc {
 
     private final OAuthService oauthService;
     private final UserDeletionService userDeletionService;
