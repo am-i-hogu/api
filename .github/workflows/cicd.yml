@@ -109,14 +109,21 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script_stop: true
           script: |
+            set -e
+      
             if [ "${{ env.TARGET_UPSTREAM }}" = "blue" ]; then
               TARGET_SERVICE_URL="blue:8080"
             else
               TARGET_SERVICE_URL="green:8081"
             fi
-
-            sudo docker exec -i nginx-server bash -c "echo 'set \$service_url $TARGET_SERVICE_URL;' > /etc/nginx/conf.d/service-env.inc && nginx -s reload"
-
+      
+            echo "TARGET_SERVICE_URL=$TARGET_SERVICE_URL"
+      
+            sudo docker exec -i nginx-server sh -c "echo 'set \$service_url $TARGET_SERVICE_URL;' > /etc/nginx/conf.d/service-env.inc"
+            sudo docker exec nginx-server cat /etc/nginx/conf.d/service-env.inc
+            sudo docker exec nginx-server nginx -t
+            sudo docker exec nginx-server nginx -s reload
+            
       - name: Stop previous container
         uses: appleboy/ssh-action@v1.0.3
         with:
