@@ -75,6 +75,18 @@ public interface ImageApiDoc {
                     )
             ),
             @ApiResponse(
+                    responseCode = "404",
+                    description = """
+                            사용자를 찾을 수 없어 실패한다. 다음 오류 코드가 발생할 수 있다:
+                            * `USER_NOT_FOUND`: 존재하지 않거나 삭제된 사용자인 경우
+                            """,
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "USER_NOT_FOUND", value = "{\"code\":\"USER_NOT_FOUND\"}")
+                    )
+            ),
+            @ApiResponse(
                     responseCode = "413",
                     description = """
                             파일 크기 초과로 실패한다. 다음 오류 코드가 발생할 수 있다:
