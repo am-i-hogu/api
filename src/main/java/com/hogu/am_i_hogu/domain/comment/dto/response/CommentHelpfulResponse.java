@@ -2,7 +2,11 @@ package com.hogu.am_i_hogu.domain.comment.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(name = "CommentHelpfulResponse", description = "집단지성 유익해요 응답")
+@Schema(
+        name = "CommentHelpfulResponse",
+        description = "집단지성 유익해요 응답",
+        requiredProperties = {"totalHelpfulCount", "isHelpful"}
+)
 public record CommentHelpfulResponse(
         @Schema(description = "총 유익해요 수")
         long totalHelpfulCount,

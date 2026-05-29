@@ -6,7 +6,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
-@Schema(name = "HomePostListResponse", description = "홈 게시물 목록 응답")
+@Schema(
+        name = "HomePostListResponse",
+        description = "홈 게시물 목록 응답",
+        requiredProperties = {"posts", "hasNext", "nextCursor"}
+)
 public record HomePostListResponse(
         @Schema(description = "총 게시물 수", nullable = true)
         @JsonInclude(JsonInclude.Include.NON_NULL)

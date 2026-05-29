@@ -5,7 +5,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
-@Schema(name = "MyPostListResponse", description = "내 게시물 목록 응답")
+@Schema(
+        name = "MyPostListResponse",
+        description = "내 게시물 목록 응답",
+        requiredProperties = {"posts", "hasNext", "nextCursor"}
+)
 public record MyPostListResponse(
     @ArraySchema(arraySchema = @Schema(description = "게시물 목록"))
     List<MyPostItemResponse> posts,

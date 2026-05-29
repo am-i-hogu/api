@@ -4,12 +4,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 
 @Getter
-@Schema(name = "OnboardingResponse", description = "온보딩 응답")
+@Schema(name = "OnboardingResponse", description = "온보딩 응답", requiredProperties = {"accessToken"})
 public class OnboardingResponse {
-    @Schema(
-            description = "사용자의 access token",
-            example = "eyJhbGciOiJIUzI1NiJ9..."
-    )
+    @Schema(description = "사용자의 access token")
     private final String accessToken;
 
     public OnboardingResponse(String accessToken) {

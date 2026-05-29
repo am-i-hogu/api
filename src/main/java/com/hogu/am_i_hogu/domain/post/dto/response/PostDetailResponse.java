@@ -6,7 +6,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Schema(name = "PostDetailResponse", description = "게시물 상세 응답")
+@Schema(
+        name = "PostDetailResponse",
+        description = "게시물 상세 응답",
+        requiredProperties = {"postId", "isMine", "categories", "title", "createdAt", "updatedAt", "viewCount", "content", "images", "vote", "writer"}
+)
 public record PostDetailResponse(
         @Schema(description = "게시물 ID")
         Long postId,

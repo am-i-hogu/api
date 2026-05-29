@@ -2,7 +2,11 @@ package com.hogu.am_i_hogu.domain.user.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(name = "MyPageResponse", description = "마이페이지 응답")
+@Schema(
+        name = "MyPageResponse",
+        description = "마이페이지 응답",
+        requiredProperties = {"nickname", "profileImageUrl", "hoguIndex", "hoguLevel", "hoguShortDescription"}
+)
 public record MyPageResponse(
         @Schema(description = "닉네임")
         String nickname,

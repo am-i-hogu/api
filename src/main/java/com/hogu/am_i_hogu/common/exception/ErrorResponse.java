@@ -8,10 +8,10 @@ import java.util.List;
 
 @Getter
 @JsonInclude(JsonInclude.Include.NON_NULL)
-@Schema(description = "공통 에러 응답")
+@Schema(description = "공통 에러 응답", requiredProperties = {"code"})
 public class ErrorResponse {
 
-    @Schema(description = "에러 코드", example = "INVALID_PARAM_VALUE")
+    @Schema(description = "에러 코드")
     private String code;
 
     @Schema(description = "상세 에러(없을 경우 생략)", nullable = true)
@@ -41,12 +41,12 @@ public class ErrorResponse {
 
     // 상세 오류 리스트 클래스
     @Getter
-    @Schema(description = "필드별 에러 상세")
+    @Schema(description = "필드별 에러 상세", requiredProperties = {"field", "code"})
     public static class ErrorDetail {
-        @Schema(description = "에러 발생한 필드명", example = "nickname")
+        @Schema(description = "에러 발생한 필드명")
         private String field;
 
-        @Schema(description = "해당 필드의 상세 에러 코드", example = "SPECIAL_CHAR_NICKNAME")
+        @Schema(description = "해당 필드의 상세 에러 코드")
         private String code;
 
         public ErrorDetail(String field, String code) {

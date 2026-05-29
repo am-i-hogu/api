@@ -4,7 +4,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
 
-@Schema(name = "MyVoteItemResponse", description = "내 투표 항목")
+@Schema(
+        name = "MyVoteItemResponse",
+        description = "내 투표 항목",
+        requiredProperties = {"myVote", "createdAt", "post"}
+)
 public record MyVoteItemResponse(
         @Schema(
                 description = "내 투표 값",
