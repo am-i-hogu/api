@@ -2,7 +2,11 @@ package com.hogu.am_i_hogu.domain.post.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(name = "PostVoteResponse", description = "게시물 투표 응답")
+@Schema(
+        name = "PostVoteResponse",
+        description = "게시물 투표 응답",
+        requiredProperties = {"totalVotes", "yesVotes", "noVotes", "myVote"}
+)
 public record PostVoteResponse(
         @Schema(description = "총 투표 수")
         Integer totalVotes,

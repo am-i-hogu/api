@@ -5,7 +5,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
-@Schema(name = "CommentReadResponse", description = "집단지성 목록 응답")
+@Schema(
+        name = "CommentReadResponse",
+        description = "집단지성 목록 응답",
+        requiredProperties = {"comments", "hasNext", "nextCursor"}
+)
 public record CommentReadResponse(
         @ArraySchema(arraySchema = @Schema(description = "집단지성 목록"))
         List<CommentItemResponse> comments,

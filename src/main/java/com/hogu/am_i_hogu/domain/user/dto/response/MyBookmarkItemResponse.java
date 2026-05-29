@@ -4,7 +4,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
 
-@Schema(name = "MyBookmarkItemResponse", description = "내 북마크 게시물 항목")
+@Schema(
+        name = "MyBookmarkItemResponse",
+        description = "내 북마크 게시물 항목",
+        requiredProperties = {"postId", "title", "category", "createdAt", "voteSummary", "commentCount", "isDeleted"}
+)
 public record MyBookmarkItemResponse(
         @Schema(description = "게시물 ID")
         Long postId,

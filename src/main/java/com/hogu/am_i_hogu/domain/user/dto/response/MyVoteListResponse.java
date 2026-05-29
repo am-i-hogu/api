@@ -5,7 +5,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
-@Schema(name = "MyVoteListResponse", description = "내 투표 목록 응답")
+@Schema(
+        name = "MyVoteListResponse",
+        description = "내 투표 목록 응답",
+        requiredProperties = {"votes", "hasNext", "nextCursor"}
+)
 public record MyVoteListResponse(
         @ArraySchema(arraySchema = @Schema(description = "투표 목록"))
         List<MyVoteItemResponse> votes,
