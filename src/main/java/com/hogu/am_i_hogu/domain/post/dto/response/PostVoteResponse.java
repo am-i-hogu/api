@@ -19,8 +19,7 @@ public record PostVoteResponse(
 
         @Schema(
                 description = "내 투표 값",
-                allowableValues = {"HOGU", "NOT_HOGU", "NONE"},
-                nullable = true
+                allowableValues = {"HOGU", "NOT_HOGU", "NONE"}
         )
         String myVote
 ) {
