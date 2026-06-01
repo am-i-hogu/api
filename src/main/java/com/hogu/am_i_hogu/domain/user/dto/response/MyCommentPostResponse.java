@@ -2,7 +2,11 @@ package com.hogu.am_i_hogu.domain.user.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(name = "MyCommentPostResponse", description = "내 댓글 대상 게시물 정보")
+@Schema(
+        name = "MyCommentPostResponse",
+        description = "내 댓글 대상 게시물 정보",
+        requiredProperties = {"postId", "title", "category", "commentCount", "isDeleted"}
+)
 public record MyCommentPostResponse(
         @Schema(description = "게시물 ID")
         Long postId,

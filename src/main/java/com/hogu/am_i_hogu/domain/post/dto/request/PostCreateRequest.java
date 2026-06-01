@@ -5,7 +5,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
-@Schema(name = "PostCreateRequest", description = "게시물 생성 요청")
+@Schema(
+        name = "PostCreateRequest",
+        description = "게시물 생성 요청",
+        requiredProperties = {"title", "categories", "content", "images"}
+)
 public record PostCreateRequest(
         @Schema(description = "게시물 제목")
         String title,
@@ -13,9 +17,7 @@ public record PostCreateRequest(
         @ArraySchema(
                 minItems = 1,
                 maxItems = 1,
-                arraySchema = @Schema(description = "카테고리 코드 목록. 1개만 허용",
-                requiredMode = Schema.RequiredMode.REQUIRED
-                ),
+                arraySchema = @Schema(description = "카테고리 코드 목록. 1개만 허용"),
                 schema = @Schema(
                         type = "string",
                         allowableValues = {"USED_TRADE", "WORK", "PURCHASE", "CONTRACT", "DATING", "ETC"}

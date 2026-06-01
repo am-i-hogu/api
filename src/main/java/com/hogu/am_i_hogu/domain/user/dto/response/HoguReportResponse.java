@@ -5,7 +5,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
 
-@Schema(name = "HoguReportResponse", description = "호구 보고서 응답")
+@Schema(
+        name = "HoguReportResponse",
+        description = "호구 보고서 응답",
+        requiredProperties = {"nickname", "profileImageUrl", "hoguIndex", "hoguLevel", "hoguShortDescription", "hoguDescription", "categoryAnalysis", "totalPostCount", "hoguPostCount", "notHoguPostCount"}
+)
 public record HoguReportResponse(
         @Schema(description = "닉네임")
         String nickname,

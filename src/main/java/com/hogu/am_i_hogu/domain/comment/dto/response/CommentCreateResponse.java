@@ -4,7 +4,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
 
-@Schema(name = "CommentCreateResponse", description = "집단지성 생성 응답")
+@Schema(
+        name = "CommentCreateResponse",
+        description = "집단지성 생성 응답",
+        requiredProperties = {"commentId", "content", "isMine", "writer", "createdAt", "updatedAt", "isHelpful", "totalHelpfulCount", "parentId", "depth"}
+)
 public record CommentCreateResponse(
         @Schema(description = "집단지성 ID")
         Long commentId,
@@ -22,7 +26,7 @@ public record CommentCreateResponse(
         boolean isHelpful,
         @Schema(description = "총 유익해요 수")
         long totalHelpfulCount,
-        @Schema(description = "부모 집단지성 ID. 최상위 집단지성인 경우 null", nullable = true, example = "12")
+        @Schema(description = "부모 집단지성 ID. 최상위 집단지성인 경우 null", nullable = true)
         Long parentId,
         @Schema(description = "집단지성 깊이. 최상위는 0, 대댓글은 1")
         int depth

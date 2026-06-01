@@ -2,7 +2,11 @@ package com.hogu.am_i_hogu.domain.user.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(name = "UpdateProfileResponse", description = "프로필 수정 응답")
+@Schema(
+        name = "UpdateProfileResponse",
+        description = "프로필 수정 응답",
+        requiredProperties = {"id", "nickname", "profileImageUrl"}
+)
 public record UpdateProfileResponse (
         @Schema(description = "유저를 구분하는 고유의 id")
         Long id,

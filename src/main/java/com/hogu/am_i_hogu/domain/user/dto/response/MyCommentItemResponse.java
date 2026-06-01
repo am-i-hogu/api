@@ -4,7 +4,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
 
-@Schema(name = "MyCommentItemResponse", description = "내 댓글 항목")
+@Schema(
+        name = "MyCommentItemResponse",
+        description = "내 댓글 항목",
+        requiredProperties = {"commentId", "content", "createdAt", "post"}
+)
 public record MyCommentItemResponse(
         @Schema(description = "댓글 ID")
         Long commentId,
