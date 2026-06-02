@@ -1,17 +1,17 @@
 spring:
   datasource:
     # Docker Compose 배포 시 MySQL 서비스명(db)으로 연결
-    url: jdbc:mysql://${DB_HOST:db}:${DB_PORT:3306}/${DB_NAME:hogu_db}?useUnicode=true&serverTimezone=Asia/Seoul
-    username: ${DB_USER:root}
+가    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useUnicode=true&serverTimezone=Asia/Seoul
+    username: ${DB_USER}
 
 oauth:
   # google 소셜 로그인 정보
   google:
-    redirect-uri: http://43.201.237.252/api/auth/callback/GOOGLE
+    redirect-uri: ${API_SERVER_URL}/api/auth/callback/GOOGLE
 
   # kakao 소셜 로그인 정보
   kakao:
-    redirect-uri: http://43.201.237.252/api/auth/callback/KAKAO
+    redirect-uri: ${API_SERVER_URL}/api/auth/callback/KAKAO
 
 server:
   env: blue
@@ -22,9 +22,8 @@ serverName: blue_server
 
 app:
   openapi:
-    server-uri: http://43.201.237.252
+    server-uri: ${API_SERVER_URL}
   redirect:
-    # 프론트 배포 전 임시값. 프론트 배포 후 FRONTEND_URL을 실제 주소로 설정한다.
-    onboarding-uri: ${FRONTEND_URL:http://localhost:3000}/onboarding
-    login-success-uri: ${FRONTEND_URL:http://localhost:3000}/oauth/callback?status=LOGIN_SUCCESS
-    login-failure-uri: ${FRONTEND_URL:http://localhost:3000}/oauth/callback?status=LOGIN_FAILED
+    onboarding-uri: ${FRONTEND_URL}/onboarding
+    login-success-uri: ${FRONTEND_URL}/oauth/callback?status=LOGIN_SUCCESS
+    login-failure-uri: ${FRONTEND_URL}/oauth/callback?status=LOGIN_FAILED
