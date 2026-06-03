@@ -1,7 +1,7 @@
 spring:
   datasource:
     # Docker Compose 배포 시 MySQL 서비스명(db)으로 연결
-가    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useUnicode=true&serverTimezone=Asia/Seoul
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useUnicode=true&serverTimezone=Asia/Seoul
     username: ${DB_USER}
 
 oauth:
