@@ -1,7 +1,7 @@
 spring:
   datasource:
     # 로컬 MySQL 연결 설정
-    url: jdbc:mysql://localhost:3306/${DB_NAME:hogu_db}?useUnicode=true&serverTimezone=Asia/Seoul
+    url: jdbc:mysql://localhost:3306/${DB_NAME}?useUnicode=true&serverTimezone=Asia/Seoul
     username: root
 
 oauth:
@@ -26,7 +26,7 @@ app:
   openapi:
     server-uri: http://localhost:8080
   redirect:
-    # local test를 위한 uri이기 때문에 port를 8080으로 설정
-    onboarding-uri: http://localhost:8080/api/users
-    login-success-uri: http://localhost:8080/api/auth/refresh
+    # local test를 위한 uri이기 때문에 port를 3000으로 설정
+    onboarding-uri: http://localhost:3000/onboarding
+    login-success-uri: http://localhost:3000/oauth/callback?status=LOGIN_SUCCESS
     login-failure-uri: http://localhost:3000/oauth/callback?status=LOGIN_FAILED
