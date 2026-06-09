@@ -8,6 +8,9 @@ oauth:
   # google 소셜 로그인 정보
   google:
     redirect-uri: http://localhost:8080/api/auth/callback/GOOGLE
+    authorization-params:
+      access_type: offline
+      prompt: consent
 
   # kakao 소셜 로그인 정보
   kakao:
