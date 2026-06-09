@@ -38,6 +38,7 @@ out/
 
 ### .env ###
 .env
+.env.local
 
 ### secrets ###
 src/main/resources/application-secret.yml
