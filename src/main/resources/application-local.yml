@@ -26,6 +26,9 @@ serverName: local_server
 app:
   cookie:
     secure: false
+  cors:
+    allowed-origins:
+      - http://localhost:3000
   openapi:
     server-uri: http://localhost:8080
   redirect:
