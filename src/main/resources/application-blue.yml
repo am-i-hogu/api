@@ -21,6 +21,9 @@ server:
 serverName: blue_server
 
 app:
+  cors:
+    allowed-origins:
+      - ${FRONTEND_URL}
   openapi:
     server-uri: ${API_SERVER_URL}
   redirect:
