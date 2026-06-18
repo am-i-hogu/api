@@ -32,6 +32,7 @@ springdoc:
 app:
   cookie:
     secure: true
+    domain: ${COOKIE_DOMAIN:}
   openapi:
     title: am-i-hogu API
     version: v1
