@@ -67,6 +67,7 @@ oauth:
     scope: openid
     authorization-params:
       access_type: offline
+      prompt: consent
     revoke-uri:
       https://oauth2.googleapis.com/revoke
 
