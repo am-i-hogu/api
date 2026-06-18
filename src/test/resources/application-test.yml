@@ -29,6 +29,7 @@ jwt:
 app:
   cookie:
     secure: true
+    domain:
   openapi:
     title: am-i-hogu API
     version: v1

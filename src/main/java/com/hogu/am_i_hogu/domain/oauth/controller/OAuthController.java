@@ -20,17 +20,20 @@ public class OAuthController implements OAuthApiDoc {
     private final OAuthService oauthService;
     private final UserDeletionService userDeletionService;
     private final boolean cookieSecure;
+    private final String cookieDomain;
     private final String loginFailureUri;
 
     public OAuthController(
             OAuthService oauthService,
             UserDeletionService userDeletionService,
             @Value("${app.cookie.secure}") boolean cookieSecure,
+            @Value("${app.cookie.domain:}") String cookieDomain,
             @Value("${app.redirect.login-failure-uri}") String loginFailureUri
     ) {
         this.oauthService = oauthService;
         this.userDeletionService = userDeletionService;
         this.cookieSecure = cookieSecure;
+        this.cookieDomain = cookieDomain;
         this.loginFailureUri = loginFailureUri;
     }
 
@@ -69,11 +72,7 @@ public class OAuthController implements OAuthApiDoc {
             OAuthProvider oauthProvider = OAuthProvider.from(provider);
             OAuthCallbackResult result = oauthService.handleCallback(oauthProvider, code, state);
 
-            ResponseCookie cookie = ResponseCookie.from(result.getCookieName(), result.getCookieValue())
-                    .httpOnly(true)
-                    .secure(cookieSecure)
-                    .path("/")
-                    .build();
+            ResponseCookie cookie = createCookie(result.getCookieName(), result.getCookieValue());
 
             return ResponseEntity.status(302)
                     .location(URI.create(result.getRedirectUri()))
@@ -103,15 +102,33 @@ public class OAuthController implements OAuthApiDoc {
         Long userId = Long.valueOf(authentication.getName());
         userDeletionService.deleteUser(userId);
 
-        ResponseCookie cookie = ResponseCookie.from("refreshToken", "")
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .path("/")
-                .maxAge(0)
-                .build();
+        ResponseCookie cookie = createDeletionCookie("refreshToken");
 
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .build();
+    }
+
+    private ResponseCookie createCookie(String name, String value) {
+        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(name, value)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/");
+        if (!cookieDomain.isBlank()) {
+            builder.domain(cookieDomain);
+        }
+        return builder.build();
+    }
+
+    private ResponseCookie createDeletionCookie(String name) {
+        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(name, "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .maxAge(0);
+        if (!cookieDomain.isBlank()) {
+            builder.domain(cookieDomain);
+        }
+        return builder.build();
     }
 }

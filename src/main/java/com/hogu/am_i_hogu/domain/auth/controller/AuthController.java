@@ -19,17 +19,20 @@ public class AuthController implements AuthApiDoc {
     private final ReissueService reissueService;
     private final LogoutService logoutService;
     private final boolean cookieSecure;
+    private final String cookieDomain;
 
     public AuthController(
             OnboardingService onboardingService,
             ReissueService reissueService,
             LogoutService logoutService,
-            @Value("${app.cookie.secure}") boolean cookieSecure
+            @Value("${app.cookie.secure}") boolean cookieSecure,
+            @Value("${app.cookie.domain:}") String cookieDomain
     ) {
         this.onboardingService = onboardingService;
         this.reissueService = reissueService;
         this.logoutService = logoutService;
         this.cookieSecure = cookieSecure;
+        this.cookieDomain = cookieDomain;
     }
 
     /**
@@ -46,18 +49,9 @@ public class AuthController implements AuthApiDoc {
     ) {
         String nickname = requestBody.getNickname();
         TokenPair result = onboardingService.createUser(registerToken, nickname);
-        ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .path("/")
-                .build();
+        ResponseCookie refreshTokenCookie = createCookie("refreshToken", result.getRefreshToken());
 
-        ResponseCookie deleteRegisterTokenCookie = ResponseCookie.from("registerToken", "")
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .path("/")
-                .maxAge(0)
-                .build();
+        ResponseCookie deleteRegisterTokenCookie = createDeletionCookie("registerToken");
 
         OnboardingResponse response = new OnboardingResponse(result.getAccessToken());
 
@@ -78,11 +72,7 @@ public class AuthController implements AuthApiDoc {
             @CookieValue(name = "refreshToken", required = false) String refreshToken
     ) {
         TokenPair result = reissueService.reissueToken(refreshToken);
-        ResponseCookie cookie = ResponseCookie.from("refreshToken", result.getRefreshToken())
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .path("/")
-                .build();
+        ResponseCookie cookie = createCookie("refreshToken", result.getRefreshToken());
 
         ReissueResponse response = new ReissueResponse(result.getAccessToken());
 
@@ -103,15 +93,33 @@ public class AuthController implements AuthApiDoc {
     ) {
         logoutService.logout(refreshToken);
 
-        ResponseCookie cookie = ResponseCookie.from("refreshToken", "")
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .path("/")
-                .maxAge(0)
-                .build();
+        ResponseCookie cookie = createDeletionCookie("refreshToken");
 
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .build();
+    }
+
+    private ResponseCookie createCookie(String name, String value) {
+        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(name, value)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/");
+        if (!cookieDomain.isBlank()) {
+            builder.domain(cookieDomain);
+        }
+        return builder.build();
+    }
+
+    private ResponseCookie createDeletionCookie(String name) {
+        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(name, "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .maxAge(0);
+        if (!cookieDomain.isBlank()) {
+            builder.domain(cookieDomain);
+        }
+        return builder.build();
     }
 }
