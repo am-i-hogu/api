@@ -24,6 +24,7 @@ app:
   cors:
     allowed-origins:
       - ${FRONTEND_URL}
+      - ${FRONTEND_WWW_URL}
   openapi:
     server-uri: ${API_SERVER_URL}
   redirect:
