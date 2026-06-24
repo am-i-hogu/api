@@ -1019,6 +1019,7 @@ class PostControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(postId))
                 .andExpect(jsonPath("$.isMine").value(false))
+                .andExpect(jsonPath("$.isBookmarked").value(false))
                 .andExpect(jsonPath("$.categories[0]").value("USED_TRADE"))
                 .andExpect(jsonPath("$.title").value("안녕하세요"))
                 .andExpect(jsonPath("$.createdAt").exists())
@@ -1137,7 +1138,26 @@ class PostControllerTest {
                         .header("Authorization", "Bearer valid-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.postId").value(postId))
-                .andExpect(jsonPath("$.isMine").value(true));
+                .andExpect(jsonPath("$.isMine").value(true))
+                .andExpect(jsonPath("$.isBookmarked").value(false));
+    }
+
+    // 정상 케이스: 로그인 사용자가 북마크한 게시글을 상세 조회하면 `isBookmarked`를 `true`로 반환한다.
+    @Test
+    void getPostDetailAsAuthenticatedUserReturnsBookmarkStatus() throws Exception {
+        Long postId = 1234L;
+        Long writerUserId = 2L;
+        LocalDateTime now = LocalDateTime.now();
+
+        insertUser(writerUserId, "writer", now);
+        insertPost(postId, writerUserId, "USED_TRADE", "북마크한 글", "본문입니다", false, now);
+        insertPostBookmark(TEST_USER_ID, postId, now);
+        stubAuthenticatedUser();
+
+        mockMvc.perform(get("/api/posts/{postId}", postId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isBookmarked").value(true));
     }
 
     // 정상 케이스: 로그인 사용자가 상세 조회하면 투표 집계와 내가 선택한 투표 값을 반환한다.
