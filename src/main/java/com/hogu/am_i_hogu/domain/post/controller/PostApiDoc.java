@@ -166,6 +166,7 @@ public interface PostApiDoc {
                                         {
                                           "postId": 1234,
                                           "isMine": false,
+                                          "isBookmarked": true,
                                           "categories": ["USED_TRADE"],
                                           "title": "안녕하세요",
                                           "createdAt": "2026-03-31T11:49:05",
@@ -173,8 +174,16 @@ public interface PostApiDoc {
                                           "viewCount": 12,
                                           "content": "본문입니다",
                                           "images": [
-                                            "https://...",
-                                            "https://..."
+                                            {
+                                              "imageUrl": "https://example.com/image1.jpg",
+                                              "order": 0,
+                                              "isThumbnail": true
+                                            },
+                                            {
+                                              "imageUrl": "https://example.com/image2.jpg",
+                                              "order": 1,
+                                              "isThumbnail": false
+                                            }
                                           ],
                                           "vote": {
                                             "totalVotes": 100,

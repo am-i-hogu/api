@@ -1,12 +1,12 @@
 package com.hogu.am_i_hogu.domain.post.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
-import com.hogu.am_i_hogu.domain.post.domain.ImageAsset;
 import com.hogu.am_i_hogu.domain.post.domain.Post;
 import com.hogu.am_i_hogu.domain.post.domain.PostBookmarkId;
 import com.hogu.am_i_hogu.domain.post.domain.PostVote;
 import com.hogu.am_i_hogu.domain.post.dto.PostVoteCounts;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostDetailResponse;
+import com.hogu.am_i_hogu.domain.post.dto.response.PostImageResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostVoteResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostWriterResponse;
 import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
@@ -46,12 +46,12 @@ public class PostDetailService {
         postRepository.increaseViewCount(postId);
         int viewCount = getViewCountOrThrow(postId);
 
-        List<String> imageUrls = getImageUrls(postId);
+        List<PostImageResponse> images = getImages(postId);
         boolean isMine = isMine(post, viewerUserId);
         boolean isBookmarked = isBookmarked(postId, viewerUserId);
         PostVoteResponse vote = getVoteResponse(postId, viewerUserId);
 
-        return getPostDetailResponse(post, imageUrls, isMine, isBookmarked, viewCount, vote);
+        return getPostDetailResponse(post, images, isMine, isBookmarked, viewCount, vote);
     }
 
     /**
@@ -88,15 +88,19 @@ public class PostDetailService {
     }
 
     /**
-     * 게시글에 연결된 이미지 URL 목록을 정렬 순서대로 조회한다.
+     * 게시글에 연결된 이미지 목록을 정렬 순서대로 조회한다.
      *
      * @param postId 이미지를 조회할 게시글 ID
-     * @return 정렬된 이미지 URL 목록
+     * @return 정렬된 이미지 목록
      */
-    private List<String> getImageUrls(Long postId) {
+    private List<PostImageResponse> getImages(Long postId) {
         return imageAssetRepository.findByPost_IdOrderBySortOrderAsc(postId)
                 .stream()
-                .map(ImageAsset::getUrl)
+                .map(image -> new PostImageResponse(
+                        image.getUrl(),
+                        image.getSortOrder(),
+                        image.isThumbnail()
+                ))
                 .toList();
     }
 
@@ -140,14 +144,14 @@ public class PostDetailService {
      * 게시글 엔티티와 부가 조회 정보를 게시글 상세 응답 DTO로 변환한다.
      *
      * @param post 조회한 게시글
-     * @param imageUrls 게시글 이미지 URL 목록
+     * @param images 게시글 이미지 목록
      * @param isMine 현재 조회자가 작성자인지 여부
      * @param isBookmarked 현재 조회자의 북마크 여부
      * @return 게시글 상세 응답
      */
     private PostDetailResponse getPostDetailResponse(
             Post post,
-            List<String> imageUrls,
+            List<PostImageResponse> images,
             boolean isMine,
             boolean isBookmarked,
             int viewCount,
@@ -163,7 +167,7 @@ public class PostDetailService {
                 post.getUpdatedAt(),
                 viewCount,
                 post.getContent(),
-                imageUrls,
+                images,
                 vote,
                 new PostWriterResponse(
                         post.getWriter().getNickname(),

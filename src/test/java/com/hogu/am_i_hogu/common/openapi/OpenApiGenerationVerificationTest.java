@@ -152,6 +152,8 @@ class OpenApiGenerationVerificationTest {
         assertThat(root.get("paths").get("/api/users/me/votes").get("get").get("operationId").asText()).isEqualTo("getMyVotes");
         assertThat(root.get("paths").get("/api/policies/privacy").get("get").get("operationId").asText()).isEqualTo("getPrivacyPolicy");
         assertThat(root.at("/components/securitySchemes/bearerAuth/type").asText()).isEqualTo("http");
+        assertThat(root.at("/components/schemas/PostDetailResponse/properties/images/items/$ref").asText())
+                .isEqualTo("#/components/schemas/PostImageResponse");
 
         Path specFile = tempDir.resolve("api-docs.json");
         Files.writeString(specFile, apiDocs);
@@ -180,6 +182,7 @@ class OpenApiGenerationVerificationTest {
         Path userApi = outputDir.resolve("apis/UserApi.ts");
         Path policyApi = outputDir.resolve("apis/PolicyApi.ts");
         Path postVoteRequest = outputDir.resolve("models/PostVoteRequest.ts");
+        Path postImageResponse = outputDir.resolve("models/PostImageResponse.ts");
         Path homePostListResponse = outputDir.resolve("models/HomePostListResponse.ts");
         Path policyResponse = outputDir.resolve("models/PolicyResponse.ts");
         Path updateProfileResponse = outputDir.resolve("models/UpdateProfileResponse.ts");
@@ -191,6 +194,7 @@ class OpenApiGenerationVerificationTest {
         assertThat(userApi).exists();
         assertThat(policyApi).exists();
         assertThat(postVoteRequest).exists();
+        assertThat(postImageResponse).exists();
         assertThat(homePostListResponse).exists();
         assertThat(policyResponse).exists();
         assertThat(updateProfileResponse).exists();
