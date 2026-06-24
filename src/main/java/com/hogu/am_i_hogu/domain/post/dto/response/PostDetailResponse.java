@@ -45,8 +45,11 @@ public record PostDetailResponse(
         @Schema(description = "게시물 본문")
         String content,
 
-        @ArraySchema(arraySchema = @Schema(description = "이미지 URL 목록"))
-        List<String> images,
+        @ArraySchema(
+                arraySchema = @Schema(description = "이미지 목록"),
+                schema = @Schema(implementation = PostImageResponse.class)
+        )
+        List<PostImageResponse> images,
 
         @Schema(description = "투표 정보")
         PostVoteResponse vote,
