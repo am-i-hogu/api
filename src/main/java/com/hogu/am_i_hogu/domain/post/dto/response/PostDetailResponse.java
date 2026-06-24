@@ -9,7 +9,7 @@ import java.util.List;
 @Schema(
         name = "PostDetailResponse",
         description = "게시물 상세 응답",
-        requiredProperties = {"postId", "isMine", "categories", "title", "createdAt", "updatedAt", "viewCount", "content", "images", "vote", "writer"}
+        requiredProperties = {"postId", "isMine", "isBookmarked", "categories", "title", "createdAt", "updatedAt", "viewCount", "content", "images", "vote", "writer"}
 )
 public record PostDetailResponse(
         @Schema(description = "게시물 ID")
@@ -17,6 +17,9 @@ public record PostDetailResponse(
 
         @Schema(description = "내가 작성한 글 여부")
         Boolean isMine,
+
+        @Schema(description = "북마크 여부")
+        boolean isBookmarked,
 
         @ArraySchema(
                 arraySchema = @Schema(description = "카테고리 코드 목록"),
