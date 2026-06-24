@@ -3,6 +3,7 @@ package com.hogu.am_i_hogu.domain.post.service;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.domain.post.domain.ImageAsset;
 import com.hogu.am_i_hogu.domain.post.domain.Post;
+import com.hogu.am_i_hogu.domain.post.domain.PostBookmarkId;
 import com.hogu.am_i_hogu.domain.post.domain.PostVote;
 import com.hogu.am_i_hogu.domain.post.dto.PostVoteCounts;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostDetailResponse;
@@ -10,6 +11,7 @@ import com.hogu.am_i_hogu.domain.post.dto.response.PostVoteResponse;
 import com.hogu.am_i_hogu.domain.post.dto.response.PostWriterResponse;
 import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
 import com.hogu.am_i_hogu.domain.post.repository.ImageAssetRepository;
+import com.hogu.am_i_hogu.domain.post.repository.PostBookmarkRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostVoteRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ public class PostDetailService {
 
     private final PostRepository postRepository;
     private final ImageAssetRepository imageAssetRepository;
+    private final PostBookmarkRepository postBookmarkRepository;
     private final PostVoteRepository postVoteRepository;
 
     /**
@@ -45,9 +48,10 @@ public class PostDetailService {
 
         List<String> imageUrls = getImageUrls(postId);
         boolean isMine = isMine(post, viewerUserId);
+        boolean isBookmarked = isBookmarked(postId, viewerUserId);
         PostVoteResponse vote = getVoteResponse(postId, viewerUserId);
 
-        return getPostDetailResponse(post, imageUrls, isMine, viewCount, vote);
+        return getPostDetailResponse(post, imageUrls, isMine, isBookmarked, viewCount, vote);
     }
 
     /**
@@ -127,24 +131,32 @@ public class PostDetailService {
         return viewerUserId != null && post.getWriter().getId().equals(viewerUserId);
     }
 
+    private boolean isBookmarked(Long postId, Long viewerUserId) {
+        return viewerUserId != null
+                && postBookmarkRepository.existsById(new PostBookmarkId(viewerUserId, postId));
+    }
+
     /**
      * 게시글 엔티티와 부가 조회 정보를 게시글 상세 응답 DTO로 변환한다.
      *
      * @param post 조회한 게시글
      * @param imageUrls 게시글 이미지 URL 목록
      * @param isMine 현재 조회자가 작성자인지 여부
+     * @param isBookmarked 현재 조회자의 북마크 여부
      * @return 게시글 상세 응답
      */
     private PostDetailResponse getPostDetailResponse(
             Post post,
             List<String> imageUrls,
             boolean isMine,
+            boolean isBookmarked,
             int viewCount,
             PostVoteResponse vote
     ) {
         return new PostDetailResponse(
                 post.getId(),
                 isMine,
+                isBookmarked,
                 List.of(post.getCategory().getCode()),
                 post.getTitle(),
                 post.getCreatedAt(),
