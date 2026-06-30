@@ -3,6 +3,8 @@ package com.hogu.am_i_hogu.domain.post.service;
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.exception.ErrorResponse;
+import com.hogu.am_i_hogu.common.storage.S3StorageService;
+import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.post.domain.Category;
 import com.hogu.am_i_hogu.domain.post.domain.ImageAsset;
 import com.hogu.am_i_hogu.domain.post.domain.Post;
@@ -13,6 +15,7 @@ import com.hogu.am_i_hogu.domain.post.exception.PostErrorCode;
 import com.hogu.am_i_hogu.domain.post.repository.CategoryRepository;
 import com.hogu.am_i_hogu.domain.post.repository.ImageAssetRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
+import com.hogu.am_i_hogu.domain.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,15 +27,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class PostUpdateService {
+    private final TsidGenerator tsidGenerator;
+    private final S3StorageService s3StorageService;
     private final CategoryRepository categoryRepository;
     private final PostRepository postRepository;
     private final ImageAssetRepository imageAssetRepository;
@@ -75,21 +78,15 @@ public class PostUpdateService {
 
         post.update(request.title(), category, request.content(), now);
 
-        // 수정된 이미지가 있다면 기존 연결을 해제하고 업로드된 image asset을 요청 순서대로 다시 연결한다.
+        // 수정된 이미지가 있다면 기존 이미지 row를 삭제하고 요청 이미지를 새 image asset으로 저장한다.
         if (request.images() != null) {
-            List<ImageAsset> imageAssets = findAttachableImageAssets(postId, userId, request.images());
             List<ImageAsset> previousImageAssets = imageAssetRepository.findByPost_IdOrderBySortOrderAsc(postId);
-            previousImageAssets.forEach(ImageAsset::detach);
+            Set<String> previousImageUrls = previousImageAssets.stream()
+                    .map(ImageAsset::getUrl)
+                    .collect(Collectors.toSet());
+            List<ImageAsset> imageAssets = createImageAssets(post.getWriter(), post, request.images(), previousImageUrls, now);
+            imageAssetRepository.deleteAll(previousImageAssets);
             imageAssetRepository.flush();
-
-            for (int index = 0; index < request.images().size(); index++) {
-                PostImageRequest image = request.images().get(index);
-                imageAssets.get(index).attachTo(
-                        post,
-                        Boolean.TRUE.equals(image.isThumbnail()),
-                        image.order()
-                );
-            }
             imageAssetRepository.saveAll(imageAssets);
         }
 
@@ -235,7 +232,7 @@ public class PostUpdateService {
 
         // 썸네일이 2개 이상이라면 에러를 반환한다.
         if (thumbnailCount > 1) {
-            errors.add(new ErrorResponse.ErrorDetail("images", "MULTIPLE_THUMBNAILS"));
+            errors.add(new ErrorResponse.ErrorDetail("images", "MULTIPLE_THUMBNAIL"));
         }
     }
 
@@ -256,19 +253,12 @@ public class PostUpdateService {
         }
     }
 
-    /**
-     * 게시물에 연결할 업로드 image asset을 URL 순서로 잠금 조회한 뒤 요청 순서로 반환한다.
-     *
-     * @param postId 이미지를 수정할 게시물 id
-     * @param userId 수정을 요청하는 인증 사용자 id
-     * @param images 게시물에 연결할 이미지 요청 목록
-     * @return 요청 목록 순서와 동일한 연결 가능 image asset 목록
-     * @throws CustomException 업로드되지 않았거나 다른 사용자 또는 다른 게시물에 속한 이미지가 포함된 경우
-     */
-    private List<ImageAsset> findAttachableImageAssets(
-            Long postId,
-            Long userId,
-            List<PostImageRequest> images
+    private List<ImageAsset> createImageAssets(
+            User writer,
+            Post post,
+            List<PostImageRequest> images,
+            Set<String> previousImageUrls,
+            LocalDateTime now
     ) {
         if (images.isEmpty()) {
             return Collections.emptyList();
@@ -276,24 +266,27 @@ public class PostUpdateService {
 
         List<ErrorResponse.ErrorDetail> errors = new ArrayList<>();
         List<ImageAsset> imageAssets = new ArrayList<>();
-        List<String> sortedImageUrls = images.stream()
-                .map(PostImageRequest::imageUrl)
-                .sorted()
-                .toList();
-        Map<String, ImageAsset> imageAssetsByUrl = imageAssetRepository
-                .findAllWithLockByUrlInOrderByUrlAsc(sortedImageUrls)
-                .stream()
-                .collect(Collectors.toMap(ImageAsset::getUrl, Function.identity()));
-
         for (PostImageRequest image : images) {
-            ImageAsset imageAsset = imageAssetsByUrl.get(image.imageUrl());
-            if (imageAsset == null
-                    || !Objects.equals(imageAsset.getUploadedByUser().getId(), userId)
-                    || (imageAsset.getPost() != null && !Objects.equals(imageAsset.getPost().getId(), postId))) {
+            Optional<S3StorageService.ImageMetadata> metadata = s3StorageService.findImageMetadata(image.imageUrl());
+            if (metadata.isEmpty() || metadata.get().contentType() == null || metadata.get().contentType().isBlank()) {
                 errors.add(new ErrorResponse.ErrorDetail("images", "INVALID_IMAGE_URL"));
                 continue;
             }
-            imageAssets.add(imageAsset);
+            if (!previousImageUrls.contains(image.imageUrl()) && imageAssetRepository.existsByUrl(image.imageUrl())) {
+                errors.add(new ErrorResponse.ErrorDetail("images", "INVALID_IMAGE_URL"));
+                continue;
+            }
+            imageAssets.add(ImageAsset.builder()
+                    .id(tsidGenerator.nextId())
+                    .uploadedByUser(writer)
+                    .post(post)
+                    .url(image.imageUrl())
+                    .contentType(metadata.get().contentType())
+                    .sizeBytes(metadata.get().sizeBytes())
+                    .isThumbnail(Boolean.TRUE.equals(image.isThumbnail()))
+                    .sortOrder(image.order())
+                    .createdAt(now)
+                    .build());
         }
 
         if (!errors.isEmpty()) {

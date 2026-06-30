@@ -25,8 +25,7 @@ public class ImageController implements ImageApiDoc {
             Authentication authentication,
             @RequestPart(value = "image", required = false) MultipartFile image
     ) {
-        Long userId = Long.valueOf(authentication.getName());
-        String imageUrl = imageUploadService.upload(userId, image);
+        String imageUrl = imageUploadService.upload(image);
 
         return ResponseEntity.ok(new ImageUploadResponse(imageUrl));
     }

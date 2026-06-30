@@ -16,13 +16,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.multipart.MultipartFile;
 
-@Tag(name = "Post", description = "게시물 API")
+@Tag(name = "Image", description = "이미지 업로드 API")
 public interface ImageApiDoc {
 
     @Operation(
             operationId = "uploadPostImage",
-            summary = "게시물 이미지 업로드",
-            description = "게시물 등에 사용될 이미지를 업로드하고 저장된 URL을 반환한다.",
+            summary = "게시물/프로필 이미지 업로드",
+            description = "게시물 및 프로필에 사용될 이미지를 업로드하고 저장된 URL을 반환한다.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
     @ApiResponses(value = {

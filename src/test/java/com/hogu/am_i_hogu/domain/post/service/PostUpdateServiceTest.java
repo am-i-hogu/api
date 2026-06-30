@@ -1,6 +1,8 @@
 package com.hogu.am_i_hogu.domain.post.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
+import com.hogu.am_i_hogu.common.storage.S3StorageService;
+import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.post.domain.Category;
 import com.hogu.am_i_hogu.domain.post.domain.ImageAsset;
 import com.hogu.am_i_hogu.domain.post.domain.Post;
@@ -12,6 +14,7 @@ import com.hogu.am_i_hogu.domain.post.repository.ImageAssetRepository;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
 import com.hogu.am_i_hogu.domain.user.domain.User;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.time.LocalDateTime;
@@ -32,7 +35,11 @@ class PostUpdateServiceTest {
     private final CategoryRepository categoryRepository = mock(CategoryRepository.class);
     private final PostRepository postRepository = mock(PostRepository.class);
     private final ImageAssetRepository imageAssetRepository = mock(ImageAssetRepository.class);
+    private final TsidGenerator tsidGenerator = mock(TsidGenerator.class);
+    private final S3StorageService s3StorageService = mock(S3StorageService.class);
     private final PostUpdateService postUpdateService = new PostUpdateService(
+            tsidGenerator,
+            s3StorageService,
             categoryRepository,
             postRepository,
             imageAssetRepository
@@ -115,9 +122,9 @@ class PostUpdateServiceTest {
         verifyNoInteractions(imageAssetRepository);
     }
 
-    // 정상 케이스: 게시물 수정 시 이미지 자산은 URL 순서로 잠금 조회하고 요청 순서대로 다시 연결한다.
+    // 정상 케이스: 게시물 수정 시 기존 이미지를 삭제하고 S3에 존재하는 요청 이미지를 새로 저장한다.
     @Test
-    void updateLocksUploadedImagesInStableOrderAndAttachesInRequestOrder() {
+    void updateReplacesImagesWithNewImageAssetsFromS3Metadata() {
         LocalDateTime now = LocalDateTime.now();
         User writer = new User(1L, "hogu", false, now);
         Post post = Post.builder()
@@ -129,15 +136,15 @@ class PostUpdateServiceTest {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        ImageAsset firstByUrl = uploadedImage(101L, writer, "https://cdn.example.com/a.jpg", now);
-        ImageAsset secondByUrl = uploadedImage(102L, writer, "https://cdn.example.com/b.jpg", now);
+        ImageAsset oldImage = uploadedImage(201L, writer, "https://cdn.example.com/old.jpg", now);
 
         when(postRepository.findByIdWithLock(11L)).thenReturn(Optional.of(post));
-        when(imageAssetRepository.findAllWithLockByUrlInOrderByUrlAsc(List.of(
-                "https://cdn.example.com/a.jpg",
-                "https://cdn.example.com/b.jpg"
-        ))).thenReturn(List.of(firstByUrl, secondByUrl));
-        when(imageAssetRepository.findByPost_IdOrderBySortOrderAsc(11L)).thenReturn(List.of());
+        when(imageAssetRepository.findByPost_IdOrderBySortOrderAsc(11L)).thenReturn(List.of(oldImage));
+        when(tsidGenerator.nextId()).thenReturn(101L, 102L);
+        when(s3StorageService.findImageMetadata("https://cdn.example.com/b.jpg"))
+                .thenReturn(Optional.of(new S3StorageService.ImageMetadata("image/jpeg", 20L)));
+        when(s3StorageService.findImageMetadata("https://cdn.example.com/a.jpg"))
+                .thenReturn(Optional.of(new S3StorageService.ImageMetadata("image/jpeg", 10L)));
 
         PostUpdateRequest request = new PostUpdateRequest(
                 null,
@@ -153,16 +160,24 @@ class PostUpdateServiceTest {
 
         InOrder inOrder = inOrder(postRepository, imageAssetRepository);
         inOrder.verify(postRepository).findByIdWithLock(11L);
-        inOrder.verify(imageAssetRepository).findAllWithLockByUrlInOrderByUrlAsc(List.of(
-                "https://cdn.example.com/a.jpg",
-                "https://cdn.example.com/b.jpg"
-        ));
-        assertThat(secondByUrl.getPost()).isSameAs(post);
-        assertThat(secondByUrl.isThumbnail()).isTrue();
-        assertThat(secondByUrl.getSortOrder()).isZero();
-        assertThat(firstByUrl.getPost()).isSameAs(post);
-        assertThat(firstByUrl.isThumbnail()).isFalse();
-        assertThat(firstByUrl.getSortOrder()).isEqualTo(1);
+        inOrder.verify(imageAssetRepository).findByPost_IdOrderBySortOrderAsc(11L);
+        inOrder.verify(imageAssetRepository).deleteAll(List.of(oldImage));
+        inOrder.verify(imageAssetRepository).flush();
+
+        ArgumentCaptor<List<ImageAsset>> imageAssetsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(imageAssetRepository).saveAll(imageAssetsCaptor.capture());
+        List<ImageAsset> imageAssets = imageAssetsCaptor.getValue();
+        assertThat(imageAssets).hasSize(2);
+        assertThat(imageAssets.get(0).getId()).isEqualTo(101L);
+        assertThat(imageAssets.get(0).getPost()).isSameAs(post);
+        assertThat(imageAssets.get(0).getUrl()).isEqualTo("https://cdn.example.com/b.jpg");
+        assertThat(imageAssets.get(0).isThumbnail()).isTrue();
+        assertThat(imageAssets.get(0).getSortOrder()).isZero();
+        assertThat(imageAssets.get(1).getId()).isEqualTo(102L);
+        assertThat(imageAssets.get(1).getPost()).isSameAs(post);
+        assertThat(imageAssets.get(1).getUrl()).isEqualTo("https://cdn.example.com/a.jpg");
+        assertThat(imageAssets.get(1).isThumbnail()).isFalse();
+        assertThat(imageAssets.get(1).getSortOrder()).isEqualTo(1);
     }
 
     private ImageAsset uploadedImage(Long id, User uploader, String url, LocalDateTime now) {

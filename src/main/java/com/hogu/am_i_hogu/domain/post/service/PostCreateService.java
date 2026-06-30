@@ -1,8 +1,8 @@
 package com.hogu.am_i_hogu.domain.post.service;
 
-import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.exception.ErrorResponse;
+import com.hogu.am_i_hogu.common.storage.S3StorageService;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
 import com.hogu.am_i_hogu.domain.post.domain.Category;
 import com.hogu.am_i_hogu.domain.post.domain.ImageAsset;
@@ -28,17 +28,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class PostCreateService {
 
     private final TsidGenerator tsidGenerator;
+    private final S3StorageService s3StorageService;
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final PostRepository postRepository;
@@ -62,10 +60,7 @@ public class PostCreateService {
         User writer = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
         Category category = categoryRepository.findById(request.categories().get(0)).orElseThrow();
-        List<PostImageRequest> images = request.images() == null
-                ? Collections.emptyList()
-                : request.images();
-        List<ImageAsset> imageAssets = findAttachableImageAssets(userId, images);
+        List<PostImageRequest> images = request.images();
 
         // posts.id는 TSID로 생성한다.
         Post post = Post.builder()
@@ -79,14 +74,7 @@ public class PostCreateService {
                 .build();
         Post savedPost = postRepository.save(post);
 
-        for (int index = 0; index < images.size(); index++) {
-            PostImageRequest image = images.get(index);
-            imageAssets.get(index).attachTo(
-                    savedPost,
-                    Boolean.TRUE.equals(image.isThumbnail()),
-                    image.order()
-            );
-        }
+        List<ImageAsset> imageAssets = createImageAssets(writer, savedPost, images, now);
         imageAssetRepository.saveAll(imageAssets);
 
         return new PostCreateResponse(savedPost.getId());
@@ -173,10 +161,13 @@ public class PostCreateService {
      * @param errors 누적할 필드별 오류 목록
      */
     private void validateImages(PostCreateRequest request, List<ErrorResponse.ErrorDetail> errors) {
-        // 이미지는 선택값이라 null과 빈 배열 모두 "이미지 없음"으로 처리한다.
-        List<PostImageRequest> images = request.images() == null
-                ? Collections.emptyList()
-                : request.images();
+        if (request.images() == null) {
+            errors.add(new ErrorResponse.ErrorDetail("images", "EMPTY_IMAGE_URL"));
+            return;
+        }
+
+        // 이미지는 필수 필드지만 빈 배열은 "이미지 없음"으로 처리한다.
+        List<PostImageRequest> images = request.images();
         if (images.size() > 5) {
             errors.add(new ErrorResponse.ErrorDetail("images", "IMAGE_COUNT_EXCEEDED"));
         }
@@ -215,7 +206,7 @@ public class PostCreateService {
 
         // 썸네일이 2개 이상이라면 에러를 반환한다.
         if (thumbnailCount > 1) {
-            errors.add(new ErrorResponse.ErrorDetail("images", "MULTIPLE_THUMBNAILS"));
+            errors.add(new ErrorResponse.ErrorDetail("images", "MULTIPLE_THUMBNAIL"));
         }
     }
 
@@ -237,38 +228,48 @@ public class PostCreateService {
     }
 
     /**
-     * 게시물에 연결할 업로드 image asset을 URL 순서로 잠금 조회한 뒤 요청 순서로 반환한다.
+     * 게시물 이미지 URL의 storage 존재 여부와 중복 저장 여부를 검증한 뒤 이미지 metadata entity를 생성한다.
      *
-     * @param userId 게시물을 작성하는 인증 사용자 id
-     * @param images 게시물에 연결할 이미지 요청 목록
-     * @return 요청 목록 순서와 동일한 연결 가능 image asset 목록
-     * @throws CustomException 업로드되지 않았거나 다른 사용자 또는 다른 게시물에 속한 이미지가 포함된 경우
+     * @param writer 게시물 작성자
+     * @param post 이미지가 연결될 게시물
+     * @param images 게시물 생성 요청에 포함된 이미지 목록
+     * @param now 이미지 metadata 생성 시각
+     * @return 저장할 이미지 metadata entity 목록
+     * @throws CustomException 이미지 URL이 storage에 없거나 이미 다른 게시물 이미지로 저장된 경우
      */
-    private List<ImageAsset> findAttachableImageAssets(Long userId, List<PostImageRequest> images) {
+    private List<ImageAsset> createImageAssets(
+            User writer,
+            Post post,
+            List<PostImageRequest> images,
+            LocalDateTime now
+    ) {
         if (images.isEmpty()) {
             return Collections.emptyList();
         }
 
         List<ErrorResponse.ErrorDetail> errors = new ArrayList<>();
         List<ImageAsset> imageAssets = new ArrayList<>();
-        List<String> sortedImageUrls = images.stream()
-                .map(PostImageRequest::imageUrl)
-                .sorted()
-                .toList();
-        Map<String, ImageAsset> imageAssetsByUrl = imageAssetRepository
-                .findAllWithLockByUrlInOrderByUrlAsc(sortedImageUrls)
-                .stream()
-                .collect(Collectors.toMap(ImageAsset::getUrl, Function.identity()));
-
         for (PostImageRequest image : images) {
-            ImageAsset imageAsset = imageAssetsByUrl.get(image.imageUrl());
-            if (imageAsset == null
-                    || !Objects.equals(imageAsset.getUploadedByUser().getId(), userId)
-                    || imageAsset.getPost() != null) {
+            Optional<S3StorageService.ImageMetadata> metadata = s3StorageService.findImageMetadata(image.imageUrl());
+            if (metadata.isEmpty() || metadata.get().contentType() == null || metadata.get().contentType().isBlank()) {
                 errors.add(new ErrorResponse.ErrorDetail("images", "INVALID_IMAGE_URL"));
                 continue;
             }
-            imageAssets.add(imageAsset);
+            if (imageAssetRepository.existsByUrl(image.imageUrl())) {
+                errors.add(new ErrorResponse.ErrorDetail("images", "INVALID_IMAGE_URL"));
+                continue;
+            }
+            imageAssets.add(ImageAsset.builder()
+                    .id(tsidGenerator.nextId())
+                    .uploadedByUser(writer)
+                    .post(post)
+                    .url(image.imageUrl())
+                    .contentType(metadata.get().contentType())
+                    .sizeBytes(metadata.get().sizeBytes())
+                    .isThumbnail(Boolean.TRUE.equals(image.isThumbnail()))
+                    .sortOrder(image.order())
+                    .createdAt(now)
+                    .build());
         }
 
         if (!errors.isEmpty()) {

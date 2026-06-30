@@ -166,6 +166,7 @@ public interface PostApiDoc {
                                         {
                                           "postId": 1234,
                                           "isMine": false,
+                                          "isBookmarked": true,
                                           "categories": ["USED_TRADE"],
                                           "title": "안녕하세요",
                                           "createdAt": "2026-03-31T11:49:05",
@@ -173,8 +174,16 @@ public interface PostApiDoc {
                                           "viewCount": 12,
                                           "content": "본문입니다",
                                           "images": [
-                                            "https://...",
-                                            "https://..."
+                                            {
+                                              "imageUrl": "https://example.com/image1.jpg",
+                                              "order": 0,
+                                              "isThumbnail": true
+                                            },
+                                            {
+                                              "imageUrl": "https://example.com/image2.jpg",
+                                              "order": 1,
+                                              "isThumbnail": false
+                                            }
                                           ],
                                           "vote": {
                                             "totalVotes": 100,
@@ -290,7 +299,7 @@ public interface PostApiDoc {
                                     * `DUPLICATE_IMAGE_URL`: 중복된 이미지 URL이 존재하는 경우
                                     * `EMPTY_IMAGE_ORDER`: order 필드가 없는 경우
                                     * `EMPTY_THUMBNAIL`: 썸네일이 지정되지 않은 경우
-                                    * `MULTIPLE_THUMBNAILS`: 썸네일이 2개 이상 지정된 경우
+                                    * `MULTIPLE_THUMBNAIL`: 썸네일이 2개 이상 지정된 경우
                             """,
                     content = @Content(
                             mediaType = "application/json",
@@ -413,7 +422,7 @@ public interface PostApiDoc {
                                     * `DUPLICATE_IMAGE_URL`: 중복된 이미지 URL이 존재하는 경우
                                     * `EMPTY_IMAGE_ORDER`: order 필드가 없는 경우
                                     * `EMPTY_THUMBNAIL`: 썸네일이 지정되지 않은 경우
-                                    * `MULTIPLE_THUMBNAILS`: 썸네일이 2개 이상 지정된 경우
+                                    * `MULTIPLE_THUMBNAIL`: 썸네일이 2개 이상 지정된 경우
                             """,
                     content = @Content(
                             mediaType = "application/json",
