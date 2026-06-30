@@ -3,17 +3,11 @@ package com.hogu.am_i_hogu.domain.post.service;
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.storage.S3StorageService;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
-import com.hogu.am_i_hogu.domain.post.domain.ImageAsset;
 import com.hogu.am_i_hogu.domain.post.exception.ImageErrorCode;
-import com.hogu.am_i_hogu.domain.post.repository.ImageAssetRepository;
-import com.hogu.am_i_hogu.domain.user.domain.User;
-import com.hogu.am_i_hogu.domain.user.exception.UserErrorCode;
-import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Set;
 
@@ -32,39 +26,22 @@ public class ImageUploadService {
 
     private final TsidGenerator tsidGenerator;
     private final S3StorageService s3StorageService;
-    private final UserRepository userRepository;
-    private final ImageAssetRepository imageAssetRepository;
 
     /**
-     * 인증 사용자의 게시물 이미지를 S3에 업로드하고, 반환된 CloudFront URL을 image_assets에 저장한다.
+     * 인증 사용자의 이미지를 S3에 업로드하고 반환된 CloudFront URL만 반환한다.
      *
-     * @param userId 이미지를 업로드하는 인증 사용자 id
      * @param image 업로드할 multipart 이미지 파일
      * @return 업로드된 이미지에 접근할 CloudFront URL
-     * @throws CustomException 파일 검증에 실패하거나 활성 사용자 정보를 찾을 수 없는 경우
+     * @throws CustomException 파일 검증에 실패한 경우
      */
-    public String upload(Long userId, MultipartFile image) {
+    public String upload(MultipartFile image) {
         validate(image);
 
-        User uploader = userRepository.findByIdAndIsDeletedFalse(userId)
-                .orElseThrow(() -> new CustomException(UserErrorCode.USER_NOT_FOUND));
         long imageId = tsidGenerator.nextId();
         String extension = extractExtension(image.getOriginalFilename());
-        String key = "images/posts/%d.%s".formatted(imageId, extension);
-        String imageUrl = s3StorageService.upload(key, image);
+        String key = "images/%d.%s".formatted(imageId, extension);
 
-        imageAssetRepository.save(ImageAsset.builder()
-                .id(imageId)
-                .uploadedByUser(uploader)
-                .url(imageUrl)
-                .contentType(image.getContentType())
-                .sizeBytes(image.getSize())
-                .isThumbnail(false)
-                .sortOrder(0)
-                .createdAt(LocalDateTime.now())
-                .build());
-
-        return imageUrl;
+        return s3StorageService.upload(key, image);
     }
 
     /**
