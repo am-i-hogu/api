@@ -1,6 +1,8 @@
 package com.hogu.am_i_hogu.common.storage;
 
+import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.hogu.am_i_hogu.common.exception.CommonErrorCode;
 import com.hogu.am_i_hogu.common.exception.CustomException;
@@ -10,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Optional;
 
 @Service
 public class S3StorageService {
@@ -41,10 +44,50 @@ public class S3StorageService {
         }
     }
 
+    public Optional<ImageMetadata> findImageMetadata(String imageUrl) {
+        return extractKey(imageUrl).flatMap(key -> {
+            try {
+                ObjectMetadata metadata = amazonS3.getObjectMetadata(bucket, key);
+                return Optional.of(new ImageMetadata(metadata.getContentType(), metadata.getContentLength()));
+            } catch (AmazonS3Exception e) {
+                if (e.getStatusCode() == 404) {
+                    return Optional.empty();
+                }
+                throw new CustomException(CommonErrorCode.SERVER_ERROR);
+            } catch (SdkClientException e) {
+                throw new CustomException(CommonErrorCode.SERVER_ERROR);
+            }
+        });
+    }
+
+    private Optional<String> extractKey(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return Optional.empty();
+        }
+
+        String prefix = cloudFrontDomain + "/";
+        if (!imageUrl.startsWith(prefix)) {
+            return Optional.empty();
+        }
+
+        String key = imageUrl.substring(prefix.length());
+        if (key.isBlank()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(key);
+    }
+
     private String removeTrailingSlash(String value) {
         if (value.endsWith("/")) {
             return value.substring(0, value.length() - 1);
         }
         return value;
+    }
+
+    public record ImageMetadata(
+            String contentType,
+            Long sizeBytes
+    ) {
     }
 }

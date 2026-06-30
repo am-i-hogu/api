@@ -2,6 +2,7 @@ package com.hogu.am_i_hogu.domain.user.service;
 
 import com.hogu.am_i_hogu.common.exception.CustomException;
 import com.hogu.am_i_hogu.common.exception.ErrorResponse;
+import com.hogu.am_i_hogu.common.storage.S3StorageService;
 import com.hogu.am_i_hogu.domain.user.domain.User;
 import com.hogu.am_i_hogu.domain.user.dto.request.UpdateProfileRequest;
 import com.hogu.am_i_hogu.domain.user.dto.response.UpdateProfileResponse;
@@ -23,9 +24,11 @@ import static com.hogu.am_i_hogu.domain.user.service.ProfileUpdateService.Profil
 public class ProfileUpdateService {
 
     private final UserRepository userRepository;
+    private final S3StorageService s3StorageService;
 
-    public ProfileUpdateService(UserRepository userRepository) {
+    public ProfileUpdateService(UserRepository userRepository, S3StorageService s3StorageService) {
         this.userRepository = userRepository;
+        this.s3StorageService = s3StorageService;
     }
 
     public enum ProfileImageRequestType {
@@ -162,9 +165,16 @@ public class ProfileUpdateService {
             return;
         }
 
-        // TODO: S3 연결 후 이미지 url 유효성 검증 추가
         // url 형식이 올바르지 않은 경우
         if (!isValidImageUrl(profileImageUrl)) {
+            errors.add(new ErrorResponse.ErrorDetail(
+                    "images",
+                    "INVALID_IMAGE_URL"
+            ));
+            return;
+        }
+
+        if (s3StorageService.findImageMetadata(profileImageUrl).isEmpty()) {
             errors.add(new ErrorResponse.ErrorDetail(
                     "images",
                     "INVALID_IMAGE_URL"

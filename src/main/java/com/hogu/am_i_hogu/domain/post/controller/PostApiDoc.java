@@ -299,7 +299,7 @@ public interface PostApiDoc {
                                     * `DUPLICATE_IMAGE_URL`: 중복된 이미지 URL이 존재하는 경우
                                     * `EMPTY_IMAGE_ORDER`: order 필드가 없는 경우
                                     * `EMPTY_THUMBNAIL`: 썸네일이 지정되지 않은 경우
-                                    * `MULTIPLE_THUMBNAILS`: 썸네일이 2개 이상 지정된 경우
+                                    * `MULTIPLE_THUMBNAIL`: 썸네일이 2개 이상 지정된 경우
                             """,
                     content = @Content(
                             mediaType = "application/json",
@@ -422,7 +422,7 @@ public interface PostApiDoc {
                                     * `DUPLICATE_IMAGE_URL`: 중복된 이미지 URL이 존재하는 경우
                                     * `EMPTY_IMAGE_ORDER`: order 필드가 없는 경우
                                     * `EMPTY_THUMBNAIL`: 썸네일이 지정되지 않은 경우
-                                    * `MULTIPLE_THUMBNAILS`: 썸네일이 2개 이상 지정된 경우
+                                    * `MULTIPLE_THUMBNAIL`: 썸네일이 2개 이상 지정된 경우
                             """,
                     content = @Content(
                             mediaType = "application/json",

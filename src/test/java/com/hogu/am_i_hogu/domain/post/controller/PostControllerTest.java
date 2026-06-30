@@ -1,6 +1,7 @@
 package com.hogu.am_i_hogu.domain.post.controller;
 
 import com.hogu.am_i_hogu.common.security.JwtProvider;
+import com.hogu.am_i_hogu.common.storage.S3StorageService;
 import com.hogu.am_i_hogu.domain.post.repository.PostRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -66,6 +68,9 @@ class PostControllerTest {
 
     @MockitoBean
     private JwtProvider jwtProvider;
+
+    @MockitoBean
+    private S3StorageService s3StorageService;
 
     @BeforeEach
     void setUp() {
@@ -297,8 +302,7 @@ class PostControllerTest {
     @Test
     void createPostReturnsPostIdAndPersistsPost() throws Exception {
         stubAuthenticatedUser();
-        LocalDateTime now = LocalDateTime.now();
-        insertUploadedImage(1001L, "http://localhost/temporary/images/1/post-image.jpg", now);
+        stubImageMetadata("http://localhost/temporary/images/1/post-image.jpg", "image/jpeg", 10L);
 
         String requestBody = """
                 {
@@ -337,7 +341,7 @@ class PostControllerTest {
         assertThat(imageCount).isEqualTo(1);
     }
 
-    // 실패 케이스: 이미지 업로드 API로 생성되지 않은 URL은 게시물 이미지로 연결할 수 없다.
+    // 실패 케이스: S3에 존재하지 않는 URL은 게시물 이미지로 저장할 수 없다.
     @Test
     void createPostRejectsImageThatWasNotUploaded() throws Exception {
         stubAuthenticatedUser();
@@ -367,7 +371,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errors[0].code").value("INVALID_IMAGE_URL"));
     }
 
-    // 실패 케이스: 다른 사용자가 업로드한 이미지는 게시물 이미지로 연결할 수 없다.
+    // 실패 케이스: 이미 image_assets에 저장된 다른 사용자의 URL은 새 게시물 이미지로 저장할 수 없다.
     @Test
     void createPostRejectsImageUploadedByAnotherUser() throws Exception {
         stubAuthenticatedUser();
@@ -375,6 +379,7 @@ class PostControllerTest {
         Long otherUserId = 2L;
         insertUser(otherUserId, "other-hogu", now);
         insertUploadedImage(1001L, otherUserId, "https://cdn.example.com/another-user.jpg", now);
+        stubImageMetadata("https://cdn.example.com/another-user.jpg", "image/jpeg", 10L);
 
         String requestBody = """
                 {
@@ -408,6 +413,7 @@ class PostControllerTest {
         LocalDateTime now = LocalDateTime.now();
         insertPost(1234L, TEST_USER_ID, "USED_TRADE", "기존 글", "기존 본문", false, now);
         insertImage(1001L, 1234L, "https://cdn.example.com/attached.jpg", true, 0, now);
+        stubImageMetadata("https://cdn.example.com/attached.jpg", "image/jpeg", 10L);
 
         String requestBody = """
                 {
@@ -478,6 +484,29 @@ class PostControllerTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("EMPTY_REQUEST_BODY"));
+    }
+
+    // 실패 케이스: 생성 요청에서 images 필드가 누락되면 명세에 따라 필드 오류를 반환한다.
+    @Test
+    void createPostRejectsMissingImagesField() throws Exception {
+        stubAuthenticatedUser();
+
+        String requestBody = """
+                {
+                  "title": "제목입니다",
+                  "categories": ["USED_TRADE"],
+                  "content": "본문입니다"
+                }
+                """;
+
+        mockMvc.perform(post("/api/posts")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
+                .andExpect(jsonPath("$.errors[0].field").value("images"))
+                .andExpect(jsonPath("$.errors[0].code").value("EMPTY_IMAGE_URL"));
     }
 
     // 실패 케이스: 필수 필드가 비어 있으면 400 Bad Request와 필드별 오류 코드를 반환한다.
@@ -603,7 +632,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errors[0].code").value("INVALID_CATEGORIES"));
     }
 
-    // 실패 케이스: 썸네일이 2개 이상이면 단일 썸네일 정책에 따라 MULTIPLE_THUMBNAILS를 반환한다.
+    // 실패 케이스: 썸네일이 2개 이상이면 단일 썸네일 정책에 따라 MULTIPLE_THUMBNAIL을 반환한다.
     @Test
     void createPostRejectsMultipleThumbnails() throws Exception {
         stubAuthenticatedUser();
@@ -627,7 +656,7 @@ class PostControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
                 .andExpect(jsonPath("$.errors[0].field").value("images"))
-                .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_THUMBNAILS"));
+                .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_THUMBNAIL"));
     }
 
     // 실패 케이스: images 배열 안에 null이 있으면 NullPointerException 대신 필드 오류를 반환한다.
@@ -664,8 +693,8 @@ class PostControllerTest {
         insertPost(postId, TEST_USER_ID, "USED_TRADE", "기존 제목", "기존 본문", false, now);
         insertImage(1001L, postId, "https://example.com/old-thumbnail.jpg", true, 0, now);
         insertImage(1002L, postId, "https://example.com/old-image.jpg", false, 1, now);
-        insertUploadedImage(1003L, "https://example.com/new-thumbnail.png", now);
-        insertUploadedImage(1004L, "https://example.com/new-image.webp", now);
+        stubImageMetadata("https://example.com/new-thumbnail.png", "image/png", 10L);
+        stubImageMetadata("https://example.com/new-image.webp", "image/webp", 10L);
 
         String requestBody = """
                 {
@@ -716,8 +745,8 @@ class PostControllerTest {
                 postId,
                 "https://example.com/old-%"
         );
-        Integer detachedOldImageCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM image_assets WHERE post_id IS NULL AND url LIKE ?",
+        Integer deletedOldImageCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM image_assets WHERE url LIKE ?",
                 Integer.class,
                 "https://example.com/old-%"
         );
@@ -732,7 +761,7 @@ class PostControllerTest {
         assertThat(updatedContent).isEqualTo("수정 본문");
         assertThat(imageCount).isEqualTo(2);
         assertThat(oldImageCount).isZero();
-        assertThat(detachedOldImageCount).isEqualTo(2);
+        assertThat(deletedOldImageCount).isZero();
         assertThat(thumbnailUrl).isEqualTo("https://example.com/new-thumbnail.png");
     }
 
@@ -913,7 +942,7 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.errors[0].code").value("EMPTY_IMAGE_ORDER"));
     }
 
-    // 실패 케이스: 수정 요청의 썸네일이 2개 이상이면 MULTIPLE_THUMBNAILS를 반환한다.
+    // 실패 케이스: 수정 요청의 썸네일이 2개 이상이면 MULTIPLE_THUMBNAIL을 반환한다.
     @Test
     void updatePostRejectsMultipleThumbnails() throws Exception {
         stubAuthenticatedUser();
@@ -938,7 +967,7 @@ class PostControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT_VALUE"))
                 .andExpect(jsonPath("$.errors[0].field").value("images"))
-                .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_THUMBNAILS"));
+                .andExpect(jsonPath("$.errors[0].code").value("MULTIPLE_THUMBNAIL"));
     }
 
     // 정상 케이스: 비회원도 게시글 상세 정보를 조회할 수 있다.
@@ -1776,6 +1805,11 @@ class PostControllerTest {
                 0,
                 now
         );
+    }
+
+    private void stubImageMetadata(String imageUrl, String contentType, Long sizeBytes) {
+        when(s3StorageService.findImageMetadata(imageUrl))
+                .thenReturn(Optional.of(new S3StorageService.ImageMetadata(contentType, sizeBytes)));
     }
 
     private void insertPostVote(Long userId, Long postId, String myVote, LocalDateTime now) {

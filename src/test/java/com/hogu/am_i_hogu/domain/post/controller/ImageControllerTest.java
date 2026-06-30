@@ -7,13 +7,10 @@ import com.hogu.am_i_hogu.common.security.JwtProvider;
 import com.hogu.am_i_hogu.common.security.SecurityConfig;
 import com.hogu.am_i_hogu.common.storage.S3StorageService;
 import com.hogu.am_i_hogu.common.util.TsidGenerator;
-import com.hogu.am_i_hogu.domain.post.domain.ImageAsset;
-import com.hogu.am_i_hogu.domain.post.repository.ImageAssetRepository;
 import com.hogu.am_i_hogu.domain.post.service.ImageUploadService;
 import com.hogu.am_i_hogu.domain.user.domain.User;
 import com.hogu.am_i_hogu.domain.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -24,14 +21,12 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -60,27 +55,23 @@ class ImageControllerTest {
     @MockitoBean
     private S3StorageService s3StorageService;
 
-    @MockitoBean
-    private ImageAssetRepository imageAssetRepository;
-
-    // 정상 케이스: jpg 이미지 파일을 업로드하면 200 OK와 CloudFront imageUrl을 반환한다.
+    // 정상 케이스: jpg 이미지 파일을 S3에 업로드하면 DB 저장 없이 200 OK와 CloudFront imageUrl을 반환한다.
     @Test
     void uploadImageReturnsS3ImageUrl() throws Exception {
-        User uploader = mock(User.class);
         when(jwtProvider.validateAccessToken("valid-token"))
                 .thenReturn(JwtProvider.TokenValidationResult.VALID);
         when(jwtProvider.getSubjectAsLong("valid-token"))
                 .thenReturn(1L);
         when(userRepository.findByIdAndIsDeletedFalse(1L))
-                .thenReturn(Optional.of(uploader));
+                .thenReturn(Optional.of(new User(1L, "hogu", false, LocalDateTime.now())));
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",
                 null,
                 Collections.emptyList()
         ));
-        when(s3StorageService.upload(org.mockito.ArgumentMatchers.startsWith("images/posts/"), any()))
-                .thenReturn("https://d111111abcdef8.cloudfront.net/images/posts/1.jpg");
+        when(s3StorageService.upload(org.mockito.ArgumentMatchers.startsWith("images/"), any()))
+                .thenReturn("https://d111111abcdef8.cloudfront.net/images/1.jpg");
 
         MockMultipartFile image = new MockMultipartFile(
                 "image",
@@ -93,16 +84,7 @@ class ImageControllerTest {
                         .file(image)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.imageUrl", startsWith("https://d111111abcdef8.cloudfront.net/images/posts/")));
-
-        ArgumentCaptor<ImageAsset> imageAssetCaptor = ArgumentCaptor.forClass(ImageAsset.class);
-        verify(imageAssetRepository).save(imageAssetCaptor.capture());
-        ImageAsset imageAsset = imageAssetCaptor.getValue();
-        assertThat(imageAsset.getUploadedByUser()).isSameAs(uploader);
-        assertThat(imageAsset.getPost()).isNull();
-        assertThat(imageAsset.getUrl()).isEqualTo("https://d111111abcdef8.cloudfront.net/images/posts/1.jpg");
-        assertThat(imageAsset.getContentType()).isEqualTo(MediaType.IMAGE_JPEG_VALUE);
-        assertThat(imageAsset.getSizeBytes()).isEqualTo((long) "image-content".getBytes().length);
+                .andExpect(jsonPath("$.imageUrl", startsWith("https://d111111abcdef8.cloudfront.net/images/")));
     }
 
     // 실패 케이스: multipart 요청에 image 파일이 없으면 400 Bad Request와 EMPTY_IMAGE_FILE을 반환한다.
@@ -113,7 +95,7 @@ class ImageControllerTest {
         when(jwtProvider.getSubjectAsLong("valid-token"))
                 .thenReturn(1L);
         when(userRepository.findByIdAndIsDeletedFalse(1L))
-                .thenReturn(Optional.of(mock(User.class)));
+                .thenReturn(Optional.of(new User(1L, "hogu", false, LocalDateTime.now())));
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",
@@ -135,7 +117,7 @@ class ImageControllerTest {
         when(jwtProvider.getSubjectAsLong("valid-token"))
                 .thenReturn(1L);
         when(userRepository.findByIdAndIsDeletedFalse(1L))
-                .thenReturn(Optional.of(mock(User.class)));
+                .thenReturn(Optional.of(new User(1L, "hogu", false, LocalDateTime.now())));
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",
@@ -165,7 +147,7 @@ class ImageControllerTest {
         when(jwtProvider.getSubjectAsLong("valid-token"))
                 .thenReturn(1L);
         when(userRepository.findByIdAndIsDeletedFalse(1L))
-                .thenReturn(Optional.of(mock(User.class)));
+                .thenReturn(Optional.of(new User(1L, "hogu", false, LocalDateTime.now())));
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",
@@ -195,7 +177,7 @@ class ImageControllerTest {
         when(jwtProvider.getSubjectAsLong("valid-token"))
                 .thenReturn(1L);
         when(userRepository.findByIdAndIsDeletedFalse(1L))
-                .thenReturn(Optional.of(mock(User.class)));
+                .thenReturn(Optional.of(new User(1L, "hogu", false, LocalDateTime.now())));
         when(jwtProvider.getAuthentication("valid-token"))
                 .thenReturn(new UsernamePasswordAuthenticationToken(
                         "1",

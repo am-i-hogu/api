@@ -1,6 +1,7 @@
 package com.hogu.am_i_hogu.domain.user.controller;
 
 import com.hogu.am_i_hogu.common.security.JwtProvider;
+import com.hogu.am_i_hogu.common.storage.S3StorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,7 @@ import com.jayway.jsonpath.JsonPath;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.hamcrest.Matchers.startsWith;
@@ -60,6 +62,9 @@ public class UserControllerTest {
 
     @MockitoBean
     private JwtProvider jwtProvider;
+
+    @MockitoBean
+    private S3StorageService s3StorageService;
 
     @BeforeEach
     void setUp() {
@@ -127,6 +132,7 @@ public class UserControllerTest {
     void updateProfileReturns200WhenProfileImageIsUpdated() throws Exception {
         stubAuthenticatedUser();
         insertUser(1L, "nickname", null);
+        stubImageMetadata("http://localhost:8080/temporary/images/1/profile-image.jpg");
 
         String requestBody = """
                 {
@@ -168,6 +174,7 @@ public class UserControllerTest {
     void updateProfileReturns200WhenNicknameAndProfileImageAreUpdated() throws Exception {
         stubAuthenticatedUser();
         insertUser(1L, "oldNickname", null);
+        stubImageMetadata("http://localhost:8080/temporary/images/1/profile-image.jpg");
 
         String requestBody = """
                 {
@@ -1546,5 +1553,10 @@ public class UserControllerTest {
                 now,
                 votedPostCount
         );
+    }
+
+    private void stubImageMetadata(String imageUrl) {
+        when(s3StorageService.findImageMetadata(imageUrl))
+                .thenReturn(Optional.of(new S3StorageService.ImageMetadata("image/jpeg", 10L)));
     }
 }
