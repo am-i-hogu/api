@@ -12,6 +12,8 @@ import java.util.List;
 public interface ImageAssetRepository extends JpaRepository<ImageAsset, Long> {
     List<ImageAsset> findByPost_IdOrderBySortOrderAsc(Long postId);
 
+    boolean existsByUrl(String url);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     List<ImageAsset> findAllWithLockByUrlInOrderByUrlAsc(List<String> urls);
 }
