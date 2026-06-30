@@ -165,7 +165,6 @@ public class ProfileUpdateService {
             return;
         }
 
-        // TODO: S3 연결 후 이미지 url 유효성 검증 추가
         // url 형식이 올바르지 않은 경우
         if (!isValidImageUrl(profileImageUrl)) {
             errors.add(new ErrorResponse.ErrorDetail(
